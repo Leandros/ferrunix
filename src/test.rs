@@ -2,6 +2,18 @@ use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
+use once_cell::sync::OnceCell;
+use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+use thiserror::Error;
+
+static DEFAULT_REGISTRY: OnceCell<RwLock<Registry>> = OnceCell::new();
+
+#[derive(Debug, Error)]
+pub enum RegistryError {
+    #[error("already a default registry set for this process")]
+    DefaultAlreadySet,
+}
+
 pub trait Dep {
     fn new(registry: &Registry) -> Self;
 }
@@ -64,7 +76,7 @@ DepBuilderImpl!(2, { T1, T2 }, (T1, T2));
 DepBuilderImpl!(3, { T1, T2, T3 }, (T1, T2, T3));
 
 pub struct Ctor {
-    ctor: Box<dyn Fn(&Registry) -> Box<dyn Any + Send + Sync>>,
+    ctor: Box<dyn Fn(&Registry) -> Box<dyn Any + Send + Sync> + Send + Sync>,
 }
 
 pub struct Registry {
@@ -114,6 +126,23 @@ impl Registry {
             _marker1: PhantomData,
         }
     }
+
+    pub fn current() -> RwLockReadGuard<'static, Self> {
+        DEFAULT_REGISTRY.get().unwrap().read()
+    }
+
+    pub fn current_mut() -> RwLockWriteGuard<'static, Self> {
+        DEFAULT_REGISTRY.get().unwrap().write()
+    }
+
+    pub fn make_current(self) -> Result<(), RegistryError> {
+        let res = DEFAULT_REGISTRY.set(RwLock::new(self));
+        if res.is_err() {
+            Err(RegistryError::DefaultAlreadySet)
+        } else {
+            Ok(())
+        }
+    }
 }
 
 pub struct Builder<'a, T, Deps> {
@@ -142,7 +171,27 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::ffi::OsStr;
+
     use super::*;
+
+    trait Env {
+        fn get(&self, var: &str) -> Option<String>;
+    }
+
+    struct RealEnv {}
+    impl Env for RealEnv {
+        fn get(&self, var: &str) -> Option<String> {
+            std::env::var(var).ok()
+        }
+    }
+
+    struct MockEnv {}
+    impl Env for MockEnv {
+        fn get(&self, _var: &str) -> Option<String> {
+            Some("TEST".to_owned())
+        }
+    }
 
     #[test]
     fn test_new() {
@@ -164,7 +213,7 @@ mod tests {
 
         registry
             .with_deps::<_, (Transient<u8>, Transient<u16>)>()
-            .transient(|(i,j)| {
+            .transient(|(i, j)| {
                 let i = i.get();
                 let j = j.get();
                 u32::from(i) + u32::from(j) + 1_u32
@@ -172,5 +221,15 @@ mod tests {
 
         let x2 = registry.get_transient::<u32>();
         assert_eq!(x2, Some(4_u32));
+
+        registry.make_current().unwrap();
+
+        Registry::current_mut().transient(|| -1_i8);
+        let x3 = Registry::current().get_transient::<i8>();
+        assert_eq!(x3, Some(-1_i8));
+
+        Registry::current_mut().transient::<Box<dyn Env + Send + Sync>>(|| Box::new(RealEnv {}));
+        let env = Registry::current().get_transient::<Box<dyn Env + Send + Sync>>();
+        assert!(env.is_some());
     }
 }
