@@ -169,7 +169,9 @@ dependencies = [
  "prettyplease",
  "proc-macro2",
  "quote",
+ "rusty-injector",
  "syn",
+ "thiserror",
 ]
 
 [[package]]

@@ -1,36 +1,41 @@
-use darling::{FromDeriveInput, FromField};
+use darling::{util, FromDeriveInput, FromField};
 use quote::quote;
 use syn::{parse_macro_input, DeriveInput};
 
 #[derive(Debug, FromField)]
 #[darling(attributes(inject), forward_attrs(allow, doc, cfg))]
-struct Attrs {
+struct DeriveField {
     // Magic types:
     ident: Option<syn::Ident>,
-    attrs: Vec<syn::Attribute>,
     ty: syn::Type,
+    // attrs: Vec<syn::Attribute>,
+
     // Custom:
+    inject: Option<bool>,
 }
 
 #[derive(Debug, FromDeriveInput)]
 #[darling(attributes(inject))]
 struct DeriveAttrInput {
-    /// The struct ident.
+    // Magic types:
     ident: syn::Ident,
+    // generics: syn::Generics,
+    data: darling::ast::Data<util::Ignored, DeriveField>,
+    // attrs: Vec<syn::Attribute>,
 
-    /// The type's generics. You'll need these any time your trait is expected
-    /// to work with types that declare generics.
-    generics: syn::Generics,
-
-    // Receives the body of the struct or enum. We don't care about
-    // struct fields because we previously told darling we only accept structs.
-    data: darling::ast::Data<(), Attrs>,
+    // Custom:
+    inject: Option<bool>,
 }
 
 #[proc_macro_derive(Inject, attributes(inject))]
 pub fn derive_inject(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     // Parse the input tokens into a syntax tree
     let input = parse_macro_input!(input as DeriveInput);
+    // eprintln!("input: {input:#?}");
+
+    // let attr_input = DeriveAttrInput::from_derive_input(&input).unwrap();
+    // eprintln!("attr_input: {attr_input:#?}");
+
 
     let expanded = quote! {
         fn foo() -> i32 { 42 }

@@ -4,3 +4,7 @@ members = [
     "rusty-injector",
     "rusty-injector-macros",
 ]
+
+[workspace.dependencies]
+rusty-injector = { path = "./rusty-injector" }
+rusty-injector-macros = { path = "./rusty-injector-macros" }

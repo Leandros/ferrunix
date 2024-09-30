@@ -4,10 +4,89 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use once_cell::sync::OnceCell;
-use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+use parking_lot::{
+    MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard,
+};
 use thiserror::Error;
 
 static DEFAULT_REGISTRY: OnceCell<RwLock<Registry>> = OnceCell::new();
+
+#[derive(Debug, Error)]
+pub enum ResolveError {
+    #[error("lock couldn't be acquired")]
+    LockAcquire,
+    #[error("couldn't resolve dependencies")]
+    DependenciesMissing,
+}
+
+#[derive(Debug)]
+pub struct LazyTransient<T> {
+    inner: RwLock<Option<T>>,
+}
+
+impl<T> Default for LazyTransient<T>
+where
+    T: Send + Sync + 'static,
+{
+    fn default() -> Self {
+        Self {
+            inner: Default::default(),
+        }
+    }
+}
+
+impl<T> LazyTransient<T>
+where
+    T: Send + Sync + 'static,
+{
+    pub fn resolved() -> Self {
+        Self::resolved_with(&Registry::current())
+    }
+
+    pub fn resolved_with(registry: &Registry) -> Self {
+        registry
+            .get_transient::<T>()
+            .map(|inner| Self {
+                inner: RwLock::new(Some(inner)),
+            })
+            .unwrap()
+    }
+
+    pub fn resolve(&self) -> Result<(), ResolveError> {
+        self.resolve_with(&Registry::current())
+    }
+
+    pub fn resolve_with(&self, registry: &Registry) -> Result<(), ResolveError> {
+        match self.inner.try_write() {
+            Some(mut lockguard) => match registry.get_transient::<T>() {
+                Some(obj) => {
+                    *lockguard = Some(obj);
+                    Ok(())
+                }
+
+                None => Err(ResolveError::DependenciesMissing),
+            },
+
+            None => Err(ResolveError::LockAcquire),
+        }
+    }
+
+    pub fn get(&self) -> MappedRwLockReadGuard<'_, T> {
+        if self.inner.read().is_none() {
+            self.resolve().expect("Deref for LazyTransient<T>");
+        }
+
+        RwLockReadGuard::map(self.inner.read(), |el| el.as_ref().unwrap())
+    }
+
+    pub fn get_mut(&mut self) -> MappedRwLockWriteGuard<'_, T> {
+        if self.inner.read().is_none() {
+            self.resolve().expect("Deref for LazyTransient<T>");
+        }
+
+        RwLockWriteGuard::map(self.inner.write(), |el| el.as_mut().unwrap())
+    }
+}
 
 #[derive(Debug, Error)]
 pub enum RegistryError {
@@ -320,6 +399,5 @@ mod tests {
         assert_eq!(*x2.unwrap(), 8_i8);
         let x3 = registry.get_singleton::<i32>();
         assert_eq!(*x3.unwrap(), 9_i32);
-
     }
 }

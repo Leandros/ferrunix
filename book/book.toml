@@ -1,0 +1,6 @@
+[book]
+authors = ["Arvid Gerstmann"]
+language = "en"
+multilingual = false
+src = "src"
+title = "Rusty Injector Documentation"

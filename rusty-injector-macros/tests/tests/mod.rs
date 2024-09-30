@@ -1,1 +1,2 @@
-pub mod test1;
+pub mod test_derive;
+pub mod test_manual;

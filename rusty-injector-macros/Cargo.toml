@@ -7,8 +7,13 @@ edition = "2021"
 proc-macro = true
 
 [dependencies]
-syn = "2"
+rusty-injector.workspace = true
+
+syn = { version = "2", features = ["extra-traits"] }
 proc-macro2 = "1"
 quote = "1"
 prettyplease = "0.2"
 darling = "0.20"
+
+[dev-dependencies]
+thiserror = "1"
