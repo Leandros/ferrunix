@@ -1,0 +1,9 @@
+[package]
+name = "rusty-injector"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+once_cell = { version = "1", features = ["parking_lot"] }
+parking_lot = "0.12"
+thiserror = "1"
