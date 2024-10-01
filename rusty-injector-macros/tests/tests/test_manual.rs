@@ -1,28 +1,17 @@
-use rusty_injector::{LazyTransient, Registry, Transient};
-use rusty_injector_macros::Inject;
-use thiserror::Error;
+use super::common::*;
+use rusty_injector::{Registry, Transient};
 
-#[derive(Debug, Error)]
-pub enum Error {
-    #[error("charge error")]
-    ChargeError,
-}
-
-#[derive(Debug, Default)]
-pub struct Receipt(pub i32);
-
-#[derive(Debug, Default)]
-pub struct PizzaOrder(pub i32);
-
-#[derive(Debug, Default)]
-pub struct CreditCard {
-    pub crc: String,
-    pub expiry_month: u16,
-    pub expiry_year: u16,
+pub trait BillingService: Send + Sync {
+    fn charge_order(&self, order: PizzaOrder, creditcard: &CreditCard) -> Result<Receipt, Error>;
 }
 
 pub trait CreditCardProcessor: Send + Sync {
     fn charge(&self, creditcard: &CreditCard, amount: i32) -> Result<i32, Error>;
+}
+
+pub trait TransactionLog: Send + Sync {
+    fn log_charge(&self, amount: i32);
+    fn log_error(&self, err: &Error);
 }
 
 #[derive(Debug, Default)]
@@ -33,11 +22,6 @@ impl CreditCardProcessor for PaypalCreditCardProcessor {
         println!("charging {creditcard:?} for {amount} via PayPal");
         Ok(amount)
     }
-}
-
-pub trait TransactionLog: Send + Sync {
-    fn log_charge(&self, amount: i32);
-    fn log_error(&self, err: &Error);
 }
 
 #[derive(Debug, Default)]
@@ -51,10 +35,6 @@ impl TransactionLog for RealTransactionLog {
     fn log_error(&self, err: &Error) {
         eprintln!("error: charging creditcard: {err:?}");
     }
-}
-
-pub trait BillingService: Send + Sync {
-    fn charge_order(&self, order: PizzaOrder, creditcard: &CreditCard) -> Result<Receipt, Error>;
 }
 
 pub struct RealBillingService {
