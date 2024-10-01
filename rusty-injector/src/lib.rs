@@ -1,305 +1,40 @@
-use std::any::{Any, TypeId};
-use std::collections::HashMap;
-use std::marker::PhantomData;
-use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 use once_cell::sync::OnceCell;
-use parking_lot::{
-    MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard,
-};
-use thiserror::Error;
 
 static DEFAULT_REGISTRY: OnceCell<RwLock<Registry>> = OnceCell::new();
+static AUTOREGISTERED: AtomicBool = AtomicBool::new(false);
 
-#[derive(Debug, Error)]
-pub enum ResolveError {
-    #[error("lock couldn't be acquired")]
-    LockAcquire,
-    #[error("couldn't resolve dependencies")]
-    DependenciesMissing,
-}
+pub struct RegistrationFunc(pub fn(&mut Registry));
 
-#[derive(Debug)]
-pub struct LazyTransient<T> {
-    inner: RwLock<Option<T>>,
-}
+inventory::collect!(RegistrationFunc);
 
-impl<T> Default for LazyTransient<T>
-where
-    T: Send + Sync + 'static,
-{
-    fn default() -> Self {
-        Self {
-            inner: Default::default(),
-        }
-    }
-}
+pub type RwLock<T> = parking_lot::RwLock<T>;
+pub type MappedRwLockReadGuard<'a, T> = parking_lot::MappedRwLockReadGuard<'a, T>;
+pub type MappedRwLockWriteGuard<'a, T> = parking_lot::MappedRwLockWriteGuard<'a, T>;
+pub type RwLockReadGuard<'a, T> = parking_lot::RwLockReadGuard<'a, T>;
+pub type RwLockWriteGuard<'a, T> = parking_lot::RwLockWriteGuard<'a, T>;
 
-impl<T> LazyTransient<T>
-where
-    T: Send + Sync + 'static,
-{
-    pub fn resolved() -> Self {
-        Self::resolved_with(&Registry::current())
-    }
+pub type Arc<T> = std::sync::Arc<T>;
+pub type HashMap<K, V> = std::collections::HashMap<K, V>;
 
-    pub fn resolved_with(registry: &Registry) -> Self {
-        registry
-            .get_transient::<T>()
-            .map(|inner| Self {
-                inner: RwLock::new(Some(inner)),
-            })
-            .unwrap()
-    }
+pub mod dependencies;
+pub mod dependency_builder;
+pub mod error;
+pub mod lazy_singleton;
+pub mod lazy_transient;
+pub mod registry;
 
-    pub fn resolve(&self) -> Result<(), ResolveError> {
-        self.resolve_with(&Registry::current())
-    }
+pub use dependencies::Singleton;
+pub use dependencies::Transient;
+pub use registry::Registry;
 
-    pub fn resolve_with(&self, registry: &Registry) -> Result<(), ResolveError> {
-        match self.inner.try_write() {
-            Some(mut lockguard) => match registry.get_transient::<T>() {
-                Some(obj) => {
-                    *lockguard = Some(obj);
-                    Ok(())
-                }
-
-                None => Err(ResolveError::DependenciesMissing),
-            },
-
-            None => Err(ResolveError::LockAcquire),
-        }
-    }
-
-    pub fn get(&self) -> MappedRwLockReadGuard<'_, T> {
-        if self.inner.read().is_none() {
-            self.resolve().expect("Deref for LazyTransient<T>");
-        }
-
-        RwLockReadGuard::map(self.inner.read(), |el| el.as_ref().unwrap())
-    }
-
-    pub fn get_mut(&mut self) -> MappedRwLockWriteGuard<'_, T> {
-        if self.inner.read().is_none() {
-            self.resolve().expect("Deref for LazyTransient<T>");
-        }
-
-        RwLockWriteGuard::map(self.inner.write(), |el| el.as_mut().unwrap())
-    }
-}
-
-#[derive(Debug, Error)]
-pub enum RegistryError {
-    #[error("already a default registry set for this process")]
-    DefaultAlreadySet,
-}
-
-pub trait Dep {
-    fn new(registry: &Registry) -> Self;
-}
-
-pub struct Transient<T> {
-    inner: T,
-}
-
-impl<T: Send + Sync + 'static> Transient<T> {
-    pub fn get(self) -> T {
-        self.inner
-    }
-}
-
-impl<T: Send + Sync + 'static> Dep for Transient<T> {
-    fn new(registry: &Registry) -> Self {
-        Self {
-            inner: registry.get_transient::<T>().unwrap(),
-        }
-    }
-}
-
-pub struct Singleton<T> {
-    inner: Arc<T>,
-}
-
-impl<T: Send + Sync + 'static> Singleton<T> {
-    pub fn get(self) -> Arc<T> {
-        self.inner
-    }
-}
-
-impl<T: Send + Sync + 'static> Dep for Singleton<T> {
-    fn new(registry: &Registry) -> Self {
-        Self {
-            inner: registry.get_singleton::<T>().unwrap(),
-        }
-    }
-}
-
-pub trait DepBuilder<R> {
-    fn build(registry: &Registry, ctor: fn(Self) -> R) -> R;
-    fn as_typeids(&self) -> Vec<TypeId>;
-}
-
-impl<R: Send + Sync + 'static> DepBuilder<R> for () {
-    fn build(_registry: &Registry, ctor: fn(Self) -> R) -> R {
-        ctor(())
-    }
-
-    fn as_typeids(&self) -> Vec<TypeId> {
-        Vec::new()
-    }
-}
-
-macro_rules! DepBuilderImpl {
-    ($n:expr, { $($ts:ident),+ }, $ty:ty) => {
-        impl<R: Send + Sync + 'static, $($ts: Dep + Send + Sync + 'static,)*> DepBuilder<R> for $ty {
-            fn build(registry: &Registry, ctor: fn(Self) -> R) -> R {
-                ctor(
-                    (
-                        $(
-                            <$ts>::new(registry),
-                        )*
-                    )
-                )
-            }
-
-            fn as_typeids(&self) -> Vec<TypeId> {
-                vec![ $(TypeId::of::<$ts>(),)* ]
-            }
-        }
-    };
-}
-
-DepBuilderImpl!(1, { T1 }, (T1,));
-DepBuilderImpl!(2, { T1, T2 }, (T1, T2));
-DepBuilderImpl!(3, { T1, T2, T3 }, (T1, T2, T3));
-
-type BoxedCtor = Box<dyn Fn(&Registry) -> Box<dyn Any + Send + Sync> + Send + Sync>;
-
-pub enum Object {
-    Transient(BoxedCtor),
-    Singleton(Arc<dyn Any + Send + Sync>),
-}
-
-#[derive(Default)]
-pub struct Registry {
-    objects: HashMap<std::any::TypeId, Object>,
-}
-
-impl Registry {
-    pub fn new() -> Registry {
-        Registry {
-            objects: HashMap::new(),
-        }
-    }
-
-    pub fn transient<T>(&mut self, ctor: fn() -> T)
-    where
-        T: Send + Sync + 'static,
-    {
-        self.objects.insert(
-            TypeId::of::<T>(),
-            Object::Transient(Box::new(move |_| -> Box<dyn Any + Send + Sync> {
-                let obj = ctor();
-                Box::new(obj)
-            })),
-        );
-    }
-
-    pub fn singleton<T>(&mut self, singleton: T)
-    where
-        T: Send + Sync + 'static,
-    {
-        self.objects
-            .insert(TypeId::of::<T>(), Object::Singleton(Arc::new(singleton)));
-    }
-
-    pub fn get_transient<T>(&self) -> Option<T>
-    where
-        T: Send + Sync + 'static,
-    {
-        if let Some(Object::Transient(ctor)) = self.objects.get(&TypeId::of::<T>()) {
-            let boxed = (ctor)(self);
-            if let Ok(obj) = boxed.downcast::<T>() {
-                return Some(*obj);
-            }
-        }
-
-        None
-    }
-
-    pub fn get_singleton<T>(&self) -> Option<Arc<T>>
-    where
-        T: Send + Sync + 'static,
-    {
-        if let Some(Object::Singleton(singleton)) = self.objects.get(&TypeId::of::<T>()) {
-            if let Ok(obj) = Arc::clone(singleton).downcast::<T>() {
-                return Some(obj);
-            }
-        }
-
-        None
-    }
-
-    pub fn with_deps<T, Deps>(&mut self) -> Builder<T, Deps>
-    where
-        Deps: DepBuilder<T>,
-    {
-        Builder {
-            registry: self,
-            _marker: PhantomData,
-            _marker1: PhantomData,
-        }
-    }
-
-    pub fn current() -> RwLockReadGuard<'static, Self> {
-        DEFAULT_REGISTRY.get().unwrap().read()
-    }
-
-    pub fn current_mut() -> RwLockWriteGuard<'static, Self> {
-        DEFAULT_REGISTRY.get().unwrap().write()
-    }
-
-    pub fn make_current(self) -> Result<(), RegistryError> {
-        let res = DEFAULT_REGISTRY.set(RwLock::new(self));
-        if res.is_err() {
-            Err(RegistryError::DefaultAlreadySet)
-        } else {
-            Ok(())
-        }
-    }
-}
-
-pub struct Builder<'a, T, Deps> {
-    registry: &'a mut Registry,
-    _marker: PhantomData<T>,
-    _marker1: PhantomData<Deps>,
-}
-
-impl<'a, T, Deps> Builder<'a, T, Deps>
-where
-    Deps: DepBuilder<T> + 'static,
-    T: Send + Sync + 'static,
-{
-    pub fn transient(&mut self, ctor: fn(Deps) -> T) {
-        self.registry.objects.insert(
-            TypeId::of::<T>(),
-            Object::Transient(Box::new(move |this| -> Box<dyn Any + Send + Sync> {
-                let obj = Deps::build(this, ctor);
-                Box::new(obj)
-            })),
-        );
-    }
-
-    pub fn singleton(&mut self, ctor: fn(Deps) -> T) {
-        let obj = Deps::build(self.registry, ctor);
-        self.registry
-            .objects
-            .insert(TypeId::of::<T>(), Object::Singleton(Arc::new(obj)));
-    }
-}
+pub use inventory::submit as inventory_submit;
 
 #[cfg(test)]
 mod tests {
+    use self::dependencies::{Singleton, Transient};
+
     use super::*;
 
     trait Env {
