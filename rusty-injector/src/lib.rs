@@ -33,6 +33,7 @@ pub use inventory::submit as inventory_submit;
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used, dead_code)]
     use self::dependencies::{Singleton, Transient};
 
     use super::*;

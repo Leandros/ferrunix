@@ -5,6 +5,361 @@ members = [
     "rusty-injector-macros",
 ]
 
+[workspace.package]
+rust-version = "1.62"
+edition = "2021"
+authors = ["Arvid Gerstmann <github@arvid.io>"]
+homepage = "https://github.com/Leandros/rusty-injector"
+repository = "https://github.com/Leandros/rusty-injector"
+readme = "README.md"
+license = "MIT OR Apache-2.0"
+keywords = ["dependency-injection", "inversion-of-control", "dependency-inversion", "di", "ioc"]
+categories = ["development-tools", "rust-patterns", "config", "data-structures"]
+
 [workspace.dependencies]
 rusty-injector = { path = "./rusty-injector" }
 rusty-injector-macros = { path = "./rusty-injector-macros" }
+
+# Lints from compiler.
+[workspace.lints.rust]
+# Lint groups
+rust_2024_compatibility = { level = "warn", priority = -1 }
+rust_2018_idioms = { level = "warn", priority = -1 }
+keyword_idents = { level = "warn", priority = -1 }
+
+unsafe_code = "warn"
+missing_docs = "warn"
+missing_copy_implementations = "warn"
+missing_debug_implementations = "warn"
+non_ascii_idents = "warn"
+noop_method_call = "warn"
+elided_lifetimes_in_paths = "warn"
+explicit_outlives_requirements = "warn"
+unsafe_op_in_unsafe_fn = "warn"
+unused_extern_crates = "warn"
+unused_lifetimes = "warn"
+
+# Lints from Clippy: <https://rust-lang.github.io/rust-clippy/master/index.html>
+[workspace.lints.clippy]
+
+## lint groups
+###############################################################################
+# This is the default from clippy.
+# ("nursery" and "pedantic" are "allow" by default)
+correctness = { level = "deny", priority = -1 }
+perf        = { level = "deny", priority = -1 }
+complexity  = { level = "warn", priority = -1 }
+style       = { level = "warn", priority = -1 }
+suspicious  = { level = "warn", priority = -1 }
+restriction = { level = "allow", priority = -1 }
+
+## deny the following lints:
+###############################################################################
+# ("forbid" is a level above "deny" and won't allow override in the code)
+unwrap_used = "deny" # using `.unwrap()` on `Result` or `Option`, which should at least get a better message using `expect()`
+panic       = "deny" # usage of the `panic!` macro
+
+## allow following lints:
+###############################################################################
+new_ret_no_self  = "allow" # Builder pattern disagrees
+useless_asref    = "allow" # Has a bunch of false positives
+assigning_clones = "allow" # Has false positives
+unwrap_in_result = "allow" # functions of type `Result<..>` or `Option`<...> that contain `expect()` or `unwrap()`
+
+# Might trigger false positives or are simply undesired:
+empty_line_after_doc_comments   = "allow" # empty line after documentation comments
+empty_line_after_outer_attr     = "allow" # empty line after outer attribute
+arithmetic_side_effects         = "allow" # any arithmetic expression that can cause side effects like overflows or panics
+as_conversions                  = "allow" # using a potentially dangerous silent `as` conversion
+cargo_common_metadata           = "allow" # common metadata is defined in `Cargo.toml`
+cast_possible_truncation        = "allow" # casts that may cause truncation of the value, e.g., `x as u8` where `x: u32`, or `x as i32` where `x: f32`
+cast_possible_wrap              = "allow" # casts that may cause wrapping around the value, e.g., `x as i32` where `x: u32` and `x > i32::MAX`
+cast_sign_loss                  = "allow" # casts from signed types to unsigned types, e.g., `x as u32` where `x: i32`
+checked_conversions             = "allow" # `try_from` could replace manual bounds checking when casting
+default_trait_access            = "allow" # checks for literal calls to `Default::default()`
+deref_by_slicing                = "allow" # slicing instead of dereferencing
+else_if_without_else            = "allow" # `if` expression with an `else if`, but without a final `else` branch
+empty_structs_with_brackets     = "allow" # finds struct declarations with empty brackets
+float_arithmetic                = "allow" # any floating-point arithmetic statement
+inline_asm_x86_intel_syntax     = "allow" # prefer AT&T x86 assembly syntax
+integer_division                = "allow" # integer division may cause loss of precision
+integer_division_remainder_used = "allow" # use of disallowed default division and remainder operations
+iter_over_hash_type             = "allow" # iterating over unordered hash-based types (`HashMap` and `HashSet`)
+let_underscore_untyped          = "allow" # non-binding `let` without a type annotation
+missing_asserts_for_indexing    = "allow" # indexing into a slice multiple times without an `assert`
+missing_fields_in_debug         = "allow" # missing fields in manual `Debug` implementation
+missing_const_for_fn            = "allow" # Lint functions definitions that could be made `const fn`
+missing_inline_in_public_items  = "allow" # detects missing `# [inline]` attribute for public callables (functions, trait methods, methods...)
+mixed_read_write_in_expression  = "allow" # whether a variable read occurs before a write depends on sub-expression evaluation order
+modulo_arithmetic               = "allow" # any modulo arithmetic statement
+mod_module_files                = "allow" # we still use the old `mod.rs` layout
+multiple_crate_versions         = "allow" # multiple versions of the same crate being used
+must_use_candidate              = "allow" # function or method that could take a `# [must_use]` attribute
+mutex_atomic                    = "allow" # using a mutex where an atomic value could be used instead.
+mutex_integer                   = "allow" # using a mutex for an integer type
+panic_in_result_fn              = "allow" # functions of type `Result<..>` that contain `panic!()` or assertion
+pub_with_shorthand              = "allow" # disallows usage of `pub(<loc>)`, without `in`
+range_minus_one                 = "allow" # `x..=(y-1)` reads better as `x..y`
+range_plus_one                  = "allow" # `x..(y+1)` reads better as `x..=y`
+shadow_reuse                    = "allow" # rebinding a name to an expression that re-uses the original value, e.g., `let x = x + 1`
+single_call_fn                  = "allow" # checks for functions that are only used once
+separated_literal_suffix        = "allow" # literals whose suffix is separated by an underscore
+semicolon_outside_block         = "allow" # add a semicolon outside the block
+std_instead_of_alloc            = "allow" # type is imported from std when available in alloc
+std_instead_of_core             = "allow" # type is imported from std when available in core
+trivial_regex                   = "allow" # trivial regular expressions
+unreachable                     = "allow" # usage of the `unreachable!` macro
+verbose_bit_mask                = "allow" # expressions where a bit mask is less readable than the corresponding method call
+zero_sized_map_values           = "allow" # usage of map with zero-sized value type
+implicit_return                 = "allow" # use a return statement like `return expr` instead of an expression
+print_stdout                    = "allow" # printing to stdout
+print_stderr                    = "allow" # printing to stderr
+question_mark_used              = "allow" # complains if the question mark operator is used
+redundant_pub_crate             = "allow" # Using `pub(crate)` visibility on items that are not crate visible due to the visibility of the module that contains them.
+pub_use                         = "allow" # restricts the usage of `pub use`
+module_name_repetitions         = "allow" # type names prefixed/postfixed with their containing module's name
+ignored_unit_patterns           = "allow" # suggest replacing `_` by `()` in patterns where appropriate
+ref_patterns                    = "allow" # use of a ref pattern, e.g. Some(ref value)
+pattern_type_mismatch           = "allow" # type of pattern does not match the expression type
+missing_trait_methods           = "allow" # trait implementation uses default provided method
+
+# Too many false-positives.
+
+# It depends:
+big_endian_bytes        = "allow" # disallows usage of the `to_be_bytes` method
+host_endian_bytes       = "allow" # disallows usage of the `to_ne_bytes` method
+little_endian_bytes     = "allow" # disallows usage of the `to_le_bytes` method
+wildcard_enum_match_arm = "allow" # a wildcard enum match arm using `_`
+
+# Relevant for library crates.
+exhaustive_enums   = "warn" # detects exported enums that have not been marked #[non_exhaustive]
+exhaustive_structs = "warn" # detects exported structs that have not been marked #[non_exhaustive]
+
+# Enable once `#[expect]` is supported more widely:
+allow_attributes = "allow" # `# [allow]` will not trigger if a warning isn't found. `#[expect]` triggers if there are no warnings.
+# Enable once lint reasons are stabilized
+allow_attributes_without_reason = "allow" # ensures that all `allow` and `expect` attributes have a reason
+
+# For now, we'll allow calls to `.expect()`:
+expect_used = "allow" # using `.expect()` on `Result` or `Option`, which might be better handled
+
+
+## warn at following lints:
+###############################################################################
+dbg_macro     = "warn" # `dbg!` macro left in code
+todo          = "warn" # `todo!` should be removed before production
+unimplemented = "warn" # `unimplemented!` should not be present in production code
+
+# pedantic/nursery/restriction lints:
+###############################################################################
+assertions_on_result_states     = "warn" # `assert!(r.is_ok())`/`assert!(r.is_err())` gives worse error message than directly calling `r.unwrap()`/`r.unwrap_err()`
+as_ptr_cast_mut                 = "warn" # casting the result of the `&self`-taking `as_ptr` to a mutable pointer
+as_underscore                   = "warn" # detects `as _` conversion
+bool_to_int_with_if             = "warn" # using if to convert bool to int
+borrow_as_ptr                   = "warn" # borrowing just to cast to a raw pointer
+branches_sharing_code           = "warn" # `if` statement with shared code in all blocks
+cast_lossless                   = "warn" # casts using `as` that are known to be lossless, e.g., `x as u64` where `x: u8`
+cast_precision_loss             = "warn" # casts that cause loss of precision, e.g., `x as f32` where `x: u64`
+cast_ptr_alignment              = "warn" # cast from a pointer to a more-strictly-aligned pointer
+clear_with_drain                = "warn" # calling `drain` in order to `clear` a container
+cloned_instead_of_copied        = "warn" # used `cloned` where `copied` could be used instead
+clone_on_ref_ptr                = "warn" # using 'clone' on a ref-counted pointer
+cognitive_complexity            = "warn" # functions that should be split up into multiple functions
+collection_is_never_read        = "warn" # a collection is never queried
+copy_iterator                   = "warn" # implementing `Iterator` on a `Copy` type
+create_dir                      = "warn" # calling `std::fs::create_dir` instead of `std::fs::create_dir_all`
+debug_assert_with_mut_call      = "warn" # mutable arguments in `debug_assert{,_ne,_eq}!`
+decimal_literal_representation  = "warn" # using decimal representation when hexadecimal would be better
+default_numeric_fallback        = "warn" # usage of unconstrained numeric literals which may cause default numeric fallback.
+default_union_representation    = "warn" # unions without a `# [repr(C)]` attribute
+derive_partial_eq_without_eq    = "warn" # deriving `PartialEq` on a type that can implement `Eq`, without implementing `Eq`
+disallowed_script_idents        = "warn" # usage of non-allowed Unicode scripts
+doc_link_with_quotes            = "warn" # possible typo for an intra-doc link
+doc_markdown                    = "warn" # presence of `_`, `::` or camel-case outside backticks in documentation
+empty_drop                      = "warn" # empty `Drop` implementations
+empty_enum                      = "warn" # enum with no variants
+enum_glob_use                   = "warn" # use items that import all variants of an enum
+equatable_if_let                = "warn" # using pattern matching instead of equality
+error_impl_error                = "warn" # exported types named `Error` that implement `Error`
+exit                            = "warn" # detects `std::process::exit` calls
+explicit_deref_methods          = "warn" # Explicit use of deref or deref_mut method while not in a method chain.
+explicit_into_iter_loop         = "warn" # for-looping over `_.into_iter()` when `_` would do
+explicit_iter_loop              = "warn" # for-looping over `_.iter()` or `_.iter_mut()` when `&_` or `&mut _` would do
+expl_impl_clone_on_copy         = "warn" # implementing `Clone` explicitly on `Copy` types
+fallible_impl_from              = "warn" # Warn on impls of `From<..>` that contain `panic!()` or `unwrap()`
+filetype_is_file                = "warn" # `FileType::is_file` is not recommended to test for readable file type
+filter_map_next                 = "warn" # using combination of `filter_map` and `next` which can usually be written as a single method call
+flat_map_option                 = "warn" # used `flat_map` where `filter_map` could be used instead
+float_cmp                       = "warn" # using `==` or `!=` on float values instead of comparing difference with an epsilon
+float_cmp_const                 = "warn" # using `==` or `!=` on float constants instead of comparing difference with an epsilon
+fn_params_excessive_bools       = "warn" # using too many bools in function parameters
+fn_to_numeric_cast_any          = "warn" # casting a function pointer to any integer type
+format_push_string              = "warn" # `format!(..)` appended to existing `String`
+from_iter_instead_of_collect    = "warn" # use `.collect()` instead of `::from_iter()`
+future_not_send                 = "warn" # public Futures must be Send
+get_unwrap                      = "warn" # using `.get().unwrap()` or `.get_mut().unwrap()` when using `[]` would work instead
+if_not_else                     = "warn" # `if` branches that could be swapped so no negation operation is necessary on the condition
+if_then_some_else_none          = "warn" # Finds if-else that could be written using either `bool::then` or `bool::then_some`
+implicit_clone                  = "warn" # implicitly cloning a value by invoking a function on its dereferenced type
+implicit_hasher                 = "warn" # missing generalization over different hashers
+impl_trait_in_params            = "warn" # `impl Trait` is used in the function's parameters
+imprecise_flops                 = "warn" # usage of imprecise floating point operations
+inconsistent_struct_constructor = "warn" # the order of the field init shorthand is inconsistent with the order in the struct definition
+indexing_slicing                = "warn" # indexing/slicing usage
+index_refutable_slice           = "warn" # avoid indexing on slices which could be destructed
+inefficient_to_string           = "warn" # using `to_string` on `&&T` where `T: ToString`
+infinite_loop                   = "warn" # possibly unintended infinite loop
+inline_always                   = "warn" # use of `# [inline(always)]`
+inline_asm_x86_att_syntax       = "warn" # prefer Intel x86 assembly syntax
+into_iter_without_iter          = "warn" # implementing `IntoIterator for (&|&mut) Type` without an inherent `iter(_mut)` method
+invalid_upcast_comparisons      = "warn" # a comparison involving an upcast which is always true or false
+items_after_statements          = "warn" # blocks where an item comes after a statement
+iter_filter_is_ok               = "warn" # filtering an iterator over `Result`s for `Ok` can be achieved with `flatten`
+iter_filter_is_some             = "warn" # filtering an iterator over `Option`s for `Some` can be achieved with `flatten`
+iter_not_returning_iterator     = "warn" # methods named `iter` or `iter_mut` that do not return an `Iterator`
+iter_on_empty_collections       = "warn" # Iterator for empty array
+iter_on_single_items            = "warn" # Iterator for array of length 1
+iter_without_into_iter          = "warn" # implementing `iter(_mut)` without an associated `IntoIterator for (&|&mut) Type` impl
+iter_with_drain                 = "warn" # replace `.drain(..)` with `.into_iter()`
+large_digit_groups              = "warn" # grouping digits into groups that are too large
+large_futures                   = "warn" # large future may lead to unexpected stack overflows
+large_include_file              = "warn" # including a large file
+large_stack_arrays              = "warn" # allocating large arrays on stack may cause stack overflow
+large_stack_frames              = "warn" # checks for functions that allocate a lot of stack space
+large_types_passed_by_value     = "warn" # functions taking large arguments by value
+let_underscore_must_use         = "warn" # non-binding `let` on a `# [must_use]` expression
+linkedlist                      = "warn" # usage of LinkedList, usually a vector is faster, or a more specialized data structure like a `VecDeque`
+lossy_float_literal             = "warn" # lossy whole number float literals
+macro_use_imports               = "warn" # # [macro_use] is no longer needed
+manual_assert                   = "warn" # `panic!` and only a `panic!` in `if`-then statement
+manual_c_str_literals           = "warn" # creating a `CStr` through functions when `c""` literals can be used
+manual_instant_elapsed          = "warn" # subtraction between `Instant::now()` and previous `Instant`
+manual_is_variant_and           = "warn" # using `.map(f).unwrap_or_default()`, which is more succinctly expressed as `is_some_and(f)` or `is_ok_and(f)`
+manual_let_else                 = "warn" # manual implementation of a let...else statement
+manual_ok_or                    = "warn" # finds patterns that can be encoded more concisely with `Option::ok_or`
+manual_string_new               = "warn" # empty String is being created manually
+many_single_char_names          = "warn" # too many single character bindings
+map_err_ignore                  = "warn" # `map_err` should not ignore the original error
+map_unwrap_or                   = "warn" # using `.map(f).unwrap_or(a)` or `.map(f).unwrap_or_else(func)`, which are more succinctly expressed as `map_or(a, f)` or `map_or_else(a, f)`
+match_bool                      = "warn" # a `match` on a boolean expression instead of an `if..else` block
+match_on_vec_items              = "warn" # matching on vector elements can panic
+match_same_arms                 = "warn" # `match` with identical arm bodies
+match_wild_err_arm              = "warn" # a `match` with `Err(_)` arm and take drastic actions
+maybe_infinite_iter             = "warn" # possible infinite iteration
+mem_forget                      = "warn" # `mem::forget` usage on `Drop` types, likely to cause memory leaks
+min_ident_chars                 = "warn" # disallows idents that are too short
+mismatching_type_param_order    = "warn" # type parameter positioned inconsistently between type def and impl block
+missing_assert_message          = "warn" # checks assertions without a custom panic message
+missing_docs_in_private_items   = "warn" # detects missing documentation for private members
+missing_errors_doc              = "warn" # `pub fn` returns `Result` without `# Errors` in doc comment
+missing_panics_doc              = "warn" # `pub fn` may panic without `# Panics` in doc comment
+multiple_inherent_impl          = "warn" # Multiple inherent impl that could be grouped
+multiple_unsafe_ops_per_block   = "warn" # more than one unsafe operation per `unsafe` block
+mut_mut                         = "warn" # usage of double-mut refs, e.g., `&mut &mut ...`
+naive_bytecount                 = "warn" # use of naive `<slice>.filter(|&x| x == y).count()` to count byte values
+needless_bitwise_bool           = "warn" # Boolean expressions that use bitwise rather than lazy operators
+needless_collect                = "warn" # collecting an iterator when collect is not needed
+needless_continue               = "warn" # `continue` statements that can be replaced by a rearrangement of code
+needless_for_each               = "warn" # using `for_each` where a `for` loop would be simpler
+needless_pass_by_ref_mut        = "warn" # using a `&mut` argument when it's not mutated
+needless_pass_by_value          = "warn" # functions taking arguments by value, but not consuming them in its body
+needless_raw_strings            = "warn" # suggests using a string literal when a raw string literal is unnecessary
+needless_raw_string_hashes      = "warn" # suggests reducing the number of hashes around a raw string literal
+negative_feature_names          = "warn" # usage of a negative feature name
+nonstandard_macro_braces        = "warn" # check consistent use of braces in macro
+non_ascii_literal               = "warn" # using any literal non-ASCII chars in a string literal instead of using the `\u` escape
+non_send_fields_in_send_ty      = "warn" # there is a field that is not safe to be sent to another thread in a `Send` struct
+no_effect_underscore_binding    = "warn" # binding to `_` prefixed variable with no side-effect
+no_mangle_with_rust_abi         = "warn" # convert Rust ABI functions to C ABI
+option_as_ref_cloned            = "warn" # cloning an `Option` via `as_ref().cloned()`
+option_if_let_else              = "warn" # reimplementation of Option::map_or
+option_option                   = "warn" # usage of `Option<Option<T>>`
+or_fun_call                     = "warn" # using any `*or` method with a function call, which suggests `*or_else`
+partial_pub_fields              = "warn" # partial fields of a struct are public
+path_buf_push_overwrite         = "warn" # calling `push` with file system root on `PathBuf` can overwrite it
+ptr_as_ptr                      = "warn" # casting using `as` from and to raw pointers that doesn't change its mutability, where `pointer::cast` could take the place of `as`
+ptr_cast_constness              = "warn" # casting using `as` from and to raw pointers to change constness when specialized methods apply
+pub_underscore_fields           = "warn" # struct field prefixed with underscore and marked public
+pub_without_shorthand           = "warn" # disallows usage of `pub(in <loc>)` with `in`
+rc_buffer                       = "warn" # shared ownership of a buffer type
+rc_mutex                        = "warn" # usage of `Rc<Mutex<T>>`
+read_zero_byte_vec              = "warn" # checks for reads into a zero-length `Vec`
+redundant_clone                 = "warn" # `clone()` of an owned value that is going to be dropped immediately
+redundant_else                  = "warn" # `else` branch that can be removed without changing semantics
+redundant_feature_names         = "warn" # usage of a redundant feature name
+redundant_type_annotations      = "warn" # warns about needless / redundant type annotations.
+ref_as_ptr                      = "warn" # using `as` to cast a reference to pointer
+ref_binding_to_reference        = "warn" # `ref` binding to a reference
+ref_option_ref                  = "warn" # use `Option<&T>` instead of `&Option<&T>`
+rest_pat_in_fully_bound_structs = "warn" # a match on a struct that binds all fields but still uses the wildcard pattern
+return_self_not_must_use        = "warn" # missing `# [must_use]` annotation on a method returning `Self`
+same_functions_in_if_condition  = "warn" # consecutive `if`s with the same function call
+same_name_method                = "warn" # two method with same name
+self_named_module_files         = "warn" # checks that module layout is consistent
+semicolon_if_nothing_returned   = "warn" # add a semicolon if nothing is returned
+semicolon_inside_block          = "warn" # add a semicolon inside the block
+shadow_same                     = "warn" # rebinding a name to itself, e.g., `let mut x = &mut x`
+shadow_unrelated                = "warn" # rebinding a name without even using the original value
+should_panic_without_expect     = "warn" # ensures that all `should_panic` attributes specify its expected panic message
+significant_drop_in_scrutinee   = "warn" # warns when a temporary of a type with a drop with a significant side-effect might have a surprising lifetime
+similar_names                   = "warn" # similarly named items and bindings
+single_char_lifetime_names      = "warn" # warns against single-character lifetime names
+single_match_else               = "warn" # a `match` statement with two arms where the second arm's pattern is a placeholder instead of a specific match pattern
+stable_sort_primitive           = "warn" # use of sort() when sort_unstable() is equivalent
+string_add                      = "warn" # using `x + ..` where x is a `String` instead of `push_str()`
+string_add_assign               = "warn" # using `x = x + ..` where x is a `String` instead of `push_str()`
+string_lit_as_bytes             = "warn" # calling `as_bytes` on a string literal instead of using a byte string literal
+string_lit_chars_any            = "warn" # checks for `<string_lit>.chars().any(|i| i == c)`
+string_slice                    = "warn" # slicing a string
+string_to_string                = "warn" # using `to_string()` on a `String`, which should be `clone()`
+struct_excessive_bools          = "warn" # using too many bools in a struct
+struct_field_names              = "warn" # structs where all fields share a prefix/postfix or contain the name of the struct
+str_split_at_newline            = "warn" # splitting a trimmed string at hard-coded newlines
+str_to_string                   = "warn" # using `to_string()` on a `&str`, which should be `to_owned()`
+suboptimal_flops                = "warn" # usage of sub-optimal floating point operations
+suspicious_operation_groupings  = "warn" # groupings of binary operations that look suspiciously like typos
+suspicious_xor_used_as_pow      = "warn" # XOR (`^`) operator possibly used as exponentiation operator
+tests_outside_test_module       = "warn" # A test function is outside the testing module.
+too_many_lines                  = "warn" # functions with too many lines
+trailing_empty_array            = "warn" # struct with a trailing zero-sized array but without `# [repr(C)]` or another `repr` attribute
+trait_duplication_in_bounds     = "warn" # check if the same trait bounds are specified more than once during a generic declaration
+transmute_ptr_to_ptr            = "warn" # transmutes from a pointer to a pointer / a reference to a reference
+transmute_undefined_repr        = "warn" # transmute to or from a type with an undefined representation
+trivially_copy_pass_by_ref      = "warn" # functions taking small copyable arguments by reference
+try_err                         = "warn" # return errors explicitly rather than hiding them behind a `?`
+tuple_array_conversions         = "warn" # checks for tuple<=>array conversions that are not done with `.into()`
+type_repetition_in_bounds       = "warn" # types are repeated unnecessarily in trait bounds, use `+` instead of using `T: _, T: _`
+unchecked_duration_subtraction  = "warn" # finds unchecked subtraction of a 'Duration' from an 'Instant'
+undocumented_unsafe_blocks      = "warn" # creating an unsafe block without explaining why it is safe
+unicode_not_nfc                 = "warn" # using a Unicode literal not in NFC normal form (see [Unicode tr15](http://www.unicode.org/reports/tr15/) for further information)
+uninhabited_references          = "warn" # reference to uninhabited type
+uninlined_format_args           = "warn" # using non-inlined variables in `format!` calls
+unnecessary_box_returns         = "warn" # Needlessly returning a Box
+unnecessary_join                = "warn" # using `.collect::<Vec<String>>().join("")` on an iterator
+unnecessary_safety_comment      = "warn" # annotating safe code with a safety comment
+unnecessary_safety_doc          = "warn" # `pub fn` or `pub trait` with `# Safety` docs
+unnecessary_self_imports        = "warn" # imports ending in `::{self}`, which can be omitted
+unnecessary_wraps               = "warn" # functions that only return `Ok` or `Some`
+unneeded_field_pattern          = "warn" # struct fields bound to a wildcard instead of using `..`
+unnested_or_patterns            = "warn" # unnested or-patterns, e.g., `Foo(Bar) | Foo(Baz) instead of `Foo(Bar | Baz)`
+unreadable_literal              = "warn" # long literal without underscores
+unsafe_derive_deserialize       = "warn" # deriving `serde::Deserialize` on a type that has methods using `unsafe`
+unseparated_literal_suffix      = "warn" # literals whose suffix is not separated by an underscore
+unused_async                    = "warn" # finds async functions with no await statements
+unused_peekable                 = "warn" # creating a peekable iterator without using any of its methods
+unused_rounding                 = "warn" # Uselessly rounding a whole number floating-point literal
+unused_self                     = "warn" # methods that contain a `self` argument but don't use it
+used_underscore_binding         = "warn" # using a binding which is prefixed with an underscore
+useless_let_if_seq              = "warn" # unidiomatic `let mut` declaration followed by initialization in `if`
+use_debug                       = "warn" # use of `Debug`-based formatting
+use_self                        = "warn" # unnecessary structure name repetition whereas `Self` is applicable
+verbose_file_reads              = "warn" # use of `File::read_to_end` or `File::read_to_string`
+wildcard_dependencies           = "warn" # wildcard dependencies being used
+wildcard_imports                = "warn" # lint `use _::*` statements
+
+# Long lints below because of formatting.
+case_sensitive_file_extension_comparisons = "warn" # Checks for calls to ends_with with case-sensitive file extensions
+redundant_closure_for_method_calls        = "warn" # redundant closures for method calls
+empty_enum_variants_with_brackets         = "warn" # finds enum variants with empty brackets
+match_wildcard_for_single_variants        = "warn" # a wildcard enum match for a single variant
+unnecessary_struct_initialization         = "warn" # struct built from a base that can be written mode concisely

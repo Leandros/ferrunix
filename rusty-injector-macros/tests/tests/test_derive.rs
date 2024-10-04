@@ -7,7 +7,7 @@ pub trait CreditCardProcessor: Send + Sync {
 }
 
 #[derive(Debug, Default, Inject)]
-#[provides(dyn TransactionLog)]
+#[provides(transient = "dyn CreditCardProcessor")]
 pub struct PaypalCreditCardProcessor {}
 
 impl CreditCardProcessor for PaypalCreditCardProcessor {
@@ -23,7 +23,7 @@ pub trait TransactionLog: Send + Sync {
 }
 
 #[derive(Debug, Default, Inject)]
-#[provides(dyn TransactionLog)]
+#[provides(transient = "dyn TransactionLog")]
 pub struct RealTransactionLog {}
 
 impl TransactionLog for RealTransactionLog {
@@ -41,7 +41,7 @@ pub trait BillingService: Send + Sync {
 }
 
 #[derive(Inject)]
-#[provides(dyn BillingService)]
+#[provides(transient = "dyn BillingService")]
 pub struct RealBillingService {
     creditcard_processor: Box<dyn CreditCardProcessor>,
     transactionlog: Box<dyn TransactionLog>,
@@ -64,66 +64,66 @@ impl BillingService for RealBillingService {
 
 /* --------- GENERATED --------- */
 
-mod __inner_register_creditcardprocessor {
-    #![allow(unused_imports)]
-    use super::*;
-    use rusty_injector::{inventory_submit, RegistrationFunc, Registry, Singleton, Transient};
+// mod __inner_register_creditcardprocessor {
+//     #![allow(unused_imports)]
+//     use super::*;
+//     use rusty_injector::{inventory_submit, RegistrationFunc, Registry, Singleton, Transient};
 
-    impl PaypalCreditCardProcessor {
-        pub(crate) fn register(registry: &mut Registry) {
-            registry.transient::<Box<dyn CreditCardProcessor>>(|| {
-                Box::new(PaypalCreditCardProcessor::default())
-            });
-        }
-    }
+//     impl PaypalCreditCardProcessor {
+//         pub(crate) fn register(registry: &mut Registry) {
+//             registry.transient::<Box<dyn CreditCardProcessor>>(|| {
+//                 Box::new(PaypalCreditCardProcessor::default())
+//             });
+//         }
+//     }
 
-    inventory_submit!(RegistrationFunc(|registry| {
-        PaypalCreditCardProcessor::register(registry);
-    }));
-}
+//     inventory_submit!(RegistrationFunc(|registry| {
+//         PaypalCreditCardProcessor::register(registry);
+//     }));
+// }
 
-mod __inner_register_transactionlog {
-    #![allow(unused_imports)]
-    use super::*;
-    use rusty_injector::{inventory_submit, RegistrationFunc, Registry, Singleton, Transient};
+// mod __inner_register_transactionlog {
+//     #![allow(unused_imports)]
+//     use super::*;
+//     use rusty_injector::{inventory_submit, RegistrationFunc, Registry, Singleton, Transient};
 
-    impl RealTransactionLog {
-        pub(crate) fn register(registry: &mut Registry) {
-            registry
-                .transient::<Box<dyn TransactionLog>>(|| Box::new(RealTransactionLog::default()));
-        }
-    }
+//     impl RealTransactionLog {
+//         pub(crate) fn register(registry: &mut Registry) {
+//             registry
+//                 .transient::<Box<dyn TransactionLog>>(|| Box::new(RealTransactionLog::default()));
+//         }
+//     }
 
-    inventory_submit!(RegistrationFunc(|registry| {
-        RealTransactionLog::register(registry);
-    }));
-}
+//     inventory_submit!(RegistrationFunc(|registry| {
+//         RealTransactionLog::register(registry);
+//     }));
+// }
 
-mod __inner_register_realbillingservice {
-    #![allow(unused_imports)]
-    use super::*;
-    use rusty_injector::{inventory_submit, RegistrationFunc, Registry, Singleton, Transient};
+// mod __inner_register_realbillingservice {
+//     #![allow(unused_imports)]
+//     use super::*;
+//     use rusty_injector::{inventory_submit, RegistrationFunc, Registry, Singleton, Transient};
 
-    impl RealBillingService {
-        pub(crate) fn register(registry: &mut Registry) {
-            registry
-                .with_deps::<Box<dyn BillingService>, (
-                    Transient<Box<dyn TransactionLog>>,
-                    Transient<Box<dyn CreditCardProcessor>>,
-                )>()
-                .transient(|(transaction, processor)| {
-                    Box::new(RealBillingService {
-                        transactionlog: transaction.get(),
-                        creditcard_processor: processor.get(),
-                    })
-                });
-        }
-    }
+//     impl RealBillingService {
+//         pub(crate) fn register(registry: &mut Registry) {
+//             registry
+//                 .with_deps::<Box<dyn BillingService>, (
+//                     Transient<Box<dyn TransactionLog>>,
+//                     Transient<Box<dyn CreditCardProcessor>>,
+//                 )>()
+//                 .transient(|(transaction, processor)| {
+//                     Box::new(RealBillingService {
+//                         transactionlog: transaction.get(),
+//                         creditcard_processor: processor.get(),
+//                     })
+//                 });
+//         }
+//     }
 
-    inventory_submit!(RegistrationFunc(|registry| {
-        RealBillingService::register(registry);
-    }));
-}
+//     inventory_submit!(RegistrationFunc(|registry| {
+//         RealBillingService::register(registry);
+//     }));
+// }
 
 pub fn test() {
     let registry = Registry::new();
