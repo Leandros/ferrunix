@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::common::*;
 use rusty_injector::Registry;
 use rusty_injector_macros::Inject;
@@ -43,15 +45,20 @@ pub trait BillingService: Send + Sync {
 #[derive(Inject)]
 #[provides(transient = "dyn BillingService")]
 pub struct RealBillingService {
+    #[inject(transient)]
     creditcard_processor: Box<dyn CreditCardProcessor>,
-    transactionlog: Box<dyn TransactionLog>,
+    #[inject(singleton)]
+    transactionlog: Arc<dyn TransactionLog>,
+    #[inject(ctor = "16")]
+    tax_amount: i32,
 }
 
 impl BillingService for RealBillingService {
     fn charge_order(&self, order: PizzaOrder, creditcard: &CreditCard) -> Result<Receipt, Error> {
         match self.creditcard_processor.charge(creditcard, order.0) {
             Ok(charged_amount) => {
-                self.transactionlog.log_charge(charged_amount);
+                let full_amount = charged_amount + self.tax_amount;
+                self.transactionlog.log_charge(full_amount);
                 Ok(Receipt(charged_amount))
             }
             Err(err) => {

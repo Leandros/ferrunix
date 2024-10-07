@@ -1,7 +1,10 @@
+use std::any::TypeId;
+
 use crate::{Arc, Registry};
 
 pub trait Dep {
     fn new(registry: &Registry) -> Self;
+    fn type_id() -> TypeId;
 }
 
 pub struct Transient<T> {
@@ -20,6 +23,10 @@ impl<T: Send + Sync + 'static> Dep for Transient<T> {
             inner: registry.get_transient::<T>().unwrap(),
         }
     }
+
+    fn type_id() -> TypeId {
+        TypeId::of::<T>()
+    }
 }
 
 pub struct Singleton<T> {
@@ -37,5 +44,9 @@ impl<T: Send + Sync + 'static> Dep for Singleton<T> {
         Self {
             inner: registry.get_singleton::<T>().unwrap(),
         }
+    }
+
+    fn type_id() -> TypeId {
+        TypeId::of::<T>()
     }
 }

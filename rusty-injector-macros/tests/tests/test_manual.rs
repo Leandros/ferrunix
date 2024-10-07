@@ -58,7 +58,7 @@ impl BillingService for RealBillingService {
 }
 
 pub fn test() {
-    let mut registry = Registry::new();
+    let registry = Registry::global();
     registry.transient::<Box<dyn CreditCardProcessor>>(|| {
         Box::new(PaypalCreditCardProcessor::default())
     });

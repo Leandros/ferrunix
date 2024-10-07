@@ -1,72 +1,76 @@
 use std::any::{Any, TypeId};
 use std::marker::PhantomData;
-use std::sync::atomic::Ordering;
+
+use once_cell::sync::OnceCell;
 
 use crate::dependency_builder::DepBuilder;
-use crate::error::RegistryError;
-use crate::{
-    Arc, HashMap, RegistrationFunc, RwLock, RwLockReadGuard, RwLockWriteGuard, AUTOREGISTERED,
-    DEFAULT_REGISTRY,
-};
+use crate::{Arc, HashMap, RegistrationFunc, RwLock, DEFAULT_REGISTRY};
 
-type BoxedCtor = Box<dyn Fn(&Registry) -> Box<dyn Any + Send + Sync> + Send + Sync>;
+type BoxedAny = Box<dyn Any + Send + Sync>;
+type ArcAny = Arc<dyn Any + Send + Sync>;
+type BoxedCtor = Box<dyn Fn(&Registry) -> Option<BoxedAny> + Send + Sync>;
+type SingletonCell = OnceCell<ArcAny>;
+type BoxedSingletonGetter = Box<dyn Fn(&Registry, &SingletonCell) -> Option<ArcAny> + Send + Sync>;
+type Validator = Box<dyn Fn(&Registry) -> bool + Send + Sync>;
 
 pub enum Object {
     Transient(BoxedCtor),
-    Singleton(Arc<dyn Any + Send + Sync>),
+    Singleton(BoxedSingletonGetter, SingletonCell),
 }
 
 #[derive(Default)]
 pub struct Registry {
-    objects: HashMap<TypeId, Object>,
+    objects: RwLock<HashMap<TypeId, Object>>,
+    validation: RwLock<HashMap<TypeId, Validator>>,
 }
 
 impl Registry {
-    pub fn new() -> Self {
-        let mut registry = Registry {
-            objects: HashMap::new(),
-        };
-
-        if AUTOREGISTERED
-            .compare_exchange(false, true, Ordering::Acquire, Ordering::Acquire)
-            .is_ok()
-        {
-            eprintln!("run auto registration");
-            for register in inventory::iter::<RegistrationFunc> {
-                (register.0)(&mut registry);
-            }
+    pub fn empty() -> Self {
+        Self {
+            objects: RwLock::new(HashMap::new()),
+            validation: RwLock::new(HashMap::new()),
         }
-
-        registry
     }
 
-    pub fn transient<T>(&mut self, ctor: fn() -> T)
+    pub fn transient<T>(&self, ctor: fn() -> T)
     where
         T: Send + Sync + 'static,
     {
-        self.objects.insert(
+        self.objects.write().insert(
             TypeId::of::<T>(),
-            Object::Transient(Box::new(move |_| -> Box<dyn Any + Send + Sync> {
+            Object::Transient(Box::new(move |_| -> Option<BoxedAny> {
                 let obj = ctor();
-                Box::new(obj)
+                Some(Box::new(obj))
             })),
         );
+        self.validation
+            .write()
+            .insert(TypeId::of::<T>(), Box::new(|_| true));
     }
 
-    pub fn singleton<T>(&mut self, singleton: T)
+    pub fn singleton<T>(&self, ctor: fn() -> T)
     where
         T: Send + Sync + 'static,
     {
-        self.objects
-            .insert(TypeId::of::<T>(), Object::Singleton(Arc::new(singleton)));
+        let getter = Box::new(move |_this: &Registry, cell: &SingletonCell| -> Option<ArcAny> {
+            let rc = cell.get_or_init(|| Arc::new(ctor()));
+            Some(Arc::clone(rc))
+        });
+        self.objects.write().insert(
+            TypeId::of::<T>(),
+            Object::Singleton(getter, OnceCell::new()),
+        );
+        self.validation
+            .write()
+            .insert(TypeId::of::<T>(), Box::new(|_| true));
     }
 
     pub fn get_transient<T>(&self) -> Option<T>
     where
         T: Send + Sync + 'static,
     {
-        if let Some(Object::Transient(ctor)) = self.objects.get(&TypeId::of::<T>()) {
-            let boxed = (ctor)(self);
+        if let Some(Object::Transient(ctor)) = self.objects.read().get(&TypeId::of::<T>()) {
+            let boxed = (ctor)(self)?;
             if let Ok(obj) = boxed.downcast::<T>() {
                 return Some(*obj);
             }
@@ -79,8 +83,9 @@ impl Registry {
     where
         T: Send + Sync + 'static,
     {
-        if let Some(Object::Singleton(singleton)) = self.objects.get(&TypeId::of::<T>()) {
-            if let Ok(obj) = Arc::clone(singleton).downcast::<T>() {
+        if let Some(Object::Singleton(getter, cell)) = self.objects.read().get(&TypeId::of::<T>()) {
+            let singleton = (getter)(self, cell)?;
+            if let Ok(obj) = singleton.downcast::<T>() {
                 return Some(obj);
             }
         }
@@ -88,7 +93,7 @@ impl Registry {
         None
     }
 
-    pub fn with_deps<T, Deps>(&mut self) -> Builder<T, Deps>
+    pub fn with_deps<T, Deps>(&self) -> Builder<T, Deps>
     where
         Deps: DepBuilder<T>,
     {
@@ -99,30 +104,51 @@ impl Registry {
         }
     }
 
-    pub fn current() -> RwLockReadGuard<'static, Self> {
-        DEFAULT_REGISTRY.get().unwrap().read()
+    pub fn validate_all(&self) -> bool {
+        let lock = self.validation.read();
+        lock.iter().all(|(_, validator)| (validator)(self))
     }
 
-    pub fn current_mut() -> RwLockWriteGuard<'static, Self> {
-        DEFAULT_REGISTRY.get().unwrap().write()
-    }
-
-    pub fn make_current(self) -> Result<(), RegistryError> {
-        let res = DEFAULT_REGISTRY.set(RwLock::new(self));
-        if res.is_err() {
-            Err(RegistryError::DefaultAlreadySet)
+    pub fn validate<T>(&self) -> bool
+    where
+        T: Send + Sync + 'static,
+    {
+        let lock = self.validation.read();
+        if let Some(validator) = lock.get(&TypeId::of::<T>()) {
+            (validator)(self)
         } else {
-            Ok(())
+            false
         }
     }
 
-    pub unsafe fn reset_registry() {
-        AUTOREGISTERED.store(false, Ordering::SeqCst);
+    pub fn global() -> &'static Self {
+        DEFAULT_REGISTRY.get_or_init(|| {
+            let mut registry = Self::empty();
+
+            eprintln!("run auto registration");
+            for register in inventory::iter::<RegistrationFunc> {
+                (register.0)(&mut registry);
+            }
+
+            registry
+        })
+    }
+
+    pub unsafe fn reset_global() {
+        let registry = Self::global();
+        {
+            let mut lock = registry.objects.write();
+            lock.clear();
+        }
+
+        for register in inventory::iter::<RegistrationFunc> {
+            (register.0)(registry);
+        }
     }
 }
 
 pub struct Builder<'a, T, Deps> {
-    registry: &'a mut Registry,
+    registry: &'a Registry,
     _marker: PhantomData<T>,
     _marker1: PhantomData<Deps>,
 }
@@ -132,20 +158,59 @@ where
     Deps: DepBuilder<T> + 'static,
     T: Send + Sync + 'static,
 {
-    pub fn transient(&mut self, ctor: fn(Deps) -> T) {
-        self.registry.objects.insert(
+    pub fn transient(&self, ctor: fn(Deps) -> T) {
+        self.registry.objects.write().insert(
             TypeId::of::<T>(),
-            Object::Transient(Box::new(move |this| -> Box<dyn Any + Send + Sync> {
-                let obj = Deps::build(this, ctor);
-                Box::new(obj)
+            Object::Transient(Box::new(move |this| -> Option<BoxedAny> {
+                match Deps::build(this, ctor) {
+                    Some(obj) => Some(Box::new(obj)),
+                    None => None,
+                }
             })),
+        );
+        self.registry.validation.write().insert(
+            TypeId::of::<T>(),
+            Box::new(|registry: &Registry| {
+                let type_ids = Deps::as_typeids();
+                type_ids.iter().all(|el| {
+                    if let Some(validator) = registry.validation.read().get(el) {
+                        return (validator)(registry);
+                    }
+
+                    false
+                })
+            }),
         );
     }
 
-    pub fn singleton(&mut self, ctor: fn(Deps) -> T) {
-        let obj = Deps::build(self.registry, ctor);
-        self.registry
-            .objects
-            .insert(TypeId::of::<T>(), Object::Singleton(Arc::new(obj)));
+    pub fn singleton(&self, ctor: fn(Deps) -> T) {
+        let getter = Box::new(
+            move |this: &Registry, cell: &SingletonCell| -> Option<ArcAny> {
+                match Deps::build(this, ctor) {
+                    Some(obj) => {
+                        let rc = cell.get_or_init(|| Arc::new(obj));
+                        Some(Arc::clone(rc))
+                    }
+                    None => None,
+                }
+            },
+        );
+        self.registry.objects.write().insert(
+            TypeId::of::<T>(),
+            Object::Singleton(getter, OnceCell::new()),
+        );
+        self.registry.validation.write().insert(
+            TypeId::of::<T>(),
+            Box::new(|registry: &Registry| {
+                let type_ids = Deps::as_typeids();
+                type_ids.iter().all(|el| {
+                    if let Some(validator) = registry.validation.read().get(el) {
+                        return (validator)(registry);
+                    }
+
+                    false
+                })
+            }),
+        );
     }
 }

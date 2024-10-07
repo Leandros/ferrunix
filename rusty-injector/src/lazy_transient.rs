@@ -25,7 +25,7 @@ where
     T: Send + Sync + 'static,
 {
     pub fn resolved() -> Self {
-        Self::resolved_with(&Registry::current())
+        Self::resolved_with(Registry::global())
     }
 
     pub fn resolved_with(registry: &Registry) -> Self {
@@ -38,7 +38,7 @@ where
     }
 
     pub fn resolve(&self) -> Result<(), ResolveError> {
-        self.resolve_with(&Registry::current())
+        self.resolve_with(Registry::global())
     }
 
     pub fn resolve_with(&self, registry: &Registry) -> Result<(), ResolveError> {
