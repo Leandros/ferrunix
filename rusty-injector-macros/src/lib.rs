@@ -1,15 +1,17 @@
-#![allow(clippy::panic)]
+#![allow(clippy::panic, clippy::module_name_repetitions)]
 
 use darling::FromDeriveInput;
 use quote::{format_ident, quote};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
-use syn::{parse_macro_input, Data, DeriveInput, Field, Fields, Type};
+use syn::{parse_macro_input, Data, DeriveInput, Field, Fields};
 
 use self::attr::DeriveAttrInput;
 
 mod attr;
 
+/// # Panics
+/// TODO
 #[proc_macro_derive(Inject, attributes(provides, inject))]
 pub fn derive_inject(
     input: proc_macro::TokenStream,
@@ -141,8 +143,7 @@ fn get_fields_from_struct(data: &Data) -> (bool, Punctuated<Field, Comma>) {
             Fields::Unnamed(ref unnamed) => (false, unnamed.unnamed.clone()),
             Fields::Unit => panic!("structs must be constructible"),
         },
-        Data::Enum(_) => panic!("not supported"),
-        Data::Union(_) => panic!("not supported"),
+        Data::Enum(_) | Data::Union(_) => panic!("not supported"),
     }
 }
 
@@ -157,6 +158,7 @@ fn get_fields_from_struct(data: &Data) -> (bool, Punctuated<Field, Comma>) {
 //         Type::Never(_) => false,
 //         Type::Paren(_) => false,
 //         Type::Path(path) => {
+//         // Let else not stabilized on 1.64.0. TODO: Replace.
 //             let Some(first_segement) = path.path.segments.get(0) else {
 //                 return false;
 //             };

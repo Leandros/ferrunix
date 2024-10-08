@@ -1,3 +1,4 @@
+#![allow(clippy::module_name_repetitions)]
 //! Integration tests.
 
 // Common code across all tests.

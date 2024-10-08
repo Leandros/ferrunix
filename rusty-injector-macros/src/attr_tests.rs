@@ -1,5 +1,5 @@
 #![allow(clippy::similar_names, clippy::assertions_on_result_states)]
-use quote::{format_ident, quote};
+use quote::format_ident;
 
 use super::*;
 

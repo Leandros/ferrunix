@@ -15,7 +15,7 @@ where
 {
     fn default() -> Self {
         Self {
-            inner: Default::default(),
+            inner: RwLock::default(),
         }
     }
 }
@@ -24,10 +24,16 @@ impl<T> LazyTransient<T>
 where
     T: Send + Sync + 'static,
 {
+    /// # Panics
+    /// TODO
+    #[must_use]
     pub fn resolved() -> Self {
         Self::resolved_with(Registry::global())
     }
 
+    /// # Panics
+    /// TODO
+    #[must_use]
     pub fn resolved_with(registry: &Registry) -> Self {
         registry
             .get_transient::<T>()
@@ -37,10 +43,14 @@ where
             .expect("dependency or transient not registered")
     }
 
+    /// # Errors
+    /// TODO
     pub fn resolve(&self) -> Result<(), ResolveError> {
         self.resolve_with(Registry::global())
     }
 
+    /// # Errors
+    /// TODO
     pub fn resolve_with(
         &self,
         registry: &Registry,
@@ -59,6 +69,8 @@ where
         }
     }
 
+    /// # Panics
+    /// TODO
     pub fn get(&self) -> MappedRwLockReadGuard<'_, T> {
         if self.inner.read().is_none() {
             self.resolve().expect("Deref for LazyTransient<T>");
@@ -71,6 +83,8 @@ where
         })
     }
 
+    /// # Panics
+    /// TODO
     pub fn get_mut(&mut self) -> MappedRwLockWriteGuard<'_, T> {
         if self.inner.read().is_none() {
             self.resolve().expect("Deref for LazyTransient<T>");

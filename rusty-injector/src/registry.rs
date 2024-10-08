@@ -25,6 +25,7 @@ pub struct Registry {
 }
 
 impl Registry {
+    #[must_use]
     pub fn empty() -> Self {
         Self {
             objects: RwLock::new(HashMap::new()),
@@ -134,6 +135,8 @@ impl Registry {
         })
     }
 
+    /// # Safety
+    /// Ensure that no other thread is currently using [`Registry::global()`].
     pub unsafe fn reset_global() {
         let registry = Self::global();
         {

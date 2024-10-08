@@ -12,6 +12,7 @@ pub struct Transient<T> {
 }
 
 impl<T: Send + Sync + 'static> Transient<T> {
+    #[must_use]
     pub fn get(self) -> T {
         self.inner
     }
@@ -36,6 +37,7 @@ pub struct Singleton<T> {
 }
 
 impl<T: Send + Sync + 'static> Singleton<T> {
+    #[must_use]
     pub fn get(self) -> Arc<T> {
         self.inner
     }
