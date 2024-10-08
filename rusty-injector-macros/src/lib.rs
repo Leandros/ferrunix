@@ -146,28 +146,28 @@ fn get_fields_from_struct(data: &Data) -> (bool, Punctuated<Field, Comma>) {
     }
 }
 
-fn type_is_boxed(ty: &Type) -> bool {
-    match ty {
-        Type::Array(_) => false,
-        Type::BareFn(_) => false,
-        Type::Group(_) => false,
-        Type::ImplTrait(_) => false,
-        Type::Infer(_) => false,
-        Type::Macro(_) => false,
-        Type::Never(_) => false,
-        Type::Paren(_) => false,
-        Type::Path(path) => {
-            let Some(first_segement) = path.path.segments.get(0) else {
-                return false;
-            };
-            first_segement.ident == "Box"
-        }
-        Type::Ptr(_) => false,
-        Type::Reference(_) => false,
-        Type::Slice(_) => false,
-        Type::TraitObject(_) => false,
-        Type::Tuple(_) => false,
-        Type::Verbatim(_) => false,
-        _ => false,
-    }
-}
+// fn type_is_boxed(ty: &Type) -> bool {
+//     match ty {
+//         Type::Array(_) => false,
+//         Type::BareFn(_) => false,
+//         Type::Group(_) => false,
+//         Type::ImplTrait(_) => false,
+//         Type::Infer(_) => false,
+//         Type::Macro(_) => false,
+//         Type::Never(_) => false,
+//         Type::Paren(_) => false,
+//         Type::Path(path) => {
+//             let Some(first_segement) = path.path.segments.get(0) else {
+//                 return false;
+//             };
+//             first_segement.ident == "Box"
+//         }
+//         Type::Ptr(_) => false,
+//         Type::Reference(_) => false,
+//         Type::Slice(_) => false,
+//         Type::TraitObject(_) => false,
+//         Type::Tuple(_) => false,
+//         Type::Verbatim(_) => false,
+//         _ => false,
+//     }
+// }
