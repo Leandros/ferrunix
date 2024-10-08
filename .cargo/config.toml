@@ -1,1 +1,4 @@
+[alias]
+xtask = "run --target-dir target-xtask --package xtask --bin xtask --"
+
 [env]

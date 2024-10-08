@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "rusty-injector",
     "rusty-injector-macros",
+    "xtask"
 ]
 
 [workspace.package]
