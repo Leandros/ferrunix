@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 use darling::ast::Fields;
 use darling::{util, FromDeriveInput, FromField};
-use syn::{Ident, Type};
+use syn::Type;
 
 #[cfg(test)]
 #[path = "./attr_tests.rs"]
@@ -64,10 +64,9 @@ pub struct DeriveAttrInput {
 
 impl DeriveAttrInput {
     pub fn fields(&self) -> Fields<DeriveField> {
-        self.data
-            .clone()
-            .take_struct()
-            .expect("only structs supported. this should be enforced by darling.")
+        self.data.clone().take_struct().expect(
+            "only structs supported. this should be enforced by darling.",
+        )
     }
 
     pub fn transient(&self) -> &Option<Type> {

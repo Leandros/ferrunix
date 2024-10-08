@@ -4,10 +4,7 @@ use darling::FromDeriveInput;
 use quote::{format_ident, quote};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
-use syn::{
-    parse_macro_input, Data, DataStruct, DeriveInput, Field, Fields, Ident,
-    Type,
-};
+use syn::{parse_macro_input, Data, DeriveInput, Field, Fields, Type};
 
 use self::attr::DeriveAttrInput;
 
