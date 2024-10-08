@@ -133,7 +133,7 @@ impl BillingService for RealBillingService {
 // }
 
 pub fn test() {
-    let registry = Registry::new();
+    let registry = Registry::empty();
 
     let billing_service = registry.get_transient::<Box<dyn BillingService>>().unwrap();
 

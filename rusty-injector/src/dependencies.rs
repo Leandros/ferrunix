@@ -20,7 +20,9 @@ impl<T: Send + Sync + 'static> Transient<T> {
 impl<T: Send + Sync + 'static> Dep for Transient<T> {
     fn new(registry: &Registry) -> Self {
         Self {
-            inner: registry.get_transient::<T>().unwrap(),
+            inner: registry
+                .get_transient::<T>()
+                .expect("transient dependency must only be constructed if it's fulfillable"),
         }
     }
 
@@ -42,7 +44,9 @@ impl<T: Send + Sync + 'static> Singleton<T> {
 impl<T: Send + Sync + 'static> Dep for Singleton<T> {
     fn new(registry: &Registry) -> Self {
         Self {
-            inner: registry.get_singleton::<T>().unwrap(),
+            inner: registry
+                .get_singleton::<T>()
+                .expect("singleton dependency must only be constructed if it's fulfillable"),
         }
     }
 

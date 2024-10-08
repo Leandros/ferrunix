@@ -1,7 +1,7 @@
 use crate::error::ResolveError;
 use crate::{
-    MappedRwLockReadGuard, MappedRwLockWriteGuard, Registry, RwLock, RwLockReadGuard,
-    RwLockWriteGuard,
+    MappedRwLockReadGuard, MappedRwLockWriteGuard, Registry, RwLock,
+    RwLockReadGuard, RwLockWriteGuard,
 };
 
 #[derive(Debug)]
@@ -34,14 +34,17 @@ where
             .map(|inner| Self {
                 inner: RwLock::new(Some(inner)),
             })
-            .unwrap()
+            .expect("dependency or transient not registered")
     }
 
     pub fn resolve(&self) -> Result<(), ResolveError> {
         self.resolve_with(Registry::global())
     }
 
-    pub fn resolve_with(&self, registry: &Registry) -> Result<(), ResolveError> {
+    pub fn resolve_with(
+        &self,
+        registry: &Registry,
+    ) -> Result<(), ResolveError> {
         match self.inner.try_write() {
             Some(mut lockguard) => match registry.get_transient::<T>() {
                 Some(obj) => {
@@ -61,7 +64,11 @@ where
             self.resolve().expect("Deref for LazyTransient<T>");
         }
 
-        RwLockReadGuard::map(self.inner.read(), |el| el.as_ref().unwrap())
+        RwLockReadGuard::map(self.inner.read(), |el| {
+            el.as_ref().expect(
+                "value guaranteed due to resolve above. a panic here is a bug",
+            )
+        })
     }
 
     pub fn get_mut(&mut self) -> MappedRwLockWriteGuard<'_, T> {
@@ -69,6 +76,10 @@ where
             self.resolve().expect("Deref for LazyTransient<T>");
         }
 
-        RwLockWriteGuard::map(self.inner.write(), |el| el.as_mut().unwrap())
+        RwLockWriteGuard::map(self.inner.write(), |el| {
+            el.as_mut().expect(
+                "value guaranteed due to resolve above. a panic here is a bug",
+            )
+        })
     }
 }

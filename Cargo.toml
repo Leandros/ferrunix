@@ -15,6 +15,7 @@ readme = "README.md"
 license = "MIT OR Apache-2.0"
 keywords = ["dependency-injection", "inversion-of-control", "dependency-inversion", "di", "ioc"]
 categories = ["development-tools", "rust-patterns", "config", "data-structures"]
+exclude = ["*.png", "*.svg", "rustfmt.toml"]
 
 [workspace.dependencies]
 rusty-injector = { path = "./rusty-injector" }
@@ -122,6 +123,7 @@ ignored_unit_patterns           = "allow" # suggest replacing `_` by `()` in pat
 ref_patterns                    = "allow" # use of a ref pattern, e.g. Some(ref value)
 pattern_type_mismatch           = "allow" # type of pattern does not match the expression type
 missing_trait_methods           = "allow" # trait implementation uses default provided method
+tests_outside_test_module       = "allow" # A test function is outside the testing module.
 
 # Too many false-positives.
 
@@ -319,7 +321,6 @@ str_to_string                   = "warn" # using `to_string()` on a `&str`, whic
 suboptimal_flops                = "warn" # usage of sub-optimal floating point operations
 suspicious_operation_groupings  = "warn" # groupings of binary operations that look suspiciously like typos
 suspicious_xor_used_as_pow      = "warn" # XOR (`^`) operator possibly used as exponentiation operator
-tests_outside_test_module       = "warn" # A test function is outside the testing module.
 too_many_lines                  = "warn" # functions with too many lines
 trailing_empty_array            = "warn" # struct with a trailing zero-sized array but without `# [repr(C)]` or another `repr` attribute
 trait_duplication_in_bounds     = "warn" # check if the same trait bounds are specified more than once during a generic declaration

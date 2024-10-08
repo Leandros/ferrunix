@@ -1,20 +1,28 @@
+#![allow(clippy::panic)]
+
 use darling::FromDeriveInput;
 use quote::{format_ident, quote};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
-use syn::{parse_macro_input, Data, DataStruct, DeriveInput, Field, Fields, Ident, Type};
+use syn::{
+    parse_macro_input, Data, DataStruct, DeriveInput, Field, Fields, Ident,
+    Type,
+};
 
 use self::attr::DeriveAttrInput;
 
 mod attr;
 
 #[proc_macro_derive(Inject, attributes(provides, inject))]
-pub fn derive_inject(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn derive_inject(
+    input: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
     // Parse the input tokens into a syntax tree
     let input = parse_macro_input!(input as DeriveInput);
     // eprintln!("input: {input:#?}");
 
-    let attr_input = DeriveAttrInput::from_derive_input(&input).unwrap();
+    let attr_input =
+        DeriveAttrInput::from_derive_input(&input).expect("invalid attributes");
     // eprintln!("attr_input: {attr_input:#?}");
 
     let struct_name = input.ident.clone();
@@ -43,7 +51,10 @@ pub fn derive_inject(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
     proc_macro::TokenStream::from(expanded)
 }
 
-fn build_registration(input: &DeriveInput, attrs: &DeriveAttrInput) -> proc_macro2::TokenStream {
+fn build_registration(
+    input: &DeriveInput,
+    attrs: &DeriveAttrInput,
+) -> proc_macro2::TokenStream {
     if attrs.transient().is_some() {
         build_registration_transient(input, attrs)
     } else if attrs.singleton().is_some() {
