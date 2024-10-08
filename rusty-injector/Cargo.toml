@@ -22,7 +22,7 @@ multithread = []
 
 [dependencies]
 once_cell = { version = "1", features = ["parking_lot"] }
-parking_lot = "0.12"
+parking_lot = "0.9"
 thiserror = "1"
 inventory = "0.3"
 
