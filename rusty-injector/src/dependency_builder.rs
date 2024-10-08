@@ -53,3 +53,8 @@ macro_rules! DepBuilderImpl {
 DepBuilderImpl!(1, { T1 });
 DepBuilderImpl!(2, { T1, T2 });
 DepBuilderImpl!(3, { T1, T2, T3 });
+DepBuilderImpl!(4, { T1, T2, T3, T4 });
+DepBuilderImpl!(5, { T1, T2, T3, T4, T5 });
+DepBuilderImpl!(6, { T1, T2, T3, T4, T5, T6 });
+DepBuilderImpl!(7, { T1, T2, T3, T4, T5, T6, T8 });
+DepBuilderImpl!(8, { T1, T2, T3, T4, T5, T6, T8, T9 });
