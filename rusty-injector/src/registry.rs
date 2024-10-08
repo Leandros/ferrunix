@@ -156,7 +156,7 @@ pub struct Builder<'a, T, Deps> {
     _marker1: PhantomData<Deps>,
 }
 
-impl<'a, T, Deps> Builder<'a, T, Deps>
+impl<T, Deps> Builder<'_, T, Deps>
 where
     Deps: DepBuilder<T> + 'static,
     T: Send + Sync + 'static,
