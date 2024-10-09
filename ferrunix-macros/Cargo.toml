@@ -29,7 +29,7 @@ ferrunix-core = { path = "../ferrunix-core", default-features = false, version =
 
 syn = { version = "2", features = ["extra-traits"] }
 prettyplease = { version = "0.2", optional = true }
-proc-macro2 = "1"
+proc-macro2 = "1.0.60"
 quote = "1"
 darling = "0.20"
 

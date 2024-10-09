@@ -21,7 +21,7 @@ default = ["multithread"]
 multithread = ["dep:once_cell", "dep:parking_lot"]
 
 [dependencies]
-once_cell = { version = "1", features = ["parking_lot"], optional = true }
+once_cell = { version = "1.11", features = ["parking_lot"], optional = true }
 parking_lot = { version = "0.12", optional = true }
 thiserror = "1"
 inventory = "0.3"
