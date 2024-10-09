@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+#![allow(dead_code, clippy::option_if_let_else, clippy::min_ident_chars)]
 use darling::ast::Fields;
 use darling::{util, FromDeriveInput, FromField};
 use syn::Type;
@@ -26,8 +26,8 @@ pub struct DeriveField {
 }
 
 impl DeriveField {
-    pub fn ident(&self) -> &Option<syn::Ident> {
-        &self.ident
+    pub fn ident(&self) -> Option<&syn::Ident> {
+        self.ident.as_ref()
     }
 
     pub fn ty(&self) -> &syn::Type {
@@ -43,8 +43,8 @@ impl DeriveField {
         self.ctor.is_none() && self.default
     }
 
-    pub fn ctor(&self) -> &Option<String> {
-        &self.ctor
+    pub fn ctor(&self) -> Option<&String> {
+        self.ctor.as_ref()
     }
 }
 
@@ -69,12 +69,12 @@ impl DeriveAttrInput {
         )
     }
 
-    pub fn transient(&self) -> &Option<Type> {
-        &self.transient
+    pub fn transient(&self) -> Option<&Type> {
+        self.transient.as_ref()
     }
 
-    pub fn singleton(&self) -> &Option<String> {
-        &self.singleton
+    pub fn singleton(&self) -> Option<&String> {
+        self.singleton.as_ref()
     }
 
     // fn opts(&self) -> Cow<'_, Options> {

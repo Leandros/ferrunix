@@ -1,4 +1,12 @@
-#![allow(clippy::panic, clippy::module_name_repetitions)]
+//! Proc-macro for [`ferrunix`].
+//!
+//! [`ferrunix`]: https://crates.io/crates/ferrunix
+#![allow(
+    clippy::panic,
+    clippy::min_ident_chars,
+    clippy::module_name_repetitions,
+    clippy::missing_docs_in_private_items
+)]
 
 use darling::FromDeriveInput;
 use quote::{format_ident, quote};
@@ -24,7 +32,7 @@ pub fn derive_inject(
         DeriveAttrInput::from_derive_input(&input).expect("invalid attributes");
     // eprintln!("attr_input: {attr_input:#?}");
 
-    let struct_name = input.ident.clone();
+    let struct_name = &input.ident;
     let struct_name_lowercase = input.ident.to_string().to_lowercase();
     let mod_name = format_ident!("__inner_register_{struct_name_lowercase}");
 
@@ -68,7 +76,7 @@ fn build_registration_transient(
     attrs: &DeriveAttrInput,
 ) -> proc_macro2::TokenStream {
     let fields = attrs.fields();
-    let raw_ty = attrs.transient().as_ref().expect("transient attribute");
+    let raw_ty = attrs.transient().expect("transient attribute");
 
     let concrete_ty = &input.ident;
     if fields.is_empty() {
@@ -88,6 +96,7 @@ fn build_registration_transient(
             for i in 0..fields.len() {
                 // TODO: Implement `ctor` and `default` attr.
                 // let attr_field = &fields.fields[i];
+                #[allow(clippy::indexing_slicing)]
                 let input_field = &struct_fields[i];
 
                 let ident = input_field
