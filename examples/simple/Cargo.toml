@@ -1,0 +1,15 @@
+[package]
+name = "example-simple"
+version = "0.0.0"
+publish = false
+# Inherited.
+rust-version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+rusty-injector.workspace = true

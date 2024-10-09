@@ -3,7 +3,7 @@ resolver = "2"
 members = [
     "rusty-injector",
     "rusty-injector-*",
-    # "examples/*",
+    "examples/*",
     "xtask",
 ]
 # Only check / build main crates by default (check all with `--workspace`)
