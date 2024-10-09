@@ -3,14 +3,15 @@ use std::marker::PhantomData;
 
 use once_cell::sync::OnceCell;
 
-use crate::dependency_builder::DepBuilder;
-use crate::{Arc, HashMap, RegistrationFunc, RwLock, DEFAULT_REGISTRY};
+use crate::dependency_builder::{self, DepBuilder};
+use crate::{HashMap, Ref, RegistrationFunc, RwLock, DEFAULT_REGISTRY};
 
 type BoxedAny = Box<dyn Any + Send + Sync>;
-type ArcAny = Arc<dyn Any + Send + Sync>;
+type RefAny = Ref<dyn Any + Send + Sync>;
 type BoxedCtor = Box<dyn Fn(&Registry) -> Option<BoxedAny> + Send + Sync>;
-type SingletonCell = OnceCell<ArcAny>;
-type BoxedSingletonGetter = Box<dyn Fn(&Registry, &SingletonCell) -> Option<ArcAny> + Send + Sync>;
+type SingletonCell = OnceCell<RefAny>;
+type BoxedSingletonGetter =
+    Box<dyn Fn(&Registry, &SingletonCell) -> Option<RefAny> + Send + Sync>;
 type Validator = Box<dyn Fn(&Registry) -> bool + Send + Sync>;
 
 pub enum Object {
@@ -53,10 +54,12 @@ impl Registry {
     where
         T: Send + Sync + 'static,
     {
-        let getter = Box::new(move |_this: &Registry, cell: &SingletonCell| -> Option<ArcAny> {
-            let rc = cell.get_or_init(|| Arc::new(ctor()));
-            Some(Arc::clone(rc))
-        });
+        let getter = Box::new(
+            move |_this: &Registry, cell: &SingletonCell| -> Option<RefAny> {
+                let rc = cell.get_or_init(|| Ref::new(ctor()));
+                Some(Ref::clone(rc))
+            },
+        );
         self.objects.write().insert(
             TypeId::of::<T>(),
             Object::Singleton(getter, OnceCell::new()),
@@ -70,7 +73,9 @@ impl Registry {
     where
         T: Send + Sync + 'static,
     {
-        if let Some(Object::Transient(ctor)) = self.objects.read().get(&TypeId::of::<T>()) {
+        if let Some(Object::Transient(ctor)) =
+            self.objects.read().get(&TypeId::of::<T>())
+        {
             let boxed = (ctor)(self)?;
             if let Ok(obj) = boxed.downcast::<T>() {
                 return Some(*obj);
@@ -80,11 +85,13 @@ impl Registry {
         None
     }
 
-    pub fn get_singleton<T>(&self) -> Option<Arc<T>>
+    pub fn get_singleton<T>(&self) -> Option<Ref<T>>
     where
         T: Send + Sync + 'static,
     {
-        if let Some(Object::Singleton(getter, cell)) = self.objects.read().get(&TypeId::of::<T>()) {
+        if let Some(Object::Singleton(getter, cell)) =
+            self.objects.read().get(&TypeId::of::<T>())
+        {
             let singleton = (getter)(self, cell)?;
             if let Ok(obj) = singleton.downcast::<T>() {
                 return Some(obj);
@@ -165,7 +172,11 @@ where
         self.registry.objects.write().insert(
             TypeId::of::<T>(),
             Object::Transient(Box::new(move |this| -> Option<BoxedAny> {
-                match Deps::build(this, ctor) {
+                match Deps::build(
+                    this,
+                    ctor,
+                    dependency_builder::private::SealToken,
+                ) {
                     Some(obj) => Some(Box::new(obj)),
                     None => None,
                 }
@@ -174,9 +185,11 @@ where
         self.registry.validation.write().insert(
             TypeId::of::<T>(),
             Box::new(|registry: &Registry| {
-                let type_ids = Deps::as_typeids();
+                let type_ids =
+                    Deps::as_typeids(dependency_builder::private::SealToken);
                 type_ids.iter().all(|el| {
-                    if let Some(validator) = registry.validation.read().get(el) {
+                    if let Some(validator) = registry.validation.read().get(el)
+                    {
                         return (validator)(registry);
                     }
 
@@ -188,11 +201,15 @@ where
 
     pub fn singleton(&self, ctor: fn(Deps) -> T) {
         let getter = Box::new(
-            move |this: &Registry, cell: &SingletonCell| -> Option<ArcAny> {
-                match Deps::build(this, ctor) {
+            move |this: &Registry, cell: &SingletonCell| -> Option<RefAny> {
+                match Deps::build(
+                    this,
+                    ctor,
+                    dependency_builder::private::SealToken,
+                ) {
                     Some(obj) => {
-                        let rc = cell.get_or_init(|| Arc::new(obj));
-                        Some(Arc::clone(rc))
+                        let rc = cell.get_or_init(|| Ref::new(obj));
+                        Some(Ref::clone(rc))
                     }
                     None => None,
                 }
@@ -205,9 +222,11 @@ where
         self.registry.validation.write().insert(
             TypeId::of::<T>(),
             Box::new(|registry: &Registry| {
-                let type_ids = Deps::as_typeids();
+                let type_ids =
+                    Deps::as_typeids(dependency_builder::private::SealToken);
                 type_ids.iter().all(|el| {
-                    if let Some(validator) = registry.validation.read().get(el) {
+                    if let Some(validator) = registry.validation.read().get(el)
+                    {
                         return (validator)(registry);
                     }
 

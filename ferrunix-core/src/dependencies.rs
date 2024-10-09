@@ -1,6 +1,6 @@
 use std::any::TypeId;
 
-use crate::{Arc, Registry};
+use crate::{Ref, Registry};
 
 pub trait Dep {
     fn new(registry: &Registry) -> Self;
@@ -33,12 +33,12 @@ impl<T: Send + Sync + 'static> Dep for Transient<T> {
 }
 
 pub struct Singleton<T> {
-    inner: Arc<T>,
+    inner: Ref<T>,
 }
 
 impl<T: Send + Sync + 'static> Singleton<T> {
     #[must_use]
-    pub fn get(self) -> Arc<T> {
+    pub fn get(self) -> Ref<T> {
         self.inner
     }
 }
