@@ -20,3 +20,28 @@ pub struct CreditCard {
     pub expiry_month: u16,
     pub expiry_year: u16,
 }
+
+//          ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+//          ┃                         Traits                          ┃
+//          ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+// These traits are going to be implemented as part of the tests.
+pub trait BillingService: Send + Sync {
+    fn charge_order(
+        &self,
+        order: PizzaOrder,
+        creditcard: &CreditCard,
+    ) -> Result<Receipt, Error>;
+}
+
+pub trait CreditCardProcessor: Send + Sync {
+    fn charge(
+        &self,
+        creditcard: &CreditCard,
+        amount: i32,
+    ) -> Result<i32, Error>;
+}
+
+pub trait TransactionLog: Send + Sync {
+    fn log_charge(&self, amount: i32);
+    fn log_error(&self, err: &Error);
+}

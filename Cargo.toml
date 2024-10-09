@@ -2,9 +2,12 @@
 resolver = "2"
 members = [
     "rusty-injector",
-    "rusty-injector-macros",
-    "xtask"
+    "rusty-injector-*",
+    # "examples/*",
+    "xtask",
 ]
+# Only check / build main crates by default (check all with `--workspace`)
+default-members = ["rusty-injector", "rusty-injector-*"]
 
 [workspace.package]
 rust-version = "1.64"
@@ -16,10 +19,11 @@ readme = "README.md"
 license = "MIT OR Apache-2.0"
 keywords = ["dependency-injection", "inversion-of-control", "dependency-inversion", "di", "ioc"]
 categories = ["development-tools", "rust-patterns", "config", "data-structures"]
-exclude = ["*.png", "*.svg", "rustfmt.toml"]
+exclude = ["*.png", "*.svg", "rustfmt.toml", "xtask"]
 
 [workspace.dependencies]
 rusty-injector = { path = "./rusty-injector" }
+rusty-injector-core = { path = "./rusty-injector-core" }
 rusty-injector-macros = { path = "./rusty-injector-macros" }
 
 # Lints from compiler.

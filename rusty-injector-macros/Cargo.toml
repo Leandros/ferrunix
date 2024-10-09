@@ -1,6 +1,7 @@
 [package]
 name = "rusty-injector-macros"
 version = "0.1.0"
+description = "Proc-macro for rusty-injector"
 # Inherited.
 rust-version.workspace = true
 edition.workspace = true
@@ -18,13 +19,17 @@ categories.workspace = true
 [lib]
 proc-macro = true
 
+[features]
+default = ["development"]
+development = ["syn/extra-traits", "dep:prettyplease"]
+
 [dependencies]
-rusty-injector.workspace = true
+rusty-injector-core.workspace = true
 
 syn = { version = "2", features = ["extra-traits"] }
+prettyplease = { version = "0.2", optional = true }
 proc-macro2 = "1"
 quote = "1"
-prettyplease = "0.2"
 darling = "0.20"
 
 [dev-dependencies]
