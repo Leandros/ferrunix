@@ -1,19 +1,58 @@
-# Rusty Injector
+# Ferrunix
 
-[![Build Status](https://github.com/leandros/rusty-injector/actions/workflows/ci.yaml/badge.svg)](https://github.com/leandros/rusty-injector/actions)
-[![Crates.io](https://img.shields.io/crates/v/rusty-injector.svg)](https://crates.io/crates/rusty-injector)
-[![API reference](https://docs.rs/rusty-injector/badge.svg)](https://docs.rs/rusty-injector/)
+[![Build Status](https://github.com/leandros/ferrunix/actions/workflows/ci.yaml/badge.svg)](https://github.com/leandros/ferrunix/actions)
+[![Crates.io](https://img.shields.io/crates/v/ferrunix.svg)](https://crates.io/crates/ferrunix)
+[![API reference](https://docs.rs/ferrunix/badge.svg)](https://docs.rs/ferrunix/)
 
-A simple, and idiomatic way to inject dependencies.
+A simple, idiomatic, and lightweight dependency injection framework for Rust.
 
 ```toml
 [dependencies]
-rusty-injector = "0"
+ferrunix = "0"
 ```
 
 *Compiler support: requires rustc 1.62+*
 
 ## Example
+
+```rust
+use ferrunix::{Registry, Transient};
+
+#[derive(Default, Debug)]
+pub struct Logger {}
+
+impl Logger {
+    pub fn info(&self, message: &str) {
+        println!("INFO: {message}");
+    }
+}
+
+#[derive(Debug)]
+pub struct Worker {
+    logger: Box<Logger>,
+}
+
+impl Worker {
+    pub fn new(logger: Box<Logger>) -> Self {
+        Self { logger }
+    }
+
+    pub fn do_work(&self) {
+        self.logger.info("doing something ...");
+    }
+}
+
+fn main() {
+    let mut registry = Registry::empty();
+    registry.transient(|| Logger::default());
+    registry
+        .with_deps::<_, (Transient<Logger>,)>()
+        .transient(|(logger,)| Worker::new(logger));
+
+    let worker = registry.get_transient::<Worker>().unwrap();
+    worker.do_work();
+}
+```
 
 #### License
 

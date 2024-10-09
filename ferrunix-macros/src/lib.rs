@@ -35,12 +35,12 @@ pub fn derive_inject(
 
             #[automatically_derived]
             impl #struct_name {
-                pub(crate) fn register(registry: &mut ::rusty_injector::Registry) {
+                pub(crate) fn register(registry: &mut ::ferrunix::Registry) {
                     #registration
                 }
             }
 
-            ::rusty_injector::inventory_submit!(::rusty_injector::RegistrationFunc(|registry| {
+            ::ferrunix::inventory_submit!(::ferrunix::RegistrationFunc(|registry| {
                 <#struct_name>::register(registry);
             }));
         }
@@ -120,7 +120,7 @@ fn build_registration_transient(
         quote! {
             registry
                 .with_deps::<Box<#raw_ty>, (
-                    #(::rusty_injector::Transient<#types>),*
+                    #(::ferrunix::Transient<#types>),*
                 )>()
                 .transient(|(#(#idents),*)| {
                     Box::new(#construct)

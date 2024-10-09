@@ -1,5 +1,5 @@
 [package]
-name = "rusty-injector"
+name = "ferrunix"
 version = "0.1.0"
 description = "A lightweight run-time dependency injection framework for Rust"
 # Inherited.
@@ -18,11 +18,11 @@ categories.workspace = true
 
 [features]
 default = ["multithread", "derive"]
-multithread = ["rusty-injector-core/multithread"]
-derive = ["dep:rusty-injector-macros"]
+multithread = ["ferrunix-core/multithread"]
+derive = ["dep:ferrunix-macros"]
 
 [dependencies]
-rusty-injector-core = { path = "../rusty-injector-core", default-features = false }
+ferrunix-core = { path = "../ferrunix-core", default-features = false }
 
 # Optional dependencies
-rusty-injector-macros = { workspace = true, optional = true }
+ferrunix-macros = { workspace = true, optional = true }

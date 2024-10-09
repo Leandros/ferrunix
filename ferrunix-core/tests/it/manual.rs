@@ -1,6 +1,6 @@
 #![allow(clippy::unwrap_used, dead_code)]
 
-use rusty_injector::{Registry, Singleton, Transient};
+use ferrunix_core::{Registry, Singleton, Transient};
 
 #[test]
 fn simple_registry_concrete_types() {

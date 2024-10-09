@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use super::common::*;
-use rusty_injector::Registry;
-use rusty_injector_macros::Inject;
+use ferrunix::Registry;
+use ferrunix_macros::Inject;
 
 pub trait CreditCardProcessor: Send + Sync {
     fn charge(&self, creditcard: &CreditCard, amount: i32) -> Result<i32, Error>;
@@ -74,7 +74,7 @@ impl BillingService for RealBillingService {
 // mod __inner_register_creditcardprocessor {
 //     #![allow(unused_imports)]
 //     use super::*;
-//     use rusty_injector::{inventory_submit, RegistrationFunc, Registry, Singleton, Transient};
+//     use ferrunix::{inventory_submit, RegistrationFunc, Registry, Singleton, Transient};
 
 //     impl PaypalCreditCardProcessor {
 //         pub(crate) fn register(registry: &mut Registry) {
@@ -92,7 +92,7 @@ impl BillingService for RealBillingService {
 // mod __inner_register_transactionlog {
 //     #![allow(unused_imports)]
 //     use super::*;
-//     use rusty_injector::{inventory_submit, RegistrationFunc, Registry, Singleton, Transient};
+//     use ferrunix::{inventory_submit, RegistrationFunc, Registry, Singleton, Transient};
 
 //     impl RealTransactionLog {
 //         pub(crate) fn register(registry: &mut Registry) {
@@ -109,7 +109,7 @@ impl BillingService for RealBillingService {
 // mod __inner_register_realbillingservice {
 //     #![allow(unused_imports)]
 //     use super::*;
-//     use rusty_injector::{inventory_submit, RegistrationFunc, Registry, Singleton, Transient};
+//     use ferrunix::{inventory_submit, RegistrationFunc, Registry, Singleton, Transient};
 
 //     impl RealBillingService {
 //         pub(crate) fn register(registry: &mut Registry) {

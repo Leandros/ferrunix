@@ -1,5 +1,6 @@
+use ferrunix_core::{Registry, Transient};
+
 use super::common::*;
-use rusty_injector::{Registry, Transient};
 
 pub trait BillingService: Send + Sync {
     fn charge_order(&self, order: PizzaOrder, creditcard: &CreditCard) -> Result<Receipt, Error>;

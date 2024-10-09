@@ -1,7 +1,7 @@
 [package]
-name = "rusty-injector-core"
+name = "ferrunix-core"
 version = "0.1.0"
-description = "Core types, traits, and implementations for rusty-injector"
+description = "Core types, traits, and implementations for ferrunix"
 # Inherited.
 rust-version.workspace = true
 edition.workspace = true

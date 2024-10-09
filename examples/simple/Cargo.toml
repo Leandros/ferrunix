@@ -12,4 +12,4 @@ license.workspace = true
 workspace = true
 
 [dependencies]
-rusty-injector.workspace = true
+ferrunix.workspace = true

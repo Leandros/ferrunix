@@ -1,4 +1,4 @@
-//! Simple example for rusty-injector.
+//! Simple example for ferrunix.
 
 fn main() {
     println!("Hello!");

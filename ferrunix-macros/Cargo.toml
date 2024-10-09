@@ -1,7 +1,7 @@
 [package]
-name = "rusty-injector-macros"
+name = "ferrunix-macros"
 version = "0.1.0"
-description = "Proc-macro for rusty-injector"
+description = "Proc-macro for ferrunix"
 # Inherited.
 rust-version.workspace = true
 edition.workspace = true
@@ -24,7 +24,7 @@ default = ["development"]
 development = ["syn/extra-traits", "dep:prettyplease"]
 
 [dependencies]
-rusty-injector-core.workspace = true
+ferrunix-core.workspace = true
 
 syn = { version = "2", features = ["extra-traits"] }
 prettyplease = { version = "0.2", optional = true }
