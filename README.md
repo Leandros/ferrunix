@@ -1,6 +1,6 @@
 # Ferrunix
 
-[![Build Status](https://github.com/leandros/ferrunix/actions/workflows/ci.yaml/badge.svg)](https://github.com/leandros/ferrunix/actions)
+[![Build Status](https://github.com/leandros/ferrunix/actions/workflows/ci.yml/badge.svg)](https://github.com/leandros/ferrunix/actions)
 [![Crates.io](https://img.shields.io/crates/v/ferrunix.svg)](https://crates.io/crates/ferrunix)
 [![API reference](https://docs.rs/ferrunix/badge.svg)](https://docs.rs/ferrunix/)
 
