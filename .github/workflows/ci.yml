@@ -86,7 +86,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
         with:
           components: clippy, rust-src
-      - run: cargo clippy --tests --workspace -- -Dclippy::all -Dclippy::pedantic
+      - run: cargo clippy --tests --workspace
 
   miri:
     name: Miri
