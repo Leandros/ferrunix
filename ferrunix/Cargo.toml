@@ -25,4 +25,4 @@ derive = ["dep:ferrunix-macros"]
 ferrunix-core = { path = "../ferrunix-core", default-features = false, version = "0.1.0" }
 
 # Optional dependencies
-ferrunix-macros = { workspace = true, optional = true }
+ferrunix-macros = { path = "../ferrunix-macros", optional = true, version = "0.1.0" }
