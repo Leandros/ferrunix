@@ -72,8 +72,9 @@ jobs:
           components: rust-src
       - uses: dtolnay/install@cargo-docs-rs
       - run: |
-          cargo docs-rs -p rusty-injector
-          cargo docs-rs -p rusty-injector-macros
+          cargo docs-rs -p ferrunix
+          cargo docs-rs -p ferrunix-core
+          cargo docs-rs -p ferrunix-macros
 
   clippy:
     name: Clippy
