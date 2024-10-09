@@ -1,3 +1,5 @@
+//! Implementation of [`DepBuilder`] for tuples to be used with [`Registry::with_deps`].
+
 use std::any::TypeId;
 
 use crate::Registry;
@@ -16,10 +18,31 @@ pub(crate) mod private {
 ///
 /// This trait is sealed, meaning it cannot be implemented or called by any downstream crates.
 pub trait DepBuilder<R> {
-    fn build(registry: &Registry, ctor: fn(Self) -> R, _: private::SealToken) -> Option<R>
+    /// When implemented, this should validate that all dependencies which are part of `Self` exist
+    /// to construct the type `R`. If the dependencies cannot be fulfilled, `None` must be
+    /// returned.
+    ///
+    /// If the dependencies can be fulfilled, they must be constructed as an N-ary tuple (same
+    /// length and types as `Self`) and passed as the argument to `ctor`. `ctor` is a user provided
+    /// constructor for the type `R`.
+    ///
+    /// An implementation for tuples is provided by [`DepBuilderImpl`].
+    ///
+    /// We advise against *manually* implementing `build`.
+    fn build(
+        registry: &Registry,
+        ctor: fn(Self) -> R,
+        _: private::SealToken,
+    ) -> Option<R>
     where
         R: Sized;
 
+    /// Constructs a [`Vec`] of [`std::any::TypeId`]s from the types in `Self`.
+    /// The resulting vector must have the same length as `Self`.
+    ///
+    /// An implementation for tuples is provided by [`DepBuilderImpl`].
+    ///
+    /// We advise against *manually* implementing `as_typeids`.
     fn as_typeids(_: private::SealToken) -> Vec<TypeId>;
 }
 
@@ -27,7 +50,11 @@ impl<R> DepBuilder<R> for ()
 where
     R: Send + Sync + 'static,
 {
-    fn build(_registry: &Registry, ctor: fn(Self) -> R, _: private::SealToken) -> Option<R> {
+    fn build(
+        _registry: &Registry,
+        ctor: fn(Self) -> R,
+        _: private::SealToken,
+    ) -> Option<R> {
         Some(ctor(()))
     }
 
