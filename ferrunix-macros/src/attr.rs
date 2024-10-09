@@ -1,4 +1,9 @@
-#![allow(dead_code, clippy::option_if_let_else, clippy::min_ident_chars)]
+#![allow(
+    dead_code,
+    clippy::option_if_let_else,
+    clippy::min_ident_chars,
+    clippy::manual_unwrap_or_default
+)]
 use darling::ast::Fields;
 use darling::{util, FromDeriveInput, FromField};
 use syn::Type;

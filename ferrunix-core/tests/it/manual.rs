@@ -35,7 +35,7 @@ fn simple_registry_concrete_types() {
     assert_eq!(x2, Some(4_u32));
 
     let s1 = registry.get_singleton::<String>().unwrap();
-    assert_eq!(&*s1, &"Hello, World".to_string());
+    assert_eq!(&*s1, &"Hello, World".to_owned());
 }
 
 #[test]

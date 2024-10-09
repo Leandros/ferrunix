@@ -8,7 +8,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # To push a branch 
+      contents: write  # To push a branch
       pages: write  # To push to a GitHub Pages site
       id-token: write # To update the deployment status
     steps:
@@ -32,7 +32,7 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           # Upload entire book at the root.
-          path: '.'
+          path: 'book'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
