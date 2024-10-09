@@ -29,11 +29,11 @@ impl Logger {
 
 #[derive(Debug)]
 pub struct Worker {
-    logger: Box<Logger>,
+    logger: Logger
 }
 
 impl Worker {
-    pub fn new(logger: Box<Logger>) -> Self {
+    pub fn new(logger: Logger) -> Self {
         Self { logger }
     }
 
