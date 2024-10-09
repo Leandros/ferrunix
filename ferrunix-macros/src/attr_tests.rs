@@ -30,7 +30,7 @@ pub struct Foo {
         fields
             .fields
             .iter()
-            .find(|el| el.ident().as_ref().unwrap() == &format_ident!("{name}"))
+            .find(|el| el.ident().unwrap() == &format_ident!("{name}"))
             .unwrap()
     };
     let bar = get_field("bar");
