@@ -1,11 +1,19 @@
+//! Holds all registered types that can be injected or constructed.
+#![allow(clippy::missing_docs_in_private_items)]
+
 use std::any::{Any, TypeId};
 use std::marker::PhantomData;
 
-use once_cell::sync::OnceCell;
-
 use crate::dependency_builder::{self, DepBuilder};
-use crate::{HashMap, Ref, RegistrationFunc, RwLock, DEFAULT_REGISTRY};
+use crate::{
+    registration::RegistrationFunc, registration::DEFAULT_REGISTRY,
+    types::HashMap, types::OnceCell, types::Ref, types::RwLock,
+};
 
+// Type aliases.
+//
+// !! Make sure to always use the type aliases, instead of the concrete type !!
+//
 type BoxedAny = Box<dyn Any + Send + Sync>;
 type RefAny = Ref<dyn Any + Send + Sync>;
 type BoxedCtor = Box<dyn Fn(&Registry) -> Option<BoxedAny> + Send + Sync>;
@@ -14,18 +22,26 @@ type BoxedSingletonGetter =
     Box<dyn Fn(&Registry, &SingletonCell) -> Option<RefAny> + Send + Sync>;
 type Validator = Box<dyn Fn(&Registry) -> bool + Send + Sync>;
 
-pub enum Object {
+/// All possible "objects" that can be held by the registry.
+enum Object {
     Transient(BoxedCtor),
     Singleton(BoxedSingletonGetter, SingletonCell),
 }
 
-#[derive(Default)]
+/// Registry for all types that can be constructed or otherwise injected.
+#[allow(missing_debug_implementations)]
 pub struct Registry {
     objects: RwLock<HashMap<TypeId, Object>>,
     validation: RwLock<HashMap<TypeId, Validator>>,
 }
 
 impl Registry {
+    /// Create a new, empty, registry. This registry contains no pre-registered types.
+    ///
+    /// Types that are auto-registered are also not included in this registry.
+    ///
+    /// To get access to the auto-registered types (types that are annotated by the derive macro),
+    /// the global registry [`Registry::global`] needs to be used.
     #[must_use]
     pub fn empty() -> Self {
         Self {
@@ -34,6 +50,14 @@ impl Registry {
         }
     }
 
+    /// Register a new transient object, without dependencies.
+    ///
+    /// To register a type with dependencies, use the builder returned from
+    /// [`Registry::with_deps`].
+    ///
+    /// # Parameters
+    ///   * `ctor`: A constructor function returning the newly constructed `T`. This constructor
+    ///     will be called for every `T` that is requested.
     pub fn transient<T>(&self, ctor: fn() -> T)
     where
         T: Send + Sync + 'static,
@@ -50,12 +74,20 @@ impl Registry {
             .insert(TypeId::of::<T>(), Box::new(|_| true));
     }
 
+    /// Register a new singleton object, without dependencies.
+    ///
+    /// To register a type with dependencies, use the builder returned from
+    /// [`Registry::with_deps`].
+    ///
+    /// # Parameters
+    ///   * `ctor`: A constructor function returning the newly constructed `T`. This constructor
+    ///     will be called once, lazily, when the first instance of `T` is requested.
     pub fn singleton<T>(&self, ctor: fn() -> T)
     where
         T: Send + Sync + 'static,
     {
         let getter = Box::new(
-            move |_this: &Registry, cell: &SingletonCell| -> Option<RefAny> {
+            move |_this: &Self, cell: &SingletonCell| -> Option<RefAny> {
                 let rc = cell.get_or_init(|| Ref::new(ctor()));
                 Some(Ref::clone(rc))
             },
@@ -69,6 +101,9 @@ impl Registry {
             .insert(TypeId::of::<T>(), Box::new(|_| true));
     }
 
+    /// Retrieves a newly constructed `T` from this registry.
+    ///
+    /// Returns `None` if `T` wasn't registered or failed to construct.
     pub fn get_transient<T>(&self) -> Option<T>
     where
         T: Send + Sync + 'static,
@@ -85,6 +120,10 @@ impl Registry {
         None
     }
 
+    /// Retrieves the singleton `T` from this registry.
+    ///
+    /// Returns `None` if `T` wasn't registered or failed to construct. The singleton is a
+    /// ref-counted pointer object (either `Arc` or `Rc`).
     pub fn get_singleton<T>(&self) -> Option<Ref<T>>
     where
         T: Send + Sync + 'static,
@@ -101,7 +140,8 @@ impl Registry {
         None
     }
 
-    pub fn with_deps<T, Deps>(&self) -> Builder<T, Deps>
+    /// Register a new transient or singleton with dependencies.
+    pub fn with_deps<T, Deps>(&self) -> Builder<'_, T, Deps>
     where
         Deps: DepBuilder<T>,
     {
@@ -112,28 +152,41 @@ impl Registry {
         }
     }
 
+    /// Check whether all registered types have the required dependencies.
+    ///
+    /// Returns true if for all registered types all of it's dependencies can be constructed, false
+    /// otherwise.
+    ///
+    /// This is a potentially expensive call since it needs to go through the entire dependency
+    /// tree for each registered type.
+    ///
+    /// Nontheless, it's recommended to call this before using the [`Registry`].
     pub fn validate_all(&self) -> bool {
         let lock = self.validation.read();
         lock.iter().all(|(_, validator)| (validator)(self))
     }
 
+    /// Check whether the type `T` is registered in this registry, and all dependencies of the type
+    /// `T` are also registered.
+    ///
+    /// Returns true if the type and it's dependencies can be constructed, false otherwise.
     pub fn validate<T>(&self) -> bool
     where
         T: Send + Sync + 'static,
     {
         let lock = self.validation.read();
-        if let Some(validator) = lock.get(&TypeId::of::<T>()) {
-            (validator)(self)
-        } else {
-            false
-        }
+        lock.get(&TypeId::of::<T>())
+            .map_or(false, |validator| (validator)(self))
     }
 
+    /// Access the global registry.
+    ///
+    /// This registry contains the types that are marked for auto-registration via the derive
+    /// macro.
     pub fn global() -> &'static Self {
         DEFAULT_REGISTRY.get_or_init(|| {
             let mut registry = Self::empty();
 
-            eprintln!("run auto registration");
             for register in inventory::iter::<RegistrationFunc> {
                 (register.0)(&mut registry);
             }
@@ -142,8 +195,12 @@ impl Registry {
         })
     }
 
+    /// Reset the global registry, removing all previously registered types, and re-running the
+    /// auto-registration routines.
+    ///
     /// # Safety
     /// Ensure that no other thread is currently using [`Registry::global()`].
+    #[allow(unsafe_code)]
     pub unsafe fn reset_global() {
         let registry = Self::global();
         {
@@ -157,6 +214,8 @@ impl Registry {
     }
 }
 
+/// A builder for objects with dependencies. This can be created by using [`Registry::with_deps`].
+#[allow(missing_debug_implementations, clippy::single_char_lifetime_names)]
 pub struct Builder<'a, T, Deps> {
     registry: &'a Registry,
     _marker: PhantomData<T>,
@@ -168,10 +227,35 @@ where
     Deps: DepBuilder<T> + 'static,
     T: Send + Sync + 'static,
 {
+    /// Register a new transient object, with dependencies specified in `.with_deps`.
+    ///
+    /// The `ctor` parameter is a constructor function returning the newly constructed `T`. The constructor
+    /// accepts a single argument `Deps` (a tuple implementing
+    /// [`crate::dependency_builder::DepBuilder`]). It's best to destructure the tuple to
+    /// accept each dependency separately. This constructor will be called for every `T` that is
+    /// requested.
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use ferrunix_core::{Registry, Singleton, Transient};
+    /// # let registry = Registry::empty();
+    /// # struct Template {
+    /// #     template: &'static str,
+    /// # }
+    /// registry
+    ///     .with_deps::<_, (Transient<u8>, Singleton<Template>)>()
+    ///     .transient(|(num, template)| {
+    ///         // access `num` and `template` here.
+    ///         u16::from(*num)
+    ///     });
+    /// ```
+    ///
+    /// For single dependencies, the destructured tuple needs to end with a comma: `(dep,)`.
     pub fn transient(&self, ctor: fn(Deps) -> T) {
         self.registry.objects.write().insert(
             TypeId::of::<T>(),
             Object::Transient(Box::new(move |this| -> Option<BoxedAny> {
+                #[allow(clippy::option_if_let_else)]
                 match Deps::build(
                     this,
                     ctor,
@@ -199,9 +283,34 @@ where
         );
     }
 
+    /// Register a new singleton object, with dependencies specified in `.with_deps`.
+    ///
+    /// The `ctor` parameter is a constructor function returning the newly constructed `T`. The
+    /// constructor accepts a single argument `Deps` (a tuple implementing
+    /// [`crate::dependency_builder::DepBuilder`]). It's best to destructure the tuple to accept
+    /// each dependency separately. This constructor will be called once, lazily, when the first
+    /// instance of `T` is requested.
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use ferrunix_core::{Registry, Singleton, Transient};
+    /// # let registry = Registry::empty();
+    /// # struct Template {
+    /// #     template: &'static str,
+    /// # }
+    /// registry
+    ///     .with_deps::<_, (Transient<u8>, Singleton<Template>)>()
+    ///     .transient(|(num, template)| {
+    ///         // access `num` and `template` here.
+    ///         u16::from(*num)
+    ///     });
+    /// ```
+    ///
+    /// For single dependencies, the destructured tuple needs to end with a comma: `(dep,)`.
     pub fn singleton(&self, ctor: fn(Deps) -> T) {
         let getter = Box::new(
             move |this: &Registry, cell: &SingletonCell| -> Option<RefAny> {
+                #[allow(clippy::option_if_let_else)]
                 match Deps::build(
                     this,
                     ctor,

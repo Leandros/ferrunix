@@ -13,8 +13,8 @@ license.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
-# [lints]
-# workspace = true
+[lints]
+workspace = true
 
 [features]
 default = ["multithread"]

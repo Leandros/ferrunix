@@ -4,15 +4,18 @@ use std::any::TypeId;
 
 use crate::Registry;
 
+/// Required for sealing the trait. *Must not be public*.
 pub(crate) mod private {
     /// This token is used to seal the [`DepBuilder`] trait from downstream crates.
+    #[allow(missing_debug_implementations)]
+    #[derive(Clone, Copy)]
     pub struct SealToken;
 }
 
 /// The [`DepBuilder`] trait is the key to specify a variable amount of dependencies in the
 /// [`Registry::with_deps`] call from [`Registry`].
 ///
-/// The trait is implemented by the [`DepBuilderImpl`] macro for 0-ary, to 10-ary tuples (e.g.,
+/// The trait is implemented by the `DepBuilderImpl!` macro for 0-ary, to 10-ary tuples (e.g.,
 /// `(T1,)`, `(T1, T2)`, etc.), which allows these tuples to be passed as a single type parameter
 /// into [`Registry::with_deps`].
 ///
@@ -26,7 +29,7 @@ pub trait DepBuilder<R> {
     /// length and types as `Self`) and passed as the argument to `ctor`. `ctor` is a user provided
     /// constructor for the type `R`.
     ///
-    /// An implementation for tuples is provided by [`DepBuilderImpl`].
+    /// An implementation for tuples is provided by `DepBuilderImpl!`.
     ///
     /// We advise against *manually* implementing `build`.
     fn build(
@@ -40,7 +43,7 @@ pub trait DepBuilder<R> {
     /// Constructs a [`Vec`] of [`std::any::TypeId`]s from the types in `Self`.
     /// The resulting vector must have the same length as `Self`.
     ///
-    /// An implementation for tuples is provided by [`DepBuilderImpl`].
+    /// An implementation for tuples is provided by `DepBuilderImpl!`.
     ///
     /// We advise against *manually* implementing `as_typeids`.
     fn as_typeids(_: private::SealToken) -> Vec<TypeId>;
@@ -63,6 +66,8 @@ where
     }
 }
 
+/// Generates the implementation for [`DepBuilder`].
+#[allow(edition_2024_expr_fragment_specifier)]
 macro_rules! DepBuilderImpl {
     ($n:expr, { $($ts:ident),+ }) => {
         impl<R, $($ts,)*> $crate::dependency_builder::DepBuilder<R> for ($($ts,)*)
