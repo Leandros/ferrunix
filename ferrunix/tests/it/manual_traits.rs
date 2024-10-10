@@ -1,6 +1,8 @@
-use ferrunix_core::{Registry, Transient};
+#![allow(clippy::unwrap_used, dead_code)]
 
-use super::common::*;
+use ferrunix::{Registry, Transient};
+
+use crate::common::*;
 
 pub trait BillingService: Send + Sync {
     fn charge_order(
@@ -75,7 +77,7 @@ impl BillingService for RealBillingService {
 }
 
 #[test]
-pub fn test_manual_implementation() {
+fn registry_dyn_traits() {
     let registry = Registry::empty();
     registry.transient::<Box<dyn CreditCardProcessor>>(|| {
         Box::new(PaypalCreditCardProcessor::default())
@@ -83,6 +85,7 @@ pub fn test_manual_implementation() {
     registry.transient::<Box<dyn TransactionLog>>(|| {
         Box::new(RealTransactionLog::default())
     });
+    assert!(registry.validate_all());
 
     registry
         .with_deps::<Box<dyn BillingService>, (
@@ -95,6 +98,8 @@ pub fn test_manual_implementation() {
                 creditcard_processor: processor.get(),
             })
         });
+
+    assert!(registry.validate_all());
 
     let billing_service =
         registry.get_transient::<Box<dyn BillingService>>().unwrap();

@@ -50,6 +50,20 @@ impl Registry {
         }
     }
 
+    /// Create an empty registry, and add all autoregistered types into it.
+    ///
+    /// This is the constructor for the global registry that can be acquired with
+    /// [`Registry::global`].
+    #[must_use]
+    pub fn autoregistered() -> Self {
+        let registry = Self::empty();
+        for register in inventory::iter::<RegistrationFunc> {
+            (register.0)(&registry);
+        }
+
+        registry
+    }
+
     /// Register a new transient object, without dependencies.
     ///
     /// To register a type with dependencies, use the builder returned from
@@ -185,13 +199,7 @@ impl Registry {
     /// macro.
     pub fn global() -> &'static Self {
         DEFAULT_REGISTRY.get_or_init(|| {
-            let mut registry = Self::empty();
-
-            for register in inventory::iter::<RegistrationFunc> {
-                (register.0)(&mut registry);
-            }
-
-            registry
+            Self::autoregistered()
         })
     }
 

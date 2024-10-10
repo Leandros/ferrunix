@@ -13,8 +13,8 @@ license.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
-# [lints]
-# workspace = true
+[lints]
+workspace = true
 
 [features]
 default = ["multithread", "derive"]
@@ -23,6 +23,7 @@ derive = ["dep:ferrunix-macros"]
 
 [dependencies]
 ferrunix-core = { path = "../ferrunix-core", default-features = false, version = "0.1.0" }
-
-# Optional dependencies
 ferrunix-macros = { path = "../ferrunix-macros", optional = true, version = "0.1.0" }
+
+[dev-dependencies]
+thiserror = "1"
