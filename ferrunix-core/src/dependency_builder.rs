@@ -67,7 +67,6 @@ where
 }
 
 /// Generates the implementation for [`DepBuilder`].
-#[allow(edition_2024_expr_fragment_specifier)]
 macro_rules! DepBuilderImpl {
     ($n:expr, { $($ts:ident),+ }) => {
         impl<R, $($ts,)*> $crate::dependency_builder::DepBuilder<R> for ($($ts,)*)

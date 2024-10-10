@@ -29,7 +29,7 @@ ferrunix-macros = { path = "./ferrunix-macros" }
 # Lints from compiler.
 [workspace.lints.rust]
 # Lint groups
-rust_2024_compatibility = { level = "warn", priority = -1 }
+rust_2024_compatibility = { level = "allow", priority = -1 }
 rust_2018_idioms = { level = "warn", priority = -1 }
 keyword_idents = { level = "warn", priority = -1 }
 

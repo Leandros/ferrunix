@@ -3,7 +3,7 @@
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub enum Error {
+pub enum ExampleError {
     #[error("charge error")]
     ChargeError,
 }
@@ -30,7 +30,7 @@ pub trait BillingService: Send + Sync {
         &self,
         order: PizzaOrder,
         creditcard: &CreditCard,
-    ) -> Result<Receipt, Error>;
+    ) -> Result<Receipt, ExampleError>;
 }
 
 pub trait CreditCardProcessor: Send + Sync {
@@ -38,10 +38,10 @@ pub trait CreditCardProcessor: Send + Sync {
         &self,
         creditcard: &CreditCard,
         amount: i32,
-    ) -> Result<i32, Error>;
+    ) -> Result<i32, ExampleError>;
 }
 
 pub trait TransactionLog: Send + Sync {
     fn log_charge(&self, amount: i32);
-    fn log_error(&self, err: &Error);
+    fn log_error(&self, err: &ExampleError);
 }

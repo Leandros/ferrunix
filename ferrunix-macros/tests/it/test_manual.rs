@@ -3,24 +3,36 @@ use ferrunix_core::{Registry, Transient};
 use super::common::*;
 
 pub trait BillingService: Send + Sync {
-    fn charge_order(&self, order: PizzaOrder, creditcard: &CreditCard) -> Result<Receipt, Error>;
+    fn charge_order(
+        &self,
+        order: PizzaOrder,
+        creditcard: &CreditCard,
+    ) -> Result<Receipt, ExampleError>;
 }
 
 pub trait CreditCardProcessor: Send + Sync {
-    fn charge(&self, creditcard: &CreditCard, amount: i32) -> Result<i32, Error>;
+    fn charge(
+        &self,
+        creditcard: &CreditCard,
+        amount: i32,
+    ) -> Result<i32, ExampleError>;
 }
 
 pub trait TransactionLog: Send + Sync {
     fn log_charge(&self, amount: i32);
-    fn log_error(&self, err: &Error);
+    fn log_error(&self, err: &ExampleError);
 }
 
 #[derive(Debug, Default)]
 pub struct PaypalCreditCardProcessor {}
 
 impl CreditCardProcessor for PaypalCreditCardProcessor {
-    fn charge(&self, creditcard: &CreditCard, amount: i32) -> Result<i32, Error> {
-        println!("charging {creditcard:?} for {amount} via PayPal");
+    fn charge(
+        &self,
+        _creditcard: &CreditCard,
+        amount: i32,
+    ) -> Result<i32, ExampleError> {
+        println!("charging {amount} via PayPal");
         Ok(amount)
     }
 }
@@ -33,8 +45,8 @@ impl TransactionLog for RealTransactionLog {
         println!("charged {amount}");
     }
 
-    fn log_error(&self, err: &Error) {
-        eprintln!("error: charging creditcard: {err:?}");
+    fn log_error(&self, err: &ExampleError) {
+        eprintln!("error: charging creditcard: {err}");
     }
 }
 
@@ -44,7 +56,11 @@ pub struct RealBillingService {
 }
 
 impl BillingService for RealBillingService {
-    fn charge_order(&self, order: PizzaOrder, creditcard: &CreditCard) -> Result<Receipt, Error> {
+    fn charge_order(
+        &self,
+        order: PizzaOrder,
+        creditcard: &CreditCard,
+    ) -> Result<Receipt, ExampleError> {
         match self.creditcard_processor.charge(creditcard, order.0) {
             Ok(charged_amount) => {
                 self.transactionlog.log_charge(charged_amount);
@@ -64,7 +80,9 @@ pub fn test_manual_implementation() {
     registry.transient::<Box<dyn CreditCardProcessor>>(|| {
         Box::new(PaypalCreditCardProcessor::default())
     });
-    registry.transient::<Box<dyn TransactionLog>>(|| Box::new(RealTransactionLog::default()));
+    registry.transient::<Box<dyn TransactionLog>>(|| {
+        Box::new(RealTransactionLog::default())
+    });
 
     registry
         .with_deps::<Box<dyn BillingService>, (
@@ -78,7 +96,8 @@ pub fn test_manual_implementation() {
             })
         });
 
-    let billing_service = registry.get_transient::<Box<dyn BillingService>>().unwrap();
+    let billing_service =
+        registry.get_transient::<Box<dyn BillingService>>().unwrap();
 
     let order = PizzaOrder(100);
     let creditcard = CreditCard {
@@ -88,5 +107,5 @@ pub fn test_manual_implementation() {
     };
     let result = billing_service.charge_order(order, &creditcard);
 
-    assert!(result.is_ok());
+    result.unwrap();
 }
