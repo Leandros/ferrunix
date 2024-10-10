@@ -16,41 +16,36 @@ ferrunix = "0"
 ## Example
 
 ```rust
-use ferrunix::{Registry, Transient};
-
-#[derive(Default, Debug)]
-pub struct Logger {}
-
-impl Logger {
-    pub fn info(&self, message: &str) {
-        println!("INFO: {message}");
-    }
-}
+use ferrunix::{Ref, Registry, Transient};
+use example::{Logger, BillingService, SysLog}
 
 #[derive(Debug)]
-pub struct Worker {
-    logger: Logger
+pub struct ExampleService {
+    logger: Ref<dyn Logger>, // Logger is a singleton, and only instantiated once.
+    billing: Box<dyn BillingService>, // The BillingService is constructed each time it's requested.
 }
 
-impl Worker {
-    pub fn new(logger: Logger) -> Self {
-        Self { logger }
+impl ExampleService {
+    pub fn new(logger: Ref<dyn Logger>, billing: Box<dyn BillingService>) -> Self {
+        Self { logger, billing }
     }
 
     pub fn do_work(&self) {
-        self.logger.info("doing something ...");
+        // Omitted for brevity...
     }
 }
 
 fn main() {
     let mut registry = Registry::empty();
-    registry.transient(|| Logger::default());
+    registry.singleton(|| SysLog::default()); // `SysLog` is a concrete type implementing `Logger`.
     registry
-        .with_deps::<_, (Transient<Logger>,)>()
-        .transient(|(logger,)| Worker::new(logger));
+        .with_deps::<_, (Singleton<dyn Logger>, Singleton<dyn BillingService>,)>()
+        .transient(|(logger, billing)| {
+            ExampleService::new(*logger, *billing)
+        });
 
-    let worker = registry.get_transient::<Worker>().unwrap();
-    worker.do_work();
+    let service = registry.get_transient::<ExampleService>().unwrap();
+    service.do_work();
 }
 ```
 
@@ -65,7 +60,7 @@ Licensed under either of <a href="LICENSE-APACHE">Apache License, Version
 
 <sub>
 By contributing to this project (for example, through submitting a pull
-request) you agree with the [individual contributor license
-agreement](https://github.com/Leandros/ferrunix/blob/master/Contributors-License-Agreement.md).
-Make sure to read and understand it.
+request) you agree with the <a
+href="https://github.com/Leandros/ferrunix/blob/master/Contributors-License-Agreement.md">individual
+contributor license agreement</a>. Make sure to read and understand it.
 </sub>

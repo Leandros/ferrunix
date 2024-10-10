@@ -20,7 +20,7 @@ Licensed under either of <a href="LICENSE-APACHE">Apache License, Version
 
 <sub>
 By contributing to this project (for example, through submitting a pull
-request) you agree with the [individual contributor license
-agreement](https://github.com/Leandros/ferrunix/blob/master/Contributors-License-Agreement.md).
-Make sure to read and understand it.
+request) you agree with the <a
+href="https://github.com/Leandros/ferrunix/blob/master/Contributors-License-Agreement.md">individual
+contributor license agreement</a>. Make sure to read and understand it.
 </sub>
