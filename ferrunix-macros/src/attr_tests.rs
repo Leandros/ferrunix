@@ -1,4 +1,9 @@
-#![allow(clippy::similar_names, clippy::assertions_on_result_states)]
+#![allow(
+    clippy::similar_names,
+    clippy::assertions_on_result_states,
+    clippy::needless_raw_strings,
+    clippy::needless_raw_string_hashes
+)]
 use quote::format_ident;
 
 use super::*;
@@ -41,10 +46,10 @@ pub struct Foo {
     let my_singleton_long = get_field("my_singleton_long");
 
     assert!(bar.default);
-    assert_eq!(bar.ctor, None);
+    assert!(bar.ctor.is_none());
 
     assert!(!baz.default);
-    assert_eq!(baz.ctor, Some("-1".to_owned()));
+    assert_eq!(&*baz.ctor.clone().unwrap(), &"-1".to_owned());
 
     assert!(!my_transient.default);
     assert!(my_transient.ctor().is_none());
@@ -68,70 +73,69 @@ pub struct Foo {
 }
 
 #[test]
-fn attrs_transient_success() {
+fn attr_transient_explicit() {
     let input = r#"
 #[derive(Inject)]
-#[provides(transient = "dyn FooTrait")]
+#[provides(transient = "Foo")]
 pub struct Foo {
-    #[inject(default)]
     counter: u8,
 }"#;
-
     let parsed = syn::parse_str(input).unwrap();
-    let receiver = DeriveAttrInput::from_derive_input(&parsed).unwrap();
-
-    assert_eq!(receiver.ident, format_ident!("Foo"));
-    // let tokens = quote! { dyn FooTrait };
-    // assert_eq!(receiver.transient, Some(syn::Type::from(tokens)));
-    assert_eq!(receiver.singleton, None);
+    let receiver = DeriveAttrInput::from_derive_input(&parsed);
+    let receiver = receiver.unwrap();
+    let transient = receiver.transient().unwrap();
+    let ty: syn::Type = syn::parse2(quote!(Foo)).unwrap();
+    assert_eq!(transient.as_ref(), &ty);
+    assert_eq!(receiver.singleton(), None);
 }
 
 #[test]
-fn attrs_singleton_success() {
+fn attr_transient_default() {
+    let input = r#"
+#[derive(Inject)]
+#[provides(transient)]
+pub struct Foo {
+    counter: u8,
+}"#;
+    let parsed = syn::parse_str(input).unwrap();
+    let receiver = DeriveAttrInput::from_derive_input(&parsed);
+    let receiver = receiver.unwrap();
+    let transient = receiver.transient().unwrap();
+    let ty: syn::Type = syn::parse2(quote!(Self)).unwrap();
+    assert_eq!(transient.as_ref(), &ty);
+    assert_eq!(receiver.singleton(), None);
+}
+
+#[test]
+fn attr_singleton_explicit() {
     let input = r#"
 #[derive(Inject)]
 #[provides(singleton = "Foo")]
 pub struct Foo {
-    #[inject(default)]
     counter: u8,
 }"#;
-
     let parsed = syn::parse_str(input).unwrap();
-    let receiver = DeriveAttrInput::from_derive_input(&parsed).unwrap();
-
-    assert_eq!(receiver.ident, format_ident!("Foo"));
-    assert_eq!(receiver.transient, None);
-    assert_eq!(receiver.singleton, Some("Foo".to_owned()));
+    let receiver = DeriveAttrInput::from_derive_input(&parsed);
+    let receiver = receiver.unwrap();
+    let singleton = receiver.singleton().unwrap();
+    let ty: syn::Type = syn::parse2(quote!(Foo)).unwrap();
+    assert_eq!(singleton.as_ref(), &ty);
+    assert_eq!(receiver.transient(), None);
 }
 
 #[test]
-fn attrs_singleton_failure() {
-    let input = "
+fn attr_singleton_default() {
+    let input = r#"
 #[derive(Inject)]
 #[provides(singleton)]
 pub struct Foo {
-    #[inject(default)]
     counter: u8,
-}";
-
+}"#;
     let parsed = syn::parse_str(input).unwrap();
     let receiver = DeriveAttrInput::from_derive_input(&parsed);
-
-    assert!(receiver.is_err());
-}
-
-#[test]
-fn attrs_transient_failure() {
-    let input = "
-#[derive(Inject)]
-#[provides(transient)]
-pub struct Foo {
-    #[inject(default)]
-    counter: u8,
-}";
-
-    let parsed = syn::parse_str(input).unwrap();
-    let receiver = DeriveAttrInput::from_derive_input(&parsed);
-
-    assert!(receiver.is_err());
+    let receiver = receiver.unwrap();
+    let singleton = receiver.singleton().unwrap();
+    let ty: syn::Type = syn::parse2(quote!(Self)).unwrap();
+    assert_eq!(singleton.as_ref(), &ty);
+    assert_eq!(receiver.transient(), None);
 }
