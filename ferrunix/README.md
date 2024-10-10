@@ -36,13 +36,15 @@ impl ExampleService {
 }
 
 fn main() {
-    let mut registry = Registry::empty();
+    let registry = Registry::global();
     registry.singleton(|| SysLog::default()); // `SysLog` is a concrete type implementing `Logger`.
     registry
-        .with_deps::<_, (Singleton<dyn Logger>, Singleton<dyn BillingService>,)>()
+        .with_deps::<_, (Singleton<Ref<dyn Logger>>, Transient<Box<dyn BillingService>>,)>()
         .transient(|(logger, billing)| {
             ExampleService::new(*logger, *billing)
         });
+
+    debug_assert!(registry.validate_all());
 
     let service = registry.get_transient::<ExampleService>().unwrap();
     service.do_work();
