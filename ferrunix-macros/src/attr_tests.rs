@@ -76,7 +76,7 @@ pub struct Foo {
 fn attr_transient_explicit() {
     let input = r#"
 #[derive(Inject)]
-#[provides(transient = "Foo")]
+#[provides(transient = "Box<Foo>")]
 pub struct Foo {
     counter: u8,
 }"#;
@@ -84,7 +84,7 @@ pub struct Foo {
     let receiver = DeriveAttrInput::from_derive_input(&parsed);
     let receiver = receiver.unwrap();
     let transient = receiver.transient().unwrap();
-    let ty: syn::Type = syn::parse2(quote!(Foo)).unwrap();
+    let ty: syn::Type = syn::parse2(quote!(Box<Foo>)).unwrap();
     assert_eq!(transient.as_ref(), &ty);
     assert_eq!(receiver.singleton(), None);
 }
