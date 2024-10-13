@@ -1,11 +1,13 @@
 //! Utilities for the proc-macro
 #![allow(unused)]
 
+use std::borrow::Cow;
+
 use quote::{format_ident, quote};
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::token::Comma;
-use syn::{Data, Field, Fields};
+use syn::{Data, Field, Fields, PathSegment};
 
 pub(crate) fn get_fields_from_struct(
     data: &Data,
@@ -24,69 +26,109 @@ pub(crate) fn get_ctor_for(
     ty: &syn::Type,
     inner: proc_macro2::TokenStream,
 ) -> syn::Result<proc_macro2::TokenStream> {
+    // eprintln!("get_ctor_for: {ty:?}");
     let span = ty.span();
     match ty {
         syn::Type::Path(ref path) => {
-            let segments = &path.path.segments;
-            if let Some(first) = segments.first() {
-                let supported_types = [
-                    ("Box", "new"),
-                    ("Rc", "new"),
-                    ("Arc", "new"),
-                    ("RwLock", "new"),
-                    ("Mutex", "new"),
-                    ("Option", "new"),
-                    ("Result", "new"),
-                    ("Vec", "new"),
-                    ("Cell", "new"),
-                    ("RefCell", "new"),
-                ];
+            let segments = &path.path.segments.iter().collect::<Vec<_>>();
+            let len = segments.len();
+            let is_std_type = segments
+                .first()
+                .map_or_else(|| false, |seg| seg.ident == format_ident!("std"));
+            let is_our_type = segments.first().map_or_else(
+                || false,
+                |seg| seg.ident == format_ident!("ferrunix"),
+            );
 
-                if let Some((_, ctor)) =
-                    supported_types.iter().find(|(ident, _ctor)| {
-                        first.ident == format_ident!("{ident}")
+            let supported_types = [
+                ("Box", "::std::boxed::Box", "new"),
+                ("Rc", "::std::rc::Rc", "new"),
+                ("Arc", "::std::sync::Arc", "new"),
+                ("RwLock", "::sync::RwLock", "new"),
+                ("Mutex", "::std::sync::Mutex", "new"),
+                ("Option", "::std::option::Option", "new"),
+                ("Result", "::std::result::Result", "new"),
+                ("Vec", "::std::vec::Vec", "new"),
+                ("Cell", "::std::cell::Cell", "new"),
+                ("RefCell", "::std::cell::RefCell", "new"),
+                ("Ref", "::ferrunix::Ref", "new"),
+            ];
+
+            let is_supported_type = |segment: &PathSegment| {
+                if let Some((_name, fullname, ctor)) =
+                    supported_types.iter().find(|(ident, _fullname, _ctor)| {
+                        segment.ident == format_ident!("{ident}")
                     })
                 {
-                    let ident = first.ident.clone();
+                    let fullname: syn::Type =
+                        syn::parse_str(fullname).expect("fullname to be valid");
                     let ctor = format_ident!("{ctor}");
-                    return Ok(quote! {
-                        #ident::#ctor(#inner)
+                    return Some(quote! {
+                        #fullname::#ctor(#inner)
                     });
+                }
+
+                None
+            };
+
+            if is_std_type || is_our_type {
+                for segment in segments {
+                    if let Some(tokens) = is_supported_type(segment) {
+                        return Ok(tokens);
+                    }
+                }
+            } else if let Some(segment) = segments.first() {
+                if let Some(tokens) = is_supported_type(segment) {
+                    return Ok(tokens);
                 }
             }
 
             Ok(inner)
         }
 
-        unsupported => {
-            Err(syn::Error::new(span, "unsupported type: {unsupported}"))
-        }
+        unsupported => Err(syn::Error::new(
+            span,
+            format!("unsupported type: {unsupported:?}"),
+        )),
     }
 }
 
-// fn type_is_boxed(ty: &Type) -> bool {
-//     match ty {
-//         Type::Array(_) => false,
-//         Type::BareFn(_) => false,
-//         Type::Group(_) => false,
-//         Type::ImplTrait(_) => false,
-//         Type::Infer(_) => false,
-//         Type::Macro(_) => false,
-//         Type::Never(_) => false,
-//         Type::Paren(_) => false,
-//         Type::Path(path) => {
-//         // Let else not stabilized on 1.64.0. TODO: Replace.
-//             let Some(first_segement) = path.path.segments.get(0) else {
-//                 return false;
-//             };
-//             first_segement.ident == "Box"
-//         }
-//         Type::Ptr(_) => false,
-//         Type::Reference(_) => false,
-//         Type::Slice(_) => false,
-//         Type::TraitObject(_) => false,
-//         Type::Tuple(_) => false,
-//         Type::Verbatim(_) => false,
-//         _ => false,
-//     }
-// }
+pub(crate) enum TransformType {
+    Transient,
+    Singleton,
+}
+
+#[allow(clippy::needless_pass_by_value)]
+pub(crate) fn transform_type(
+    ty: &'_ syn::Type,
+    what: TransformType,
+) -> syn::Result<Cow<'_, syn::Type>> {
+    let span = ty.span();
+    match what {
+        TransformType::Transient => match ty {
+            syn::Type::TraitObject(obj) => {
+                let ret: syn::Type =
+                    syn::parse2(quote! { ::std::boxed::Box<#obj> })?;
+                Ok(Cow::Owned(ret))
+            }
+
+            _ => Ok(Cow::Borrowed(ty)),
+        },
+
+        TransformType::Singleton => match ty {
+            syn::Type::Path(path) => {
+                let ret: syn::Type =
+                    syn::parse2(quote! { ::ferrunix::Ref<#path> })?;
+                Ok(Cow::Owned(ret))
+            }
+
+            syn::Type::TraitObject(obj) => {
+                let ret: syn::Type =
+                    syn::parse2(quote! { ::ferrunix::Ref<#obj> })?;
+                Ok(Cow::Owned(ret))
+            }
+
+            _ => Ok(Cow::Borrowed(ty)),
+        },
+    }
+}

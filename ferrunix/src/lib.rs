@@ -13,3 +13,5 @@ pub use ferrunix_macros::Inject;
 
 pub use ferrunix_core::registration::autoregister;
 pub use ferrunix_core::registration::RegistrationFunc;
+
+pub use ferrunix_core::types::Ref;

@@ -58,7 +58,7 @@ fn registration_transient(
 ) -> syn::Result<proc_macro2::TokenStream> {
     let fields_is_empty = attrs.fields().is_empty();
     let registered_ty = attrs.transient().expect("transient attribute");
-    eprintln!("registered_ty: {registered_ty:#?}");
+    // eprintln!("registered_ty: {registered_ty:#?}");
 
     if fields_is_empty {
         registration_empty(&registered_ty, &format_ident!("transient"))

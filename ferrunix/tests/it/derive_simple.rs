@@ -12,7 +12,7 @@ trait Logger: Send + Sync {
 }
 
 #[derive(Inject)]
-#[provides(transient = "Box<dyn Logger>")]
+#[provides(transient = "dyn Logger")]
 struct StdoutLog {}
 impl Logger for StdoutLog {
     fn log(&self, msg: &'static str) {
@@ -25,7 +25,7 @@ trait ColorLogger: Send + Sync {
 }
 
 #[derive(Inject)]
-#[provides(singleton = "Arc<dyn ColorLogger>")]
+#[provides(singleton = "dyn ColorLogger")]
 struct ColoredStdoutLog {
     #[inject(transient)]
     log: Box<dyn Logger>,

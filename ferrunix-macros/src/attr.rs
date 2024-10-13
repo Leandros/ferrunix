@@ -12,6 +12,8 @@ use darling::{util, FromDeriveInput, FromField};
 use quote::quote;
 use syn::Type;
 
+use crate::utils::{transform_type, TransformType};
+
 #[cfg(test)]
 #[path = "./attr_tests.rs"]
 mod tests;
@@ -125,7 +127,11 @@ impl DeriveAttrInput {
                     let ty = syn::parse2(tokens).expect("Self to be valid");
                     Some(Cow::Owned(ty))
                 }
-                Override::Explicit(ty) => Some(Cow::Borrowed(ty)),
+                Override::Explicit(ty) => {
+                    let ret = transform_type(ty, TransformType::Transient)
+                        .expect("a well-formed type");
+                    Some(ret)
+                }
             },
 
             None => None,
@@ -148,7 +154,11 @@ impl DeriveAttrInput {
                     let ty = syn::parse2(tokens).expect("Self to be valid");
                     Some(Cow::Owned(ty))
                 }
-                Override::Explicit(ty) => Some(Cow::Borrowed(ty)),
+                Override::Explicit(ty) => {
+                    let ret = transform_type(ty, TransformType::Singleton)
+                        .expect("a well-formed type");
+                    Some(ret)
+                }
             },
 
             None => None,
