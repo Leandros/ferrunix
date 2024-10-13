@@ -99,9 +99,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@miri
       - run: cargo miri setup
       - run: cargo miri test
-        # parking_lot doesn't support strict provenance yet.
-        # env:
-        #   MIRIFLAGS: -Zmiri-strict-provenance
+        env:
+          # parking_lot doesn't support strict provenance yet.
+          # MIRIFLAGS: -Zmiri-strict-provenance
+          MIRIFLAGS: -Zmiri-permissive-provenance
 
   outdated:
     name: Outdated
