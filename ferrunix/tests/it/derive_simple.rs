@@ -3,9 +3,9 @@ use std::sync::{Arc, RwLock};
 #[allow(unused)]
 use ferrunix::{Inject, Registry};
 
-// #[derive(Inject)]
-// #[provides(transient)]
-// struct Empty {}
+#[derive(Inject)]
+#[provides(transient)]
+struct Empty {}
 
 trait Logger: Send + Sync {
     fn log(&self, msg: &'static str);
@@ -39,35 +39,21 @@ impl ColorLogger for ColoredStdoutLog {
     }
 }
 
-// #[derive(Inject)]
-// #[provides(transient = "StringTemplate")]
-// struct StringTemplate {
-//     #[inject(ctor = r#""The Magic Number is ""#)]
-//     raw: &'static str,
-// }
+#[derive(Inject)]
+#[provides(transient = "StringTemplate")]
+struct StringTemplate {
+    #[inject(ctor = r#""The Magic Number is ""#)]
+    raw: &'static str,
+}
 
-// #[derive(Inject)]
-// #[provides(transient)]
-// struct TemplateMaker {
-//     #[inject(transient)]
-//     template: StringTemplate,
-//     #[inject(ctor = "5")]
-//     number: u32,
-// }
-
-// #[automatically_derived]
-// impl StringTemplate {
-//     #[allow(clippy::use_self)]
-//     pub(crate) fn register(registry: &::ferrunix::Registry) {
-//         registry.transient::<StringTemplate>(|| StringTemplate {
-//             template: "The Magic Number is ",
-//         });
-//     }
-// }
-
-// ::ferrunix::autoregister!(::ferrunix::RegistrationFunc::new(
-//     StringTemplate::register
-// ));
+#[derive(Inject)]
+#[provides(transient)]
+struct TemplateMaker {
+    #[inject(transient)]
+    template: StringTemplate,
+    #[inject(ctor = "5")]
+    number: u32,
+}
 
 #[test]
 fn inject_stringtemplate() {
@@ -77,10 +63,10 @@ fn inject_stringtemplate() {
     let logger = registry.get_singleton::<Arc<dyn ColorLogger>>().unwrap();
     logger.log_colored("hello");
 
-    // let stringtemplate = registry.get_transient::<StringTemplate>().unwrap();
-    // assert_eq!(stringtemplate.raw, "The Magic Number is ");
+    let stringtemplate = registry.get_transient::<StringTemplate>().unwrap();
+    assert_eq!(stringtemplate.raw, "The Magic Number is ");
 
-    // let maker = registry.get_transient::<TemplateMaker>().unwrap();
-    // assert_eq!(maker.template.raw, "The Magic Number is ");
-    // assert_eq!(maker.number, 5);
+    let maker = registry.get_transient::<TemplateMaker>().unwrap();
+    assert_eq!(maker.template.raw, "The Magic Number is ");
+    assert_eq!(maker.number, 5);
 }
