@@ -1,11 +1,15 @@
 //! Utilities for the proc-macro
 #![allow(unused)]
 
+use quote::{format_ident, quote};
 use syn::punctuated::Punctuated;
+use syn::spanned::Spanned;
 use syn::token::Comma;
 use syn::{Data, Field, Fields};
 
-pub(crate) fn get_fields_from_struct(data: &Data) -> (bool, Punctuated<Field, Comma>) {
+pub(crate) fn get_fields_from_struct(
+    data: &Data,
+) -> (bool, Punctuated<Field, Comma>) {
     match data {
         Data::Struct(ref s) => match s.fields {
             Fields::Named(ref named) => (true, named.named.clone()),
@@ -13,6 +17,50 @@ pub(crate) fn get_fields_from_struct(data: &Data) -> (bool, Punctuated<Field, Co
             Fields::Unit => panic!("structs must be constructible"),
         },
         Data::Enum(_) | Data::Union(_) => panic!("not supported"),
+    }
+}
+
+pub(crate) fn get_ctor_for(
+    ty: &syn::Type,
+    inner: proc_macro2::TokenStream,
+) -> syn::Result<proc_macro2::TokenStream> {
+    let span = ty.span();
+    match ty {
+        syn::Type::Path(ref path) => {
+            let segments = &path.path.segments;
+            if let Some(first) = segments.first() {
+                let supported_types = [
+                    ("Box", "new"),
+                    ("Rc", "new"),
+                    ("Arc", "new"),
+                    ("RwLock", "new"),
+                    ("Mutex", "new"),
+                    ("Option", "new"),
+                    ("Result", "new"),
+                    ("Vec", "new"),
+                    ("Cell", "new"),
+                    ("RefCell", "new"),
+                ];
+
+                if let Some((_, ctor)) =
+                    supported_types.iter().find(|(ident, _ctor)| {
+                        first.ident == format_ident!("{ident}")
+                    })
+                {
+                    let ident = first.ident.clone();
+                    let ctor = format_ident!("{ctor}");
+                    return Ok(quote! {
+                        #ident::#ctor(#inner)
+                    });
+                }
+            }
+
+            Ok(inner)
+        }
+
+        unsupported => {
+            Err(syn::Error::new(span, "unsupported type: {unsupported}"))
+        }
     }
 }
 

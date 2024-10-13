@@ -8,6 +8,7 @@ use syn::spanned::Spanned;
 use syn::{Data, DeriveInput};
 
 use crate::attr::{DeriveAttrInput, DeriveField};
+use crate::utils::get_ctor_for;
 
 pub(crate) fn derive_macro_impl(
     input: &DeriveInput,
@@ -56,47 +57,55 @@ fn registration_transient(
     attrs: &DeriveAttrInput,
 ) -> syn::Result<proc_macro2::TokenStream> {
     let fields_is_empty = attrs.fields().is_empty();
+    let registered_ty = attrs.transient().expect("transient attribute");
+    eprintln!("registered_ty: {registered_ty:#?}");
 
     if fields_is_empty {
-        Ok(registration_transient_empty(input, attrs))
+        registration_empty(&registered_ty, &format_ident!("transient"))
     } else {
-        registration_transient_fields(input, attrs)
+        registration_fields(
+            &registered_ty,
+            &format_ident!("transient"),
+            input,
+            attrs,
+        )
     }
 }
 
-fn registration_transient_empty(
-    _input: &DeriveInput,
-    attrs: &DeriveAttrInput,
-) -> proc_macro2::TokenStream {
-    let registered_ty = attrs.transient().expect("transient attribute");
+fn registration_empty(
+    registered_ty: &syn::Type,
+    dependency_type: &syn::Ident,
+) -> syn::Result<proc_macro2::TokenStream> {
+    let ctor = get_ctor_for(registered_ty, quote!(Self {}))?;
 
     let tokens = quote! {
-        registry.transient::<#registered_ty>(|| {
-            #registered_ty {}
+        registry.#dependency_type::<#registered_ty>(|| {
+            #ctor
         });
     };
 
-    tokens
+    Ok(tokens)
 }
 
-fn registration_transient_fields(
+fn registration_fields(
+    registered_ty: &syn::Type,
+    dependency_type: &syn::Ident,
     input: &DeriveInput,
     attrs: &DeriveAttrInput,
 ) -> syn::Result<proc_macro2::TokenStream> {
     // let current_ty = &input.ident;
-    let registered_ty = attrs.transient().expect("transient attribute");
 
     let fields = attrs.fields();
     let dependency_tuple = into_dependency_tuple(&fields);
     let dependency_idents = into_dependency_idents(&fields);
-    let constructor = type_ctor(input, &fields)?;
+    let constructor = type_ctor(registered_ty, input, &fields)?;
 
     let tokens = match (dependency_tuple, dependency_idents) {
         (Some(types), Some(idents)) => {
             quote! {
                 registry
                     .with_deps::<#registered_ty, #types>()
-                    .transient(|#idents| {
+                    .#dependency_type(|#idents| {
                         #constructor
                     });
             }
@@ -104,7 +113,7 @@ fn registration_transient_fields(
 
         _ => {
             quote! {
-                registry.transient::<#registered_ty>(|| {
+                registry.#dependency_type::<#registered_ty>(|| {
                     #constructor
                 });
             }
@@ -163,6 +172,7 @@ fn into_dependency_type(
 }
 
 fn type_ctor(
+    registered_ty: &syn::Type,
     input: &DeriveInput,
     fields: &Fields<DeriveField>,
 ) -> syn::Result<proc_macro2::TokenStream> {
@@ -171,13 +181,23 @@ fn type_ctor(
         .enumerate()
         .map(|(idx, field)| field_ctor(idx, field))
         .collect::<syn::Result<Vec<_>>>()?;
+
     if let Data::Struct(ref s) = input.data {
         match s.fields {
             syn::Fields::Named(_) => {
-                return Ok(quote!( Self { #(#ctors),* } ));
+                let ctor = get_ctor_for(
+                    registered_ty,
+                    quote! { Self { #(#ctors),* } },
+                )?;
+
+                return Ok(ctor);
             }
             syn::Fields::Unnamed(_) => {
-                return Ok(quote!( Self ( #(#ctors),* ) ));
+                let ctor = get_ctor_for(
+                    registered_ty,
+                    quote! { Self ( #(#ctors),* ) },
+                )?;
+                return Ok(ctor);
             }
             syn::Fields::Unit => (),
         }
@@ -230,8 +250,20 @@ fn field_ctor(
 }
 
 fn registration_singleton(
-    _input: &DeriveInput,
-    _attrs: &DeriveAttrInput,
+    input: &DeriveInput,
+    attrs: &DeriveAttrInput,
 ) -> syn::Result<proc_macro2::TokenStream> {
-    panic!()
+    let fields_is_empty = attrs.fields().is_empty();
+    let registered_ty = attrs.singleton().expect("singleton attribute");
+
+    if fields_is_empty {
+        registration_empty(&registered_ty, &format_ident!("singleton"))
+    } else {
+        registration_fields(
+            &registered_ty,
+            &format_ident!("singleton"),
+            input,
+            attrs,
+        )
+    }
 }
