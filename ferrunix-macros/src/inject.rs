@@ -20,7 +20,7 @@ pub(crate) fn derive_macro_impl(
     let expanded = quote! {
         #[automatically_derived]
         impl #struct_name {
-            #[allow(clippy::use_self)]
+            #[allow(clippy::use_self, dead_code)]
             pub(crate) fn register(registry: &::ferrunix::Registry) {
                 #registration
             }
