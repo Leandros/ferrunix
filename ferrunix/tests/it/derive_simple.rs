@@ -56,6 +56,7 @@ struct TemplateMaker {
 }
 
 #[test]
+#[cfg(not(miri))]
 fn inject_stringtemplate() {
     let registry = Registry::autoregistered();
     assert!(registry.validate_all());
