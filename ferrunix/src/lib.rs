@@ -9,6 +9,7 @@ pub use dependencies::Singleton;
 pub use dependencies::Transient;
 pub use registry::Registry;
 
+#[cfg(feature = "derive")]
 pub use ferrunix_macros::Inject;
 
 pub use ferrunix_core::registration::autoregister;

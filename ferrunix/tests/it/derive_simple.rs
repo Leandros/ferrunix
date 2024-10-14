@@ -1,5 +1,5 @@
 #![cfg(not(miri))]
-use std::sync::{Arc, RwLock};
+use std::sync::RwLock;
 
 #[allow(unused)]
 use ferrunix::{Inject, Registry};
@@ -61,7 +61,9 @@ fn inject_stringtemplate() {
     let registry = Registry::autoregistered();
     assert!(registry.validate_all());
 
-    let logger = registry.get_singleton::<Arc<dyn ColorLogger>>().unwrap();
+    let logger = registry
+        .get_singleton::<ferrunix::Ref<dyn ColorLogger>>()
+        .unwrap();
     logger.log_colored("hello");
 
     let stringtemplate = registry.get_transient::<StringTemplate>().unwrap();

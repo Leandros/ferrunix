@@ -1,26 +1,18 @@
 //! Holds all registered types that can be injected or constructed.
 #![allow(clippy::missing_docs_in_private_items)]
 
-use std::any::{Any, TypeId};
+use std::any::TypeId;
 use std::marker::PhantomData;
 
 use crate::dependency_builder::{self, DepBuilder};
+use crate::types::{
+    BoxedAny, BoxedCtor, BoxedSingletonGetter, RefAny, Registerable,
+    SingletonCell, Validator,
+};
 use crate::{
     registration::RegistrationFunc, registration::DEFAULT_REGISTRY,
     types::HashMap, types::OnceCell, types::Ref, types::RwLock,
 };
-
-// Type aliases.
-//
-// !! Make sure to always use the type aliases, instead of the concrete type !!
-//
-type BoxedAny = Box<dyn Any + Send + Sync>;
-type RefAny = Ref<dyn Any + Send + Sync>;
-type BoxedCtor = Box<dyn Fn(&Registry) -> Option<BoxedAny> + Send + Sync>;
-type SingletonCell = OnceCell<RefAny>;
-type BoxedSingletonGetter =
-    Box<dyn Fn(&Registry, &SingletonCell) -> Option<RefAny> + Send + Sync>;
-type Validator = Box<dyn Fn(&Registry) -> bool + Send + Sync>;
 
 /// All possible "objects" that can be held by the registry.
 enum Object {
@@ -74,7 +66,7 @@ impl Registry {
     ///     will be called for every `T` that is requested.
     pub fn transient<T>(&self, ctor: fn() -> T)
     where
-        T: Send + Sync + 'static,
+        T: Registerable,
     {
         self.objects.write().insert(
             TypeId::of::<T>(),
@@ -98,7 +90,7 @@ impl Registry {
     ///     will be called once, lazily, when the first instance of `T` is requested.
     pub fn singleton<T>(&self, ctor: fn() -> T)
     where
-        T: Send + Sync + 'static,
+        T: Registerable,
     {
         let getter = Box::new(
             move |_this: &Self, cell: &SingletonCell| -> Option<RefAny> {
@@ -120,7 +112,7 @@ impl Registry {
     /// Returns `None` if `T` wasn't registered or failed to construct.
     pub fn get_transient<T>(&self) -> Option<T>
     where
-        T: Send + Sync + 'static,
+        T: Registerable,
     {
         if let Some(Object::Transient(ctor)) =
             self.objects.read().get(&TypeId::of::<T>())
@@ -140,7 +132,7 @@ impl Registry {
     /// ref-counted pointer object (either `Arc` or `Rc`).
     pub fn get_singleton<T>(&self) -> Option<Ref<T>>
     where
-        T: Send + Sync + 'static,
+        T: Registerable,
     {
         if let Some(Object::Singleton(getter, cell)) =
             self.objects.read().get(&TypeId::of::<T>())
@@ -186,7 +178,7 @@ impl Registry {
     /// Returns true if the type and it's dependencies can be constructed, false otherwise.
     pub fn validate<T>(&self) -> bool
     where
-        T: Send + Sync + 'static,
+        T: Registerable,
     {
         let lock = self.validation.read();
         lock.get(&TypeId::of::<T>())
@@ -197,9 +189,21 @@ impl Registry {
     ///
     /// This registry contains the types that are marked for auto-registration via the derive
     /// macro.
+    #[cfg(feature = "multithread")]
     pub fn global() -> &'static Self {
-        DEFAULT_REGISTRY.get_or_init(|| {
-            Self::autoregistered()
+        DEFAULT_REGISTRY.get_or_init(Self::autoregistered)
+    }
+
+    /// Access the global registry.
+    ///
+    /// This registry contains the types that are marked for auto-registration via the derive
+    /// macro.
+    #[cfg(not(feature = "multithread"))]
+    pub fn global() -> std::rc::Rc<Self> {
+        DEFAULT_REGISTRY.with(|val| {
+            let ret =
+                val.get_or_init(|| std::rc::Rc::new(Self::autoregistered()));
+            std::rc::Rc::clone(ret)
         })
     }
 
@@ -217,6 +221,10 @@ impl Registry {
         }
 
         for register in inventory::iter::<RegistrationFunc> {
+            #[cfg(not(feature = "multithread"))]
+            (register.0)(&registry);
+
+            #[cfg(feature = "multithread")]
             (register.0)(registry);
         }
     }
@@ -233,7 +241,7 @@ pub struct Builder<'a, T, Deps> {
 impl<T, Deps> Builder<'_, T, Deps>
 where
     Deps: DepBuilder<T> + 'static,
-    T: Send + Sync + 'static,
+    T: Registerable,
 {
     /// Register a new transient object, with dependencies specified in `.with_deps`.
     ///

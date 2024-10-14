@@ -31,6 +31,7 @@
 
 use std::any::TypeId;
 
+use crate::types::Registerable;
 use crate::{types::Ref, Registry};
 
 /// Required for sealing the `Dep` trait. *Must not be public*.
@@ -46,7 +47,7 @@ mod private {
 ///   * [`Singleton`]
 ///
 /// This trait is sealed, it cannot be implemented outside of this crate.
-pub trait Dep: private::Sealed {
+pub trait Dep: Registerable + private::Sealed {
     /// Looks up the dependency in `registry`, and constructs a new [`Dep`].
     ///
     /// This function is allowed to panic, if the type isn't registered.
@@ -73,7 +74,7 @@ impl<T: std::fmt::Debug> std::fmt::Debug for Transient<T> {
     }
 }
 
-impl<T: Send + Sync + 'static> std::ops::Deref for Transient<T> {
+impl<T: Registerable> std::ops::Deref for Transient<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -81,13 +82,13 @@ impl<T: Send + Sync + 'static> std::ops::Deref for Transient<T> {
     }
 }
 
-impl<T: Send + Sync + 'static> std::ops::DerefMut for Transient<T> {
+impl<T: Registerable> std::ops::DerefMut for Transient<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }
 }
 
-impl<T: Send + Sync + 'static> Transient<T> {
+impl<T: Registerable> Transient<T> {
     /// Access the inner `T`.
     #[must_use]
     pub fn get(self) -> T {
@@ -98,7 +99,7 @@ impl<T: Send + Sync + 'static> Transient<T> {
 // Required for implementing `Dep`.
 impl<T> private::Sealed for Transient<T> {}
 
-impl<T: Send + Sync + 'static> Dep for Transient<T> {
+impl<T: Registerable> Dep for Transient<T> {
     /// Create a new [`Transient`].
     ///
     /// # Panic
@@ -134,13 +135,13 @@ impl<T: std::fmt::Debug> std::fmt::Debug for Singleton<T> {
     }
 }
 
-impl<T: Send + Sync + 'static> From<Singleton<T>> for Ref<T> {
+impl<T: Registerable> From<Singleton<T>> for Ref<T> {
     fn from(value: Singleton<T>) -> Self {
         value.inner
     }
 }
 
-impl<T: Send + Sync + 'static> std::ops::Deref for Singleton<T> {
+impl<T: Registerable> std::ops::Deref for Singleton<T> {
     type Target = Ref<T>;
 
     fn deref(&self) -> &Self::Target {
@@ -148,13 +149,13 @@ impl<T: Send + Sync + 'static> std::ops::Deref for Singleton<T> {
     }
 }
 
-impl<T: Send + Sync + 'static> std::ops::DerefMut for Singleton<T> {
+impl<T: Registerable> std::ops::DerefMut for Singleton<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }
 }
 
-impl<T: Send + Sync + 'static> Singleton<T> {
+impl<T: Registerable> Singleton<T> {
     /// Access the inner dependency, returns a ref-counted object.
     #[must_use]
     pub fn get(self) -> Ref<T> {
@@ -165,7 +166,7 @@ impl<T: Send + Sync + 'static> Singleton<T> {
 // Required for implementing `Dep`.
 impl<T> private::Sealed for Singleton<T> {}
 
-impl<T: Send + Sync + 'static> Dep for Singleton<T> {
+impl<T: Registerable> Dep for Singleton<T> {
     /// Create a new [`Singleton`].
     ///
     /// # Panic

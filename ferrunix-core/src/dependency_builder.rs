@@ -2,6 +2,7 @@
 
 use std::any::TypeId;
 
+use crate::types::Registerable;
 use crate::Registry;
 
 /// Required for sealing the trait. *Must not be public*.
@@ -51,7 +52,7 @@ pub trait DepBuilder<R> {
 
 impl<R> DepBuilder<R> for ()
 where
-    R: Send + Sync + 'static,
+    R: Registerable,
 {
     fn build(
         _registry: &Registry,
@@ -71,8 +72,8 @@ macro_rules! DepBuilderImpl {
     ($n:expr, { $($ts:ident),+ }) => {
         impl<R, $($ts,)*> $crate::dependency_builder::DepBuilder<R> for ($($ts,)*)
         where
-            R: Send + Sync + 'static,
-            $($ts: $crate::dependencies::Dep + Send + Sync + 'static,)*
+            R: $crate::types::Registerable,
+            $($ts: $crate::dependencies::Dep,)*
         {
             fn build(registry: &$crate::registry::Registry, ctor: fn(Self) -> R, _: private::SealToken) -> Option<R> {
                 if !registry.validate::<R>() {
