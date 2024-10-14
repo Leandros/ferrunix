@@ -9,18 +9,9 @@ use syn::spanned::Spanned;
 use syn::token::Comma;
 use syn::{Data, Field, Fields, PathSegment};
 
-pub(crate) fn get_fields_from_struct(
-    data: &Data,
-) -> (bool, Punctuated<Field, Comma>) {
-    match data {
-        Data::Struct(ref s) => match s.fields {
-            Fields::Named(ref named) => (true, named.named.clone()),
-            Fields::Unnamed(ref unnamed) => (false, unnamed.unnamed.clone()),
-            Fields::Unit => panic!("structs must be constructible"),
-        },
-        Data::Enum(_) | Data::Union(_) => panic!("not supported"),
-    }
-}
+#[cfg(test)]
+#[path = "./utils_test.rs"]
+mod tests;
 
 pub(crate) fn get_ctor_for(
     ty: &syn::Type,

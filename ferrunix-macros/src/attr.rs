@@ -111,6 +111,11 @@ impl DeriveAttrInput {
         )
     }
 
+    /// Access to the inner data.
+    pub(crate) fn data(&self) -> &darling::ast::Data<util::Ignored, DeriveField> {
+        &self.data
+    }
+
     /// Whether the `provides` attribute has set a transient value.
     /// Returns the value, or `Self`, when set, and `None`, when unset.
     ///
