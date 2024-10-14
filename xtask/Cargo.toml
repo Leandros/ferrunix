@@ -13,3 +13,5 @@ workspace = true
 
 [dependencies]
 xshell = "0.2"
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
