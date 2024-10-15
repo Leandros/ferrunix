@@ -58,7 +58,7 @@ mod sync {
 }
 
 /// Types that are enabled when the `multithread` feature is **NOT** set.
-// #[cfg(not(feature = "multithread"))]
+#[cfg(not(feature = "multithread"))]
 mod unsync {
     use std::any::Any;
 
