@@ -121,3 +121,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: dtolnay/install@cargo-outdated
       - run: cargo outdated --workspace --exit-code 1
+
+  semver-check:
+    name: SemVer Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check SemVer
+        uses: obi1kenobi/cargo-semver-checks-action@v2
