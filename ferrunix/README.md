@@ -32,7 +32,7 @@ ferrunix = "0"
     - Transient: A new instance is created for every request.
 - Derive macro (`#[derive(Inject)]`) to simplify registration.
 - Automatic registration of types.
-- One global registry; with support for multpiple sub-registries.
+- One global registry; with support for multipiple sub-registries.
 
 ## Usage
 
@@ -74,9 +74,9 @@ fn main() {
 Ferrunix has the following features to enable further functionality.
 Default features are marked with `*`.
 
-- `multithread` (*): Enable support for access to the registry from multiple threads.
+- `multithread` (`*`): Enable support for access to the registry from multiple threads.
     This adds a bound that all registered types must be `Send` and `Sync`.
-- `derive` (*): Enable support for the `#[derive(Inject)]` macro.
+- `derive` (`*`): Enable support for the `#[derive(Inject)]` macro.
 
 #### License
 
