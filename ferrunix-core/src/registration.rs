@@ -24,7 +24,6 @@ thread_local! {
 ///
 /// This is, usually, used by the derive macro, and not manually.
 #[non_exhaustive]
-#[derive(Debug)]
 pub struct RegistrationFunc(pub(crate) fn(&Registry));
 
 impl RegistrationFunc {
@@ -60,6 +59,12 @@ impl RegistrationFunc {
     /// ```
     pub const fn new(register: fn(&Registry) -> ()) -> Self {
         Self(register)
+    }
+}
+
+impl std::fmt::Debug for RegistrationFunc {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fmt.debug_tuple("RegistrationFunc").finish()
     }
 }
 
