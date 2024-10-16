@@ -51,8 +51,7 @@ pub(super) fn run() -> Result<()> {
     .run()?;
     cmd!(
         sh,
-        "cargo test -p ferrunix-macros --no-default-features -F \
-         multithread,development"
+        "cargo test -p ferrunix-macros --no-default-features -F multithread,development"
     )
     .run()?;
     cmd!(sh, "cargo test --all").run()?;
