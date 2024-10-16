@@ -28,8 +28,8 @@ pub(crate) struct DeriveField {
     vis: syn::Visibility,
     /// The type of the passed-in field.
     ty: syn::Type,
-    /// The forwarded attributes from the passed in field. These are controlled using the
-    /// `forward_attrs` attribute.
+    /// The forwarded attributes from the passed in field. These are controlled
+    /// using the `forward_attrs` attribute.
     attrs: Vec<syn::Attribute>,
 
     //  ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫ Custom: ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
@@ -41,12 +41,13 @@ pub(crate) struct DeriveField {
     #[darling(default)]
     singleton: bool,
 
-    /// Whether this member is constructed using `Default::default()`. Defaults to `false`.
+    /// Whether this member is constructed using `Default::default()`. Defaults
+    /// to `false`.
     #[darling(default)]
     default: bool,
 
-    /// If it's neither a transient, singleton, or default constructed, this is used as a
-    /// constructor.
+    /// If it's neither a transient, singleton, or default constructed, this is
+    /// used as a constructor.
     ctor: Option<SpannedValue<String>>,
 }
 
@@ -76,14 +77,15 @@ impl DeriveField {
         self.singleton
     }
 
-    /// Whether this member is constructed using `Default::default()`. Defaults to `false`.
+    /// Whether this member is constructed using `Default::default()`. Defaults
+    /// to `false`.
     pub(crate) fn is_using_default_ctor(&self) -> bool {
         // The `ctor` overrides default construction.
         self.ctor.is_none() && self.default
     }
 
-    /// If it's neither a transient, singleton, or default constructed, this is used as a
-    /// constructor.
+    /// If it's neither a transient, singleton, or default constructed, this is
+    /// used as a constructor.
     pub(crate) fn ctor(&self) -> Option<&SpannedValue<String>> {
         self.ctor.as_ref()
     }
@@ -112,7 +114,9 @@ impl DeriveAttrInput {
     }
 
     /// Access to the inner data.
-    pub(crate) fn data(&self) -> &darling::ast::Data<util::Ignored, DeriveField> {
+    pub(crate) fn data(
+        &self,
+    ) -> &darling::ast::Data<util::Ignored, DeriveField> {
         &self.data
     }
 

@@ -4,8 +4,8 @@
 
 use crate::{types::OnceCell, Registry};
 
-/// The global, `'static` default [`Registry`]. It's constructed and accessible via
-/// [`Registry::global`].
+/// The global, `'static` default [`Registry`]. It's constructed and accessible
+/// via [`Registry::global`].
 #[cfg(feature = "multithread")]
 pub(crate) static DEFAULT_REGISTRY: OnceCell<Registry> = OnceCell::new();
 
@@ -29,11 +29,12 @@ pub struct RegistrationFunc(pub(crate) fn(&Registry));
 impl RegistrationFunc {
     /// Create a new [`RegistrationFunc`] from a `register` function.
     ///
-    /// The `register` function gets passed a [`Registry`], which it must use to register one or
-    /// more types.
+    /// The `register` function gets passed a [`Registry`], which it must use to
+    /// register one or more types.
     ///
-    /// The function must not have any side-effects. It may be called concurrently, in parallel,
-    /// and from any thread (not only the main thread).
+    /// The function must not have any side-effects. It may be called
+    /// concurrently, in parallel, and from any thread (not only the main
+    /// thread).
     ///
     /// # Example
     /// ```no_run

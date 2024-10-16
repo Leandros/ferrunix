@@ -1,5 +1,4 @@
 //! A lightweight run-time dependency injection framework for Rust.
-//!
 
 pub use ferrunix_core::dependencies;
 pub use ferrunix_core::dependency_builder;

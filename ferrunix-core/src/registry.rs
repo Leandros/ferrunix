@@ -27,12 +27,14 @@ pub struct Registry {
 }
 
 impl Registry {
-    /// Create a new, empty, registry. This registry contains no pre-registered types.
+    /// Create a new, empty, registry. This registry contains no pre-registered
+    /// types.
     ///
     /// Types that are auto-registered are also not included in this registry.
     ///
-    /// To get access to the auto-registered types (types that are annotated by the derive macro),
-    /// the global registry [`Registry::global`] needs to be used.
+    /// To get access to the auto-registered types (types that are annotated by
+    /// the derive macro), the global registry [`Registry::global`] needs to
+    /// be used.
     #[must_use]
     pub fn empty() -> Self {
         Self {
@@ -43,8 +45,8 @@ impl Registry {
 
     /// Create an empty registry, and add all autoregistered types into it.
     ///
-    /// This is the constructor for the global registry that can be acquired with
-    /// [`Registry::global`].
+    /// This is the constructor for the global registry that can be acquired
+    /// with [`Registry::global`].
     #[must_use]
     pub fn autoregistered() -> Self {
         let registry = Self::empty();
@@ -61,8 +63,8 @@ impl Registry {
     /// [`Registry::with_deps`].
     ///
     /// # Parameters
-    ///   * `ctor`: A constructor function returning the newly constructed `T`. This constructor
-    ///     will be called for every `T` that is requested.
+    ///   * `ctor`: A constructor function returning the newly constructed `T`.
+    ///     This constructor will be called for every `T` that is requested.
     pub fn transient<T>(&self, ctor: fn() -> T)
     where
         T: Registerable,
@@ -85,8 +87,9 @@ impl Registry {
     /// [`Registry::with_deps`].
     ///
     /// # Parameters
-    ///   * `ctor`: A constructor function returning the newly constructed `T`. This constructor
-    ///     will be called once, lazily, when the first instance of `T` is requested.
+    ///   * `ctor`: A constructor function returning the newly constructed `T`.
+    ///     This constructor will be called once, lazily, when the first
+    ///     instance of `T` is requested.
     pub fn singleton<T>(&self, ctor: fn() -> T)
     where
         T: Registerable,
@@ -127,8 +130,8 @@ impl Registry {
 
     /// Retrieves the singleton `T` from this registry.
     ///
-    /// Returns `None` if `T` wasn't registered or failed to construct. The singleton is a
-    /// ref-counted pointer object (either `Arc` or `Rc`).
+    /// Returns `None` if `T` wasn't registered or failed to construct. The
+    /// singleton is a ref-counted pointer object (either `Arc` or `Rc`).
     pub fn get_singleton<T>(&self) -> Option<Ref<T>>
     where
         T: Registerable,
@@ -159,11 +162,11 @@ impl Registry {
 
     /// Check whether all registered types have the required dependencies.
     ///
-    /// Returns true if for all registered types all of it's dependencies can be constructed, false
-    /// otherwise.
+    /// Returns true if for all registered types all of it's dependencies can be
+    /// constructed, false otherwise.
     ///
-    /// This is a potentially expensive call since it needs to go through the entire dependency
-    /// tree for each registered type.
+    /// This is a potentially expensive call since it needs to go through the
+    /// entire dependency tree for each registered type.
     ///
     /// Nontheless, it's recommended to call this before using the [`Registry`].
     pub fn validate_all(&self) -> bool {
@@ -171,10 +174,11 @@ impl Registry {
         lock.iter().all(|(_, validator)| (validator)(self))
     }
 
-    /// Check whether the type `T` is registered in this registry, and all dependencies of the type
-    /// `T` are also registered.
+    /// Check whether the type `T` is registered in this registry, and all
+    /// dependencies of the type `T` are also registered.
     ///
-    /// Returns true if the type and it's dependencies can be constructed, false otherwise.
+    /// Returns true if the type and it's dependencies can be constructed, false
+    /// otherwise.
     pub fn validate<T>(&self) -> bool
     where
         T: Registerable,
@@ -186,8 +190,8 @@ impl Registry {
 
     /// Access the global registry.
     ///
-    /// This registry contains the types that are marked for auto-registration via the derive
-    /// macro.
+    /// This registry contains the types that are marked for auto-registration
+    /// via the derive macro.
     #[cfg(feature = "multithread")]
     pub fn global() -> &'static Self {
         DEFAULT_REGISTRY.get_or_init(Self::autoregistered)
@@ -195,8 +199,8 @@ impl Registry {
 
     /// Access the global registry.
     ///
-    /// This registry contains the types that are marked for auto-registration via the derive
-    /// macro.
+    /// This registry contains the types that are marked for auto-registration
+    /// via the derive macro.
     #[cfg(not(feature = "multithread"))]
     pub fn global() -> std::rc::Rc<Self> {
         DEFAULT_REGISTRY.with(|val| {
@@ -206,8 +210,8 @@ impl Registry {
         })
     }
 
-    /// Reset the global registry, removing all previously registered types, and re-running the
-    /// auto-registration routines.
+    /// Reset the global registry, removing all previously registered types, and
+    /// re-running the auto-registration routines.
     ///
     /// # Safety
     /// Ensure that no other thread is currently using [`Registry::global()`].
@@ -235,7 +239,8 @@ impl std::fmt::Debug for Registry {
     }
 }
 
-/// A builder for objects with dependencies. This can be created by using [`Registry::with_deps`].
+/// A builder for objects with dependencies. This can be created by using
+/// [`Registry::with_deps`].
 #[allow(clippy::single_char_lifetime_names)]
 pub struct Builder<'a, T, Deps> {
     registry: &'a Registry,
@@ -248,13 +253,14 @@ where
     Deps: DepBuilder<T> + 'static,
     T: Registerable,
 {
-    /// Register a new transient object, with dependencies specified in `.with_deps`.
+    /// Register a new transient object, with dependencies specified in
+    /// `.with_deps`.
     ///
-    /// The `ctor` parameter is a constructor function returning the newly constructed `T`. The constructor
-    /// accepts a single argument `Deps` (a tuple implementing
-    /// [`crate::dependency_builder::DepBuilder`]). It's best to destructure the tuple to
-    /// accept each dependency separately. This constructor will be called for every `T` that is
-    /// requested.
+    /// The `ctor` parameter is a constructor function returning the newly
+    /// constructed `T`. The constructor accepts a single argument `Deps` (a
+    /// tuple implementing [`crate::dependency_builder::DepBuilder`]). It's
+    /// best to destructure the tuple to accept each dependency separately.
+    /// This constructor will be called for every `T` that is requested.
     ///
     /// # Example
     /// ```no_run
@@ -271,7 +277,8 @@ where
     ///     });
     /// ```
     ///
-    /// For single dependencies, the destructured tuple needs to end with a comma: `(dep,)`.
+    /// For single dependencies, the destructured tuple needs to end with a
+    /// comma: `(dep,)`.
     pub fn transient(&self, ctor: fn(Deps) -> T) {
         self.registry.objects.write().insert(
             TypeId::of::<T>(),
@@ -304,12 +311,14 @@ where
         );
     }
 
-    /// Register a new singleton object, with dependencies specified in `.with_deps`.
+    /// Register a new singleton object, with dependencies specified in
+    /// `.with_deps`.
     ///
-    /// The `ctor` parameter is a constructor function returning the newly constructed `T`. The
-    /// constructor accepts a single argument `Deps` (a tuple implementing
-    /// [`crate::dependency_builder::DepBuilder`]). It's best to destructure the tuple to accept
-    /// each dependency separately. This constructor will be called once, lazily, when the first
+    /// The `ctor` parameter is a constructor function returning the newly
+    /// constructed `T`. The constructor accepts a single argument `Deps` (a
+    /// tuple implementing [`crate::dependency_builder::DepBuilder`]). It's
+    /// best to destructure the tuple to accept each dependency separately.
+    /// This constructor will be called once, lazily, when the first
     /// instance of `T` is requested.
     ///
     /// # Example
@@ -327,7 +336,8 @@ where
     ///     });
     /// ```
     ///
-    /// For single dependencies, the destructured tuple needs to end with a comma: `(dep,)`.
+    /// For single dependencies, the destructured tuple needs to end with a
+    /// comma: `(dep,)`.
     pub fn singleton(&self, ctor: fn(Deps) -> T) {
         let getter = Box::new(
             move |this: &Registry, cell: &SingletonCell| -> Option<RefAny> {

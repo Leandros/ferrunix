@@ -1,4 +1,5 @@
-//! Implementation of [`DepBuilder`] for tuples to be used with [`Registry::with_deps`].
+//! Implementation of [`DepBuilder`] for tuples to be used with
+//! [`Registry::with_deps`].
 
 use std::any::TypeId;
 
@@ -7,28 +8,31 @@ use crate::Registry;
 
 /// Required for sealing the trait. *Must not be public*.
 pub(crate) mod private {
-    /// This token is used to seal the [`DepBuilder`] trait from downstream crates.
+    /// This token is used to seal the [`DepBuilder`] trait from downstream
+    /// crates.
     #[allow(missing_debug_implementations)]
     #[derive(Clone, Copy)]
     pub struct SealToken;
 }
 
-/// The [`DepBuilder`] trait is the key to specify a variable amount of dependencies in the
-/// [`Registry::with_deps`] call from [`Registry`].
+/// The [`DepBuilder`] trait is the key to specify a variable amount of
+/// dependencies in the [`Registry::with_deps`] call from [`Registry`].
 ///
-/// The trait is implemented by the `DepBuilderImpl!` macro for 0-ary, to 10-ary tuples (e.g.,
-/// `(T1,)`, `(T1, T2)`, etc.), which allows these tuples to be passed as a single type parameter
-/// into [`Registry::with_deps`].
+/// The trait is implemented by the `DepBuilderImpl!` macro for 0-ary, to 10-ary
+/// tuples (e.g., `(T1,)`, `(T1, T2)`, etc.), which allows these tuples to be
+/// passed as a single type parameter into [`Registry::with_deps`].
 ///
-/// This trait is sealed, meaning it cannot be implemented or called by any downstream crates.
+/// This trait is sealed, meaning it cannot be implemented or called by any
+/// downstream crates.
 pub trait DepBuilder<R> {
-    /// When implemented, this should validate that all dependencies which are part of `Self` exist
-    /// to construct the type `R`. If the dependencies cannot be fulfilled, `None` must be
-    /// returned.
+    /// When implemented, this should validate that all dependencies which are
+    /// part of `Self` exist to construct the type `R`. If the dependencies
+    /// cannot be fulfilled, `None` must be returned.
     ///
-    /// If the dependencies can be fulfilled, they must be constructed as an N-ary tuple (same
-    /// length and types as `Self`) and passed as the argument to `ctor`. `ctor` is a user provided
-    /// constructor for the type `R`.
+    /// If the dependencies can be fulfilled, they must be constructed as an
+    /// N-ary tuple (same length and types as `Self`) and passed as the
+    /// argument to `ctor`. `ctor` is a user provided constructor for the
+    /// type `R`.
     ///
     /// An implementation for tuples is provided by `DepBuilderImpl!`.
     ///

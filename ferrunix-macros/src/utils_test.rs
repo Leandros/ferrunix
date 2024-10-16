@@ -61,11 +61,7 @@ fn test_transform_type() {
         TransformType::Singleton,
         "::ferrunix::Ref<dyn Foo + Send + Sync>",
     );
-    run_test(
-        "Foo",
-        TransformType::Singleton,
-        "::ferrunix::Ref<Foo>",
-    );
+    run_test("Foo", TransformType::Singleton, "::ferrunix::Ref<Foo>");
     // TODO: Fix this case.
     // run_test(
     //     "::ferrunix::Ref<Foo>",

@@ -226,7 +226,10 @@ fn field_ctor(
             if let Err(err) = parsed {
                 return Err(syn::Error::new(
                     ctor.span(),
-                    format!("couldn't parse ctor expression: {err}\n\nTo construct a string, you need to double quote it."),
+                    format!(
+                        "couldn't parse ctor expression: {err}\n\nTo \
+                         construct a string, you need to double quote it."
+                    ),
                 ));
             };
 

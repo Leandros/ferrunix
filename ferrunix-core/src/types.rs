@@ -38,20 +38,22 @@ mod sync {
         Box<dyn Fn(&Registry, &SingletonCell) -> Option<RefAny> + Send + Sync>;
     pub(crate) type Validator = Box<dyn Fn(&Registry) -> bool + Send + Sync>;
 
-    /// A generic reference type that's used as the default type for types with the singleton
-    /// lifetime.
+    /// A generic reference type that's used as the default type for types with
+    /// the singleton lifetime.
     ///
-    /// When the `multithread` feature is set, this defaults to [`std::sync::Arc`].
-    /// When the `multithread` feature is **NOT** set, this defaults to [`std::rc::Rc`].
+    /// When the `multithread` feature is set, this defaults to
+    /// [`std::sync::Arc`]. When the `multithread` feature is **NOT** set,
+    /// this defaults to [`std::rc::Rc`].
     ///
-    /// It's advised to use [`Ref`] instead of the concrete type because it simplifies enabling
-    /// `multithread` when required.
+    /// It's advised to use [`Ref`] instead of the concrete type because it
+    /// simplifies enabling `multithread` when required.
     pub type Ref<T> = std::sync::Arc<T>;
 
     /// A marker trait for all types that can be registered with [`Registry`].
     ///
-    /// It's automatically implemented for all types that are valid. Generally, those are all types
-    /// with a `'static` lifetime, that are also `Send` and `Sync`.
+    /// It's automatically implemented for all types that are valid. Generally,
+    /// those are all types with a `'static` lifetime, that are also `Send`
+    /// and `Sync`.
     pub trait Registerable: Send + Sync + 'static {}
 
     impl<T> Registerable for T where T: Send + Sync + 'static {}
@@ -75,8 +77,9 @@ mod unsync {
 
     /// Replacement type for `parking_lot::RwLock` that's single-threaded.
     pub(crate) struct RwLockLike<T> {
-        /// We're wrapping a [`std::cell::RefCell`], and exposing an `RwLock`-like
-        /// API, so that we can configure what we want to use.
+        /// We're wrapping a [`std::cell::RefCell`], and exposing an
+        /// `RwLock`-like API, so that we can configure what we want to
+        /// use.
         inner: std::cell::RefCell<T>,
     }
 
@@ -108,20 +111,21 @@ mod unsync {
         Box<dyn Fn(&Registry, &SingletonCell) -> Option<RefAny>>;
     pub(crate) type Validator = Box<dyn Fn(&Registry) -> bool>;
 
-    /// A generic reference type that's used as the default type for types with the singleton
-    /// lifetime.
+    /// A generic reference type that's used as the default type for types with
+    /// the singleton lifetime.
     ///
-    /// When the `multithread` feature is **NOT** set, this defaults to [`std::rc::Rc`].
-    /// When the `multithread` feature is set, this defaults to [`std::sync::Arc`].
+    /// When the `multithread` feature is **NOT** set, this defaults to
+    /// [`std::rc::Rc`]. When the `multithread` feature is set, this
+    /// defaults to [`std::sync::Arc`].
     ///
-    /// It's advised to use [`Ref`] instead of the concrete type because it simplifies enabling
-    /// `multithread` when required.
+    /// It's advised to use [`Ref`] instead of the concrete type because it
+    /// simplifies enabling `multithread` when required.
     pub type Ref<T> = std::rc::Rc<T>;
 
     /// A marker trait for all types that can be registered with [`Registry`].
     ///
-    /// It's automatically implemented for all types that are valid. Generally, those are all types
-    /// with a `'static` lifetime.
+    /// It's automatically implemented for all types that are valid. Generally,
+    /// those are all types with a `'static` lifetime.
     pub trait Registerable: 'static {}
 
     impl<T> Registerable for T where T: 'static {}

@@ -1,11 +1,12 @@
 //! All possible dependencies for injected types.
 //!
 //! The following dependency types are available, as of right now:
-//!   * [`Transient`]: Dependencies that are created from scratch when requested.
+//!   * [`Transient`]: Dependencies that are created from scratch when
+//!     requested.
 //!   * [`Singleton`]: Dependencies that are created once for every registry.
 //!
-//! All dependency types implement the [`Dep`] trait, and can get access to the inner type via
-//! `.get`.
+//! All dependency types implement the [`Dep`] trait, and can get access to the
+//! inner type via `.get`.
 //!
 //! # Examples
 //! ```
@@ -40,7 +41,8 @@ mod private {
     pub trait Sealed {}
 }
 
-/// Trait to specify a dependency. Every possible dependency type is implementing this trait.
+/// Trait to specify a dependency. Every possible dependency type is
+/// implementing this trait.
 ///
 /// Current implementors:
 ///   * [`Transient`]
@@ -106,9 +108,10 @@ impl<T: Registerable> Dep for Transient<T> {
     /// This function panics if the `T` isn't registered.
     fn new(registry: &Registry) -> Self {
         Self {
-            inner: registry
-                .get_transient::<T>()
-                .expect("transient dependency must only be constructed if it's fulfillable"),
+            inner: registry.get_transient::<T>().expect(
+                "transient dependency must only be constructed if it's \
+                 fulfillable",
+            ),
         }
     }
 
@@ -120,7 +123,8 @@ impl<T: Registerable> Dep for Transient<T> {
 
 /// Singleton dependencies.
 ///
-/// This dependency is created only once for the specified registry. It's created lazily on-demand.
+/// This dependency is created only once for the specified registry. It's
+/// created lazily on-demand.
 #[repr(transparent)]
 pub struct Singleton<T> {
     /// The resolved type.
@@ -173,9 +177,10 @@ impl<T: Registerable> Dep for Singleton<T> {
     /// This function panics if the `T` isn't registered.
     fn new(registry: &Registry) -> Self {
         Self {
-            inner: registry
-                .get_singleton::<T>()
-                .expect("singleton dependency must only be constructed if it's fulfillable"),
+            inner: registry.get_singleton::<T>().expect(
+                "singleton dependency must only be constructed if it's \
+                 fulfillable",
+            ),
         }
     }
 

@@ -11,3 +11,17 @@ fn all_public_types_are_debug() {
     IsDebug::<Registry>(None);
     IsDebug::<Builder<'static, u32, ()>>(None);
 }
+
+// #[test]
+// fn is_send_sync() {
+//     fn is_send<T: Send>() {}
+//     fn is_sync<T: Sync>() {}
+//     is_send::<Registry>();
+//     is_sync::<Registry>();
+//     is_send::<Transient<u32>>();
+//     is_sync::<Transient<u32>>();
+//     is_send::<Singleton<u32>>();
+//     is_sync::<Singleton<u32>>();
+//     is_send::<Builder<'static, u32, ()>>();
+//     is_sync::<Builder<'static, u32, ()>>();
+// }

@@ -23,7 +23,7 @@ enum CliCommands {
     CI,
 }
 
-fn main() -> anyhow:: Result<()> {
+fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
