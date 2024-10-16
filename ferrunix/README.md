@@ -1,11 +1,17 @@
-# Ferrunix
+<div align="center">
+  <h1>Ferrunix</h1>
+  <p>
+    <strong>A simple, idiomatic, and lightweight <a href="https://en.wikipedia.org/wiki/Dependency_injection">dependency injection</a> framework for Rust.</strong>
+  </p>
+  <p>
 
 [![Build Status](https://github.com/leandros/ferrunix/actions/workflows/ci.yml/badge.svg)](https://github.com/leandros/ferrunix/actions)
 [![Crates.io](https://img.shields.io/crates/v/ferrunix.svg)](https://crates.io/crates/ferrunix)
 [![API reference](https://docs.rs/ferrunix/badge.svg)](https://docs.rs/ferrunix/)
 ![License](https://img.shields.io/crates/l/ferrunix.svg)
 
-A simple, idiomatic, and lightweight dependency injection framework for Rust.
+  </p>
+</div>
 
 ```toml
 [dependencies]
@@ -14,23 +20,38 @@ ferrunix = "0"
 
 *Compiler support: requires rustc 1.64+*
 
-## Example
+## [Changelog](https://github.com/Leandros/ferrunix/releases)
+
+## Features
+
+- Can register and inject any type (incl. generics, types must be `Send` +
+    `Sync` if the `multithread` feature is enabled).
+- Simple and elegant Rust API, making the derive macro purely optional.
+- Different dependency lifetimes:
+    - Singleton: Only a single instance of the object is created.
+    - Transient: A new instance is created for every request.
+- Derive macro (`#[derive(Inject)]`) to simplify registration.
+- Automatic registration of types.
+- One global registry; with support for multpiple sub-registries.
+
+## Usage
+
+Add the dependency to your `Cargo.toml`:
+
+```bash
+cargo add ferrunix
+```
+
+Register your types with the [`Registry`](https://docs.rs/ferrunix/latest/ferrunix/):
 
 ```rust
 use ferrunix::{Ref, Registry, Transient};
 use example::{Logger, BillingService, SysLog}
 
-#[derive(Debug)]
-pub struct ExampleService {
-    logger: Ref<dyn Logger>, // Logger is a singleton, and only instantiated once.
-    billing: Box<dyn BillingService>, // The BillingService is constructed each time it's requested.
-}
+#[derive(Debug, Default)]
+pub struct ExampleService {}
 
 impl ExampleService {
-    pub fn new(logger: Ref<dyn Logger>, billing: Box<dyn BillingService>) -> Self {
-        Self { logger, billing }
-    }
-
     pub fn do_work(&self) {
         // Omitted for brevity...
     }
@@ -38,12 +59,8 @@ impl ExampleService {
 
 fn main() {
     let registry = Registry::global();
-    registry.singleton(|| SysLog::default()); // `SysLog` is a concrete type implementing `Logger`.
-    registry
-        .with_deps::<_, (Singleton<Ref<dyn Logger>>, Transient<Box<dyn BillingService>>,)>()
-        .transient(|(logger, billing)| {
-            ExampleService::new(*logger, *billing)
-        });
+    registry.transient(|| ExampleService::default());
+    // Register more types here ...
 
     debug_assert!(registry.validate_all());
 
@@ -51,6 +68,15 @@ fn main() {
     service.do_work();
 }
 ```
+
+## Features
+
+Ferrunix has the following features to enable further functionality.
+Default features are marked with `*`.
+
+- `multithread` (*): Enable support for access to the registry from multiple threads.
+    This adds a bound that all registered types must be `Send` and `Sync`.
+- `derive` (*): Enable support for the `#[derive(Inject)]` macro.
 
 #### License
 
