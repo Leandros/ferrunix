@@ -127,5 +127,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
       - name: Check SemVer
         uses: obi1kenobi/cargo-semver-checks-action@v2
