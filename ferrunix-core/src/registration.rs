@@ -24,7 +24,7 @@ thread_local! {
 ///
 /// This is, usually, used by the derive macro, and not manually.
 #[non_exhaustive]
-#[allow(missing_debug_implementations)]
+#[derive(Debug)]
 pub struct RegistrationFunc(pub(crate) fn(&Registry));
 
 impl RegistrationFunc {

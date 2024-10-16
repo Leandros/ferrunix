@@ -21,7 +21,6 @@ enum Object {
 }
 
 /// Registry for all types that can be constructed or otherwise injected.
-#[allow(missing_debug_implementations)]
 pub struct Registry {
     objects: RwLock<HashMap<TypeId, Object>>,
     validation: RwLock<HashMap<TypeId, Validator>>,
@@ -230,8 +229,14 @@ impl Registry {
     }
 }
 
+impl std::fmt::Debug for Registry {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fmt.debug_struct("Registry").finish()
+    }
+}
+
 /// A builder for objects with dependencies. This can be created by using [`Registry::with_deps`].
-#[allow(missing_debug_implementations, clippy::single_char_lifetime_names)]
+#[allow(clippy::single_char_lifetime_names)]
 pub struct Builder<'a, T, Deps> {
     registry: &'a Registry,
     _marker: PhantomData<T>,
@@ -359,5 +364,11 @@ where
                 })
             }),
         );
+    }
+}
+
+impl<T, Dep> std::fmt::Debug for Builder<'_, T, Dep> {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fmt.debug_struct("Builder").finish()
     }
 }
