@@ -17,9 +17,10 @@ categories.workspace = true
 workspace = true
 
 [features]
-default = ["multithread", "derive"]
+default = ["multithread", "derive", "tokio"]
 multithread = ["ferrunix-core/multithread"]
 derive = ["dep:ferrunix-macros"]
+tokio = ["ferrunix-core/tokio"]
 
 [dependencies]
 ferrunix-core = { path = "../ferrunix-core", default-features = false, version = "=0.2.0" }

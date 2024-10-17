@@ -5,6 +5,11 @@
     dead_code
 )]
 
+#[cfg(all(feature = "tokio", not(feature = "multithread")))]
+compile_error!(
+    "the `tokio` feature can only be enabled if `multithread` is also enabled."
+);
+
 /// Types that are enabled when the `multithread` feature is set.
 #[cfg(feature = "multithread")]
 mod sync {
@@ -37,6 +42,37 @@ mod sync {
     pub(crate) type BoxedSingletonGetter =
         Box<dyn Fn(&Registry, &SingletonCell) -> Option<RefAny> + Send + Sync>;
     pub(crate) type Validator = Box<dyn Fn(&Registry) -> bool + Send + Sync>;
+
+    #[cfg(feature = "tokio")]
+    mod tokio_ext {
+        use super::*;
+        use std::future::Future;
+
+        // `RwLock` types.
+        pub(crate) type AsyncRwLock<T> = ::tokio::sync::RwLock<T>;
+
+        pub(crate) type AsyncBoxedCtor = Box<
+            dyn Fn(
+                    &Registry,
+                ) -> std::pin::Pin<
+                    Box<dyn Future<Output = Option<BoxedAny>> + Send + Sync>,
+                > + Send
+                + Sync,
+        >;
+        pub(crate) type AsyncBoxedSingletonGetter = Box<
+            dyn Fn(
+                    &Registry,
+                    &Ref<AsyncSingletonCell>,
+                ) -> std::pin::Pin<
+                    Box<dyn Future<Output = Option<RefAny>> + Send + Sync>,
+                > + Send
+                + Sync,
+        >;
+        pub(crate) type AsyncSingletonCell = ::tokio::sync::OnceCell<RefAny>;
+    }
+
+    #[cfg(feature = "tokio")]
+    pub(crate) use tokio_ext::*;
 
     /// A generic reference type that's used as the default type for types with
     /// the singleton lifetime.
