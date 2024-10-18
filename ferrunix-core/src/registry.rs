@@ -473,23 +473,36 @@ where
         &self,
         ctor: fn(
             Deps,
-        )
-            -> Box<dyn std::future::Future<Output = T> + Send + Sync>,
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = T> + Send + Sync>,
+        >,
     ) {
-        let transient =
-            Object::Transient(Box::new(move |this| -> Option<BoxedAny> {
-                #[allow(clippy::option_if_let_else)]
-                match Deps::build(
-                    this,
-                    ctor,
-                    dependency_builder::private::SealToken,
-                ) {
-                    Some(obj) => Some(Box::new(obj)),
-                    None => None,
-                }
-            }));
+        let transient = AsyncObject::AsyncTransient(Box::new(
+            move |this: &'_ Registry| -> std::pin::Pin<
+                Box<
+                    dyn std::future::Future<Output = Option<BoxedAny>>
+                        + Send
+                        + Sync
+                        + '_,
+                >,
+            > {
+                Box::pin(async move {
+                    #[allow(clippy::option_if_let_else)]
+                    match Deps::build_async(
+                        this,
+                        ctor,
+                        dependency_builder::private::SealToken,
+                    )
+                    .await
+                    {
+                        Some(obj) => Some(Box::new(obj) as BoxedAny),
+                        None => None,
+                    }
+                })
+            },
+        ));
         {
-            let mut lock = self.registry.objects.write();
+            let mut lock = self.registry.objects_async.write().await;
             lock.insert(TypeId::of::<T>(), transient);
         }
 

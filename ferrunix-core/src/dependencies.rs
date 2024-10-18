@@ -55,6 +55,14 @@ pub trait Dep: Registerable + private::Sealed {
     /// This function is allowed to panic, if the type isn't registered.
     fn new(registry: &Registry) -> Self;
 
+    /// Looks up the dependency in `registry`, and constructs a new [`Dep`].
+    ///
+    /// This function is allowed to panic, if the type isn't registered.
+    #[cfg(feature = "tokio")]
+    fn new_async(
+        registry: &Registry,
+    ) -> impl std::future::Future<Output = Self> + Send + Sync;
+
     /// Returns [`std::any::TypeId`] of the dependency type.
     fn type_id() -> TypeId;
 }
@@ -112,6 +120,24 @@ impl<T: Registerable> Dep for Transient<T> {
                 "transient dependency must only be constructed if it's \
                  fulfillable",
             ),
+        }
+    }
+
+    /// Create a new [`Transient`], asynchronously.
+    ///
+    /// # Panic
+    /// This function panics if the `T` isn't registered.
+    #[cfg(feature = "tokio")]
+    fn new_async(
+        registry: &Registry,
+    ) -> impl std::future::Future<Output = Self> + Send + Sync {
+        async move {
+            Self {
+                inner: registry.get_transient_async::<T>().await.expect(
+                    "transient dependency must only be constructed if it's \
+                 fulfillable",
+                ),
+            }
         }
     }
 
@@ -181,6 +207,24 @@ impl<T: Registerable> Dep for Singleton<T> {
                 "singleton dependency must only be constructed if it's \
                  fulfillable",
             ),
+        }
+    }
+
+    /// Create a new [`Singleton`], asynchronously.
+    ///
+    /// # Panic
+    /// This function panics if the `T` isn't registered.
+    #[cfg(feature = "tokio")]
+    fn new_async(
+        registry: &Registry,
+    ) -> impl std::future::Future<Output = Self> + Send + Sync {
+        async move {
+            Self {
+                inner: registry.get_singleton_async::<T>().await.expect(
+                    "singleton dependency must only be constructed if it's \
+                 fulfillable",
+                ),
+            }
         }
     }
 

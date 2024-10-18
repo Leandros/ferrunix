@@ -45,6 +45,33 @@ pub trait DepBuilder<R> {
     where
         R: Sized;
 
+    /// When implemented, this should validate that all dependencies which are
+    /// part of `Self` exist to construct the type `R`. If the dependencies
+    /// cannot be fulfilled, `None` must be returned.
+    ///
+    /// If the dependencies can be fulfilled, they must be constructed as an
+    /// N-ary tuple (same length and types as `Self`) and passed as the
+    /// argument to `ctor`. `ctor` is a user provided constructor for the
+    /// type `R`.
+    ///
+    /// An implementation for tuples is provided by `DepBuilderImpl!`.
+    ///
+    /// We advise against *manually* implementing `build`.
+    #[cfg(feature = "tokio")]
+    fn build_async(
+        registry: &Registry,
+        ctor: fn(
+            Self,
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = R> + Send + Sync>,
+        >,
+        _: private::SealToken,
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Option<R>> + Send + Sync + '_>,
+    >
+    where
+        R: Sized;
+
     /// Constructs a [`Vec`] of [`std::any::TypeId`]s from the types in `Self`.
     /// The resulting vector must have the same length as `Self`.
     ///
@@ -64,6 +91,21 @@ where
         _: private::SealToken,
     ) -> Option<R> {
         Some(ctor(()))
+    }
+
+    #[cfg(feature = "tokio")]
+    fn build_async(
+        _registry: &Registry,
+        ctor: fn(
+            Self,
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = R> + Send + Sync>,
+        >,
+        _: private::SealToken,
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Option<R>> + Send + Sync + '_>,
+    > {
+        Box::pin(async move { Some(ctor(()).await) })
     }
 
     fn as_typeids(_: private::SealToken) -> Vec<TypeId> {
@@ -91,6 +133,33 @@ macro_rules! DepBuilderImpl {
                 );
 
                 Some(ctor(deps))
+            }
+
+            #[cfg(feature = "tokio")]
+            fn build_async(
+                registry: &Registry,
+                ctor: fn(
+                    Self,
+                ) -> std::pin::Pin<
+                    Box<dyn std::future::Future<Output = R> + Send + Sync>,
+                >,
+                _: private::SealToken,
+            ) -> std::pin::Pin<
+                Box<dyn std::future::Future<Output = Option<R>> + Send + Sync + '_>,
+            > {
+                if !registry.validate::<R>() {
+                    return Box::pin(async move { None });
+                }
+
+                Box::pin(async move {
+                    let deps = (
+                        $(
+                            <$ts>::new_async(registry).await,
+                        )*
+                    );
+
+                    Some(ctor(deps).await)
+                })
             }
 
             fn as_typeids(_: private::SealToken) -> ::std::vec::Vec<::std::any::TypeId> {
