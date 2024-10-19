@@ -23,11 +23,11 @@ enum Object {
 /// All possible "objects" that can be held by the registry.
 #[cfg(feature = "tokio")]
 enum AsyncObject {
-    AsyncTransient(crate::types::AsyncBoxedCtor),
-    AsyncSingleton(
-        crate::types::AsyncBoxedSingletonGetter,
-        Ref<crate::types::AsyncSingletonCell>,
+    // AsyncTransient(crate::types::AsyncBoxedCtor),
+    AsyncTransient(
+        Box<dyn dependency_builder::AsyncTransientBuilder + Send + Sync>,
     ),
+    AsyncSingleton(Box<dyn dependency_builder::AsyncSingleton + Send + Sync>),
 }
 
 /// Registry for all types that can be constructed or otherwise injected.
@@ -106,31 +106,30 @@ impl Registry {
     ///   * `ctor`: A constructor function returning the newly constructed `T`.
     ///     This constructor will be called for every `T` that is requested.
     #[cfg(feature = "tokio")]
-    pub async fn transient_async<T, F>(&self, ctor: F)
-    where
-        T: Registerable + Clone,
-        F: std::future::Future<Output = T> + Send + Sync + 'static,
+    pub async fn transient_async<T>(
+        &self,
+        ctor: fn() -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = T> + Send>,
+        >,
+    ) where
+        T: Registerable,
     {
-        use futures::future::FutureExt;
-        let sharable_ctor = ctor.shared();
-        let boxed: crate::types::AsyncBoxedCtor = Box::new(move |_| {
-            let cloned_ctor = sharable_ctor.clone();
-            let fut = async move {
-                let obj = cloned_ctor.await;
-                Option::<BoxedAny>::Some(Box::new(obj))
-            };
-            Box::pin(fut)
-        });
+        use crate::dependency_builder::AsyncTransientBuilderImplNoDeps;
 
-        // TODO: Move construction out of locked region.
-        self.objects_async
-            .write()
-            .await
-            .insert(TypeId::of::<T>(), AsyncObject::AsyncTransient(boxed));
-        // TODO: Move construction out of locked region.
-        self.validation
-            .write()
-            .insert(TypeId::of::<T>(), Box::new(|_| true));
+        let transient = AsyncObject::AsyncTransient(Box::new(
+            AsyncTransientBuilderImplNoDeps::new(ctor),
+        ));
+
+        {
+            let mut lock = self.objects_async.write().await;
+            lock.insert(TypeId::of::<T>(), transient);
+        }
+
+        let validator: Validator = Box::new(|_| true);
+        {
+            let mut lock = self.validation.write();
+            lock.insert(TypeId::of::<T>(), validator);
+        }
     }
 
     /// Register a new singleton object, without dependencies.
@@ -174,35 +173,20 @@ impl Registry {
     ///     This constructor will be called once, lazily, when the first
     ///     instance of `T` is requested.
     #[cfg(feature = "tokio")]
-    pub async fn singleton_async<T, F>(&self, ctor: F)
-    where
+    pub async fn singleton_async<T>(
+        &self,
+        ctor: fn() -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = T> + Send>,
+        >,
+    ) where
         T: Registerable + Clone,
-        F: std::future::Future<Output = T> + Send + Sync + 'static,
     {
-        use futures::future::FutureExt;
-        let sharable_ctor = ctor.shared();
-        let getter: crate::types::AsyncBoxedSingletonGetter = Box::new(
-            move |_this: &Self,
-                  cell: &Ref<crate::types::AsyncSingletonCell>| {
-                let cloned_ctor = sharable_ctor.clone();
-                let cell = Ref::clone(cell);
-                let fut = async move {
-                    let rc = cell
-                        .get_or_init(move || async move {
-                            let obj = cloned_ctor.await;
-                            Ref::new(obj) as RefAny
-                        })
-                        .await;
-                    Option::<RefAny>::Some(Ref::clone(rc))
-                };
-                Box::pin(fut)
-            },
-        );
+        use crate::dependency_builder::AsyncSingletonNoDeps;
 
-        let singleton = AsyncObject::AsyncSingleton(
-            getter,
-            Ref::new(crate::types::AsyncSingletonCell::new()),
-        );
+        let singleton = AsyncObject::AsyncSingleton(Box::new(
+            AsyncSingletonNoDeps::new(ctor),
+        ));
+
         {
             let mut lock = self.objects_async.write().await;
             lock.insert(TypeId::of::<T>(), singleton);
@@ -246,7 +230,8 @@ impl Registry {
         if let Some(AsyncObject::AsyncTransient(ctor)) =
             lock.get(&TypeId::of::<T>())
         {
-            let boxed = (ctor)(self).await?;
+            let boxed = ctor.make_transient(self).await?;
+            // let boxed = (ctor)(self).await?;
             drop(lock);
             if let Ok(obj) = boxed.downcast::<T>() {
                 return Some(*obj);
@@ -288,12 +273,12 @@ impl Registry {
         T: Registerable,
     {
         let lock = self.objects_async.read().await;
-        if let Some(AsyncObject::AsyncSingleton(getter, cell)) =
+        if let Some(AsyncObject::AsyncSingleton(singleton)) =
             lock.get(&TypeId::of::<T>())
         {
-            let singleton = (getter)(self, cell).await?;
+            let resolved = singleton.get_singleton(self).await?;
             drop(lock);
-            if let Ok(obj) = singleton.downcast::<T>() {
+            if let Ok(obj) = resolved.downcast::<T>() {
                 return Some(obj);
             }
         }
@@ -395,15 +380,15 @@ impl std::fmt::Debug for Registry {
 /// A builder for objects with dependencies. This can be created by using
 /// [`Registry::with_deps`].
 #[allow(clippy::single_char_lifetime_names)]
-pub struct Builder<'a, T, Deps> {
-    registry: &'a Registry,
+pub struct Builder<'reg, T, Deps> {
+    registry: &'reg Registry,
     _marker: PhantomData<T>,
     _marker1: PhantomData<Deps>,
 }
 
-impl<T, Deps> Builder<'_, T, Deps>
+impl<'reg, T, Deps> Builder<'reg, T, Deps>
 where
-    Deps: DepBuilder<T> + 'static,
+    Deps: DepBuilder<T> + Sync + 'static,
     T: Registerable,
 {
     /// Register a new transient object, with dependencies specified in
@@ -468,38 +453,29 @@ where
         }
     }
 
+    /// Register a new transient object, with dependencies specified in
+    /// `.with_deps`.
+    ///
+    /// The `ctor` parameter is a constructor function returning the newly
+    /// constructed `T`. The constructor accepts a single argument `Deps` (a
+    /// tuple implementing [`crate::dependency_builder::DepBuilder`]). It's
+    /// best to destructure the tuple to accept each dependency separately.
+    /// This constructor will be called for every `T` that is requested.
+    ///
+    /// The `ctor` must return a boxed `dyn Future`.
     #[cfg(feature = "tokio")]
-    pub async fn transient_async<F>(
+    pub async fn transient_async(
         &self,
         ctor: fn(
             Deps,
         ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = T> + Send + Sync>,
+            Box<dyn std::future::Future<Output = T> + Send>,
         >,
     ) {
+        use crate::dependency_builder::AsyncTransientBuilderImplWithDeps;
+
         let transient = AsyncObject::AsyncTransient(Box::new(
-            move |this: &'_ Registry| -> std::pin::Pin<
-                Box<
-                    dyn std::future::Future<Output = Option<BoxedAny>>
-                        + Send
-                        + Sync
-                        + '_,
-                >,
-            > {
-                Box::pin(async move {
-                    #[allow(clippy::option_if_let_else)]
-                    match Deps::build_async(
-                        this,
-                        ctor,
-                        dependency_builder::private::SealToken,
-                    )
-                    .await
-                    {
-                        Some(obj) => Some(Box::new(obj) as BoxedAny),
-                        None => None,
-                    }
-                })
-            },
+            AsyncTransientBuilderImplWithDeps::new(ctor),
         ));
         {
             let mut lock = self.registry.objects_async.write().await;
@@ -571,6 +547,53 @@ where
         let singleton = Object::Singleton(getter, OnceCell::new());
         {
             let mut lock = self.registry.objects.write();
+            lock.insert(TypeId::of::<T>(), singleton);
+        }
+
+        let validator: Validator = Box::new(|registry: &Registry| {
+            let type_ids =
+                Deps::as_typeids(dependency_builder::private::SealToken);
+            type_ids.iter().all(|el| {
+                if let Some(validator) = registry.validation.read().get(el) {
+                    return (validator)(registry);
+                }
+
+                false
+            })
+        });
+        {
+            let mut lock = self.registry.validation.write();
+            lock.insert(TypeId::of::<T>(), validator);
+        }
+    }
+
+    /// Register a new singleton object, with dependencies specified in
+    /// `.with_deps`.
+    ///
+    /// The `ctor` parameter is a constructor function returning the newly
+    /// constructed `T`. The constructor accepts a single argument `Deps` (a
+    /// tuple implementing [`crate::dependency_builder::DepBuilder`]). It's
+    /// best to destructure the tuple to accept each dependency separately.
+    /// This constructor will be called once, lazily, when the first
+    /// instance of `T` is requested.
+    ///
+    /// The `ctor` must return a boxed `dyn Future`.
+    #[cfg(feature = "tokio")]
+    pub async fn singleton_async(
+        &self,
+        ctor: fn(
+            Deps,
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = T> + Send>,
+        >,
+    ) {
+        use crate::dependency_builder::AsyncSingletonWithDeps;
+
+        let singleton = AsyncObject::AsyncSingleton(Box::new(
+            AsyncSingletonWithDeps::new(ctor),
+        ));
+        {
+            let mut lock = self.registry.objects_async.write().await;
             lock.insert(TypeId::of::<T>(), singleton);
         }
 

@@ -61,7 +61,9 @@ pub trait Dep: Registerable + private::Sealed {
     #[cfg(feature = "tokio")]
     fn new_async(
         registry: &Registry,
-    ) -> impl std::future::Future<Output = Self> + Send + Sync;
+    ) -> impl std::future::Future<Output = Self> + Send
+    where
+        Self: Sized;
 
     /// Returns [`std::any::TypeId`] of the dependency type.
     fn type_id() -> TypeId;
@@ -128,16 +130,12 @@ impl<T: Registerable> Dep for Transient<T> {
     /// # Panic
     /// This function panics if the `T` isn't registered.
     #[cfg(feature = "tokio")]
-    fn new_async(
-        registry: &Registry,
-    ) -> impl std::future::Future<Output = Self> + Send + Sync {
-        async move {
-            Self {
-                inner: registry.get_transient_async::<T>().await.expect(
-                    "transient dependency must only be constructed if it's \
+    async fn new_async(registry: &Registry) -> Self {
+        Self {
+            inner: registry.get_transient_async::<T>().await.expect(
+                "transient dependency must only be constructed if it's \
                  fulfillable",
-                ),
-            }
+            ),
         }
     }
 
@@ -215,16 +213,12 @@ impl<T: Registerable> Dep for Singleton<T> {
     /// # Panic
     /// This function panics if the `T` isn't registered.
     #[cfg(feature = "tokio")]
-    fn new_async(
-        registry: &Registry,
-    ) -> impl std::future::Future<Output = Self> + Send + Sync {
-        async move {
-            Self {
-                inner: registry.get_singleton_async::<T>().await.expect(
-                    "singleton dependency must only be constructed if it's \
+    async fn new_async(registry: &Registry) -> Self {
+        Self {
+            inner: registry.get_singleton_async::<T>().await.expect(
+                "singleton dependency must only be constructed if it's \
                  fulfillable",
-                ),
-            }
+            ),
         }
     }
 
