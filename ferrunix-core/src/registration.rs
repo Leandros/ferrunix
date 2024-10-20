@@ -9,7 +9,7 @@ use crate::{types::OnceCell, Registry};
 #[cfg(feature = "multithread")]
 pub(crate) static DEFAULT_REGISTRY: OnceCell<Registry> = OnceCell::new();
 
-#[cfg(not(feature = "multithread"))]
+#[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
 thread_local! {
     /// The global, `'static` default [`Registry`]. It's constructed and accessible via
     /// [`Registry::global`] from the current thread only.
@@ -19,6 +19,11 @@ thread_local! {
     /// To enable multithreaded registries, the `multithread` feature must be enabled.
     pub(crate) static DEFAULT_REGISTRY: OnceCell<std::rc::Rc<Registry>> = const { OnceCell::new() };
 }
+
+/// The global, `'static` default [`Registry`]. It's constructed and accessible
+/// via [`Registry::global`].
+#[cfg(feature = "tokio")]
+pub(crate) static DEFAULT_REGISTRY: OnceCell<Registry> = OnceCell::const_new();
 
 /// All auto-registration functions need to use this type for registration.
 ///

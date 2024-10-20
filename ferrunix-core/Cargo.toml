@@ -17,7 +17,7 @@ categories.workspace = true
 workspace = true
 
 [features]
-default = ["multithread", "tokio"]
+default = ["tokio"]
 multithread = ["once_cell/parking_lot"]
 tokio = ["dep:tokio", "dep:async-trait"]
 

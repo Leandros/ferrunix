@@ -53,13 +53,14 @@ pub trait Dep: Registerable + private::Sealed {
     /// Looks up the dependency in `registry`, and constructs a new [`Dep`].
     ///
     /// This function is allowed to panic, if the type isn't registered.
+    #[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
     fn new(registry: &Registry) -> Self;
 
     /// Looks up the dependency in `registry`, and constructs a new [`Dep`].
     ///
     /// This function is allowed to panic, if the type isn't registered.
     #[cfg(feature = "tokio")]
-    fn new_async(
+    fn new(
         registry: &Registry,
     ) -> impl std::future::Future<Output = Self> + Send
     where
@@ -116,6 +117,7 @@ impl<T: Registerable> Dep for Transient<T> {
     ///
     /// # Panic
     /// This function panics if the `T` isn't registered.
+    #[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
     fn new(registry: &Registry) -> Self {
         Self {
             inner: registry.get_transient::<T>().expect(
@@ -130,9 +132,9 @@ impl<T: Registerable> Dep for Transient<T> {
     /// # Panic
     /// This function panics if the `T` isn't registered.
     #[cfg(feature = "tokio")]
-    async fn new_async(registry: &Registry) -> Self {
+    async fn new(registry: &Registry) -> Self {
         Self {
-            inner: registry.get_transient_async::<T>().await.expect(
+            inner: registry.get_transient::<T>().await.expect(
                 "transient dependency must only be constructed if it's \
                  fulfillable",
             ),
@@ -199,6 +201,7 @@ impl<T: Registerable> Dep for Singleton<T> {
     ///
     /// # Panic
     /// This function panics if the `T` isn't registered.
+    #[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
     fn new(registry: &Registry) -> Self {
         Self {
             inner: registry.get_singleton::<T>().expect(
@@ -213,9 +216,9 @@ impl<T: Registerable> Dep for Singleton<T> {
     /// # Panic
     /// This function panics if the `T` isn't registered.
     #[cfg(feature = "tokio")]
-    async fn new_async(registry: &Registry) -> Self {
+    async fn new(registry: &Registry) -> Self {
         Self {
-            inner: registry.get_singleton_async::<T>().await.expect(
+            inner: registry.get_singleton::<T>().await.expect(
                 "singleton dependency must only be constructed if it's \
                  fulfillable",
             ),

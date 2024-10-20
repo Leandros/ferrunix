@@ -5,11 +5,6 @@
     dead_code
 )]
 
-#[cfg(all(feature = "tokio", not(feature = "multithread")))]
-compile_error!(
-    "the `tokio` feature can only be enabled if `multithread` is also enabled."
-);
-
 /// Types that are enabled when the `multithread` feature is set.
 #[cfg(feature = "multithread")]
 mod sync {
@@ -21,6 +16,7 @@ mod sync {
 
     // `RwLock` types.
     pub(crate) type RwLock<T> = parking_lot::RwLock<T>;
+    pub(crate) type NonAsyncRwLock<T> = parking_lot::RwLock<T>;
     pub(crate) type MappedRwLockReadGuard<'a, T> =
         parking_lot::MappedRwLockReadGuard<'a, T>;
     pub(crate) type MappedRwLockWriteGuard<'a, T> =
@@ -42,37 +38,6 @@ mod sync {
     pub(crate) type BoxedSingletonGetter =
         Box<dyn Fn(&Registry, &SingletonCell) -> Option<RefAny> + Send + Sync>;
     pub(crate) type Validator = Box<dyn Fn(&Registry) -> bool + Send + Sync>;
-
-    #[cfg(feature = "tokio")]
-    mod tokio_ext {
-        use super::*;
-        use std::future::Future;
-
-        // `RwLock` types.
-        pub(crate) type AsyncRwLock<T> = ::tokio::sync::RwLock<T>;
-
-        pub(crate) type AsyncBoxedCtor = Box<
-            dyn Fn(
-                    &Registry,
-                ) -> std::pin::Pin<
-                    Box<dyn Future<Output = Option<BoxedAny>> + Send + Sync>,
-                > + Send
-                + Sync,
-        >;
-        pub(crate) type AsyncBoxedSingletonGetter = Box<
-            dyn Fn(
-                    &Registry,
-                    &Ref<AsyncSingletonCell>,
-                ) -> std::pin::Pin<
-                    Box<dyn Future<Output = Option<RefAny>> + Send + Sync>,
-                > + Send
-                + Sync,
-        >;
-        pub(crate) type AsyncSingletonCell = ::tokio::sync::OnceCell<RefAny>;
-    }
-
-    #[cfg(feature = "tokio")]
-    pub(crate) use tokio_ext::*;
 
     /// A generic reference type that's used as the default type for types with
     /// the singleton lifetime.
@@ -96,7 +61,7 @@ mod sync {
 }
 
 /// Types that are enabled when the `multithread` feature is **NOT** set.
-#[cfg(not(feature = "multithread"))]
+#[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
 mod unsync {
     use std::any::Any;
 
@@ -106,6 +71,7 @@ mod unsync {
 
     // `RwLock` types.
     pub(crate) type RwLock<T> = RwLockLike<T>;
+    pub(crate) type NonAsyncRwLock<T> = RwLockLike<T>;
     pub(crate) type MappedRwLockReadGuard<'a, T> = std::cell::Ref<'a, T>;
     pub(crate) type MappedRwLockWriteGuard<'a, T> = std::cell::RefMut<'a, T>;
     pub(crate) type RwLockReadGuard<'a, T> = std::cell::Ref<'a, T>;
@@ -167,8 +133,61 @@ mod unsync {
     impl<T> Registerable for T where T: 'static {}
 }
 
+#[cfg(feature = "tokio")]
+mod tokio_ext {
+    use std::any::Any;
+
+    use crate::Registry;
+
+    // Alias types used in [`Registry`].
+    pub(crate) type BoxedAny = Box<dyn Any + Send + Sync>;
+    pub(crate) type RefAny = Ref<dyn Any + Send + Sync>;
+    pub(crate) type Validator = Box<dyn Fn(&Registry) -> bool + Send + Sync>;
+
+    // `RwLock` types.
+    pub(crate) type NonAsyncRwLock<T> = parking_lot::RwLock<T>;
+    pub(crate) type RwLock<T> = ::tokio::sync::RwLock<T>;
+
+    // Hashmap types.
+    pub(crate) type HashMap<K, V> = std::collections::HashMap<K, V>;
+
+    // Cell types.
+    pub(crate) type OnceCell<T> = ::tokio::sync::OnceCell<T>;
+    pub(crate) type SingletonCell = ::tokio::sync::OnceCell<RefAny>;
+
+    // Unused!!!!
+    pub(crate) type BoxedCtor =
+        Box<dyn Fn(&Registry) -> Option<BoxedAny> + Send + Sync>;
+    pub(crate) type BoxedSingletonGetter =
+        Box<dyn Fn(&Registry, &SingletonCell) -> Option<RefAny> + Send + Sync>;
+    // Unused!!!!
+
+    /// A generic reference type that's used as the default type for types with
+    /// the singleton lifetime.
+    ///
+    /// When the `multithread` feature is set, this defaults to
+    /// [`std::sync::Arc`]. When the `multithread` feature is **NOT** set,
+    /// this defaults to [`std::rc::Rc`].
+    ///
+    /// It's advised to use [`Ref`] instead of the concrete type because it
+    /// simplifies enabling `multithread` when required.
+    pub type Ref<T> = std::sync::Arc<T>;
+
+    /// A marker trait for all types that can be registered with [`Registry`].
+    ///
+    /// It's automatically implemented for all types that are valid. Generally,
+    /// those are all types with a `'static` lifetime, that are also `Send`
+    /// and `Sync`.
+    pub trait Registerable: Send + Sync + 'static {}
+
+    impl<T> Registerable for T where T: Send + Sync + 'static {}
+}
+
 #[cfg(feature = "multithread")]
 pub use sync::*;
 
-#[cfg(not(feature = "multithread"))]
+#[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
 pub use unsync::*;
+
+#[cfg(feature = "tokio")]
+pub use tokio_ext::*;

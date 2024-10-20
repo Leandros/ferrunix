@@ -20,7 +20,7 @@ workspace = true
 proc-macro = true
 
 [features]
-default = ["development", "multithread"]
+default = ["development"]
 multithread = ["ferrunix-core/multithread"]
 development = ["syn/extra-traits", "dep:prettyplease"]
 

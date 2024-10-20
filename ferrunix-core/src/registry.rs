@@ -5,37 +5,20 @@ use std::any::TypeId;
 use std::marker::PhantomData;
 
 use crate::dependency_builder::{self, DepBuilder};
+use crate::object_builder::Object;
 use crate::types::{
-    BoxedAny, BoxedCtor, BoxedSingletonGetter, RefAny, Registerable,
-    SingletonCell, Validator,
+    BoxedAny, BoxedCtor, BoxedSingletonGetter, NonAsyncRwLock, RefAny,
+    Registerable, SingletonCell, Validator,
 };
 use crate::{
     registration::RegistrationFunc, registration::DEFAULT_REGISTRY,
     types::HashMap, types::OnceCell, types::Ref, types::RwLock,
 };
 
-/// All possible "objects" that can be held by the registry.
-enum Object {
-    Transient(BoxedCtor),
-    Singleton(BoxedSingletonGetter, SingletonCell),
-}
-
-/// All possible "objects" that can be held by the registry.
-#[cfg(feature = "tokio")]
-enum AsyncObject {
-    // AsyncTransient(crate::types::AsyncBoxedCtor),
-    AsyncTransient(
-        Box<dyn dependency_builder::AsyncTransientBuilder + Send + Sync>,
-    ),
-    AsyncSingleton(Box<dyn dependency_builder::AsyncSingleton + Send + Sync>),
-}
-
 /// Registry for all types that can be constructed or otherwise injected.
 pub struct Registry {
     objects: RwLock<HashMap<TypeId, Object>>,
-    validation: RwLock<HashMap<TypeId, Validator>>,
-    #[cfg(feature = "tokio")]
-    objects_async: crate::types::AsyncRwLock<HashMap<TypeId, AsyncObject>>,
+    validation: NonAsyncRwLock<HashMap<TypeId, Validator>>,
 }
 
 impl Registry {
@@ -51,9 +34,7 @@ impl Registry {
     pub fn empty() -> Self {
         Self {
             objects: RwLock::new(HashMap::new()),
-            validation: RwLock::new(HashMap::new()),
-            #[cfg(feature = "tokio")]
-            objects_async: crate::types::AsyncRwLock::new(HashMap::new()),
+            validation: NonAsyncRwLock::new(HashMap::new()),
         }
     }
 
@@ -61,8 +42,24 @@ impl Registry {
     ///
     /// This is the constructor for the global registry that can be acquired
     /// with [`Registry::global`].
+    #[cfg(not(feature = "tokio"))]
     #[must_use]
     pub fn autoregistered() -> Self {
+        let registry = Self::empty();
+        for register in inventory::iter::<RegistrationFunc> {
+            (register.0)(&registry);
+        }
+
+        registry
+    }
+
+    /// Create an empty registry, and add all autoregistered types into it.
+    ///
+    /// This is the constructor for the global registry that can be acquired
+    /// with [`Registry::global`].
+    #[cfg(feature = "tokio")]
+    #[must_use]
+    pub async fn autoregistered() -> Self {
         let registry = Self::empty();
         for register in inventory::iter::<RegistrationFunc> {
             (register.0)(&registry);
@@ -79,6 +76,7 @@ impl Registry {
     /// # Parameters
     ///   * `ctor`: A constructor function returning the newly constructed `T`.
     ///     This constructor will be called for every `T` that is requested.
+    #[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
     pub fn transient<T>(&self, ctor: fn() -> T)
     where
         T: Registerable,
@@ -106,7 +104,7 @@ impl Registry {
     ///   * `ctor`: A constructor function returning the newly constructed `T`.
     ///     This constructor will be called for every `T` that is requested.
     #[cfg(feature = "tokio")]
-    pub async fn transient_async<T>(
+    pub async fn transient<T>(
         &self,
         ctor: fn() -> std::pin::Pin<
             Box<dyn std::future::Future<Output = T> + Send>,
@@ -114,14 +112,14 @@ impl Registry {
     ) where
         T: Registerable,
     {
-        use crate::dependency_builder::AsyncTransientBuilderImplNoDeps;
+        use crate::object_builder::AsyncTransientBuilderImplNoDeps;
 
-        let transient = AsyncObject::AsyncTransient(Box::new(
+        let transient = Object::AsyncTransient(Box::new(
             AsyncTransientBuilderImplNoDeps::new(ctor),
         ));
 
         {
-            let mut lock = self.objects_async.write().await;
+            let mut lock = self.objects.write().await;
             lock.insert(TypeId::of::<T>(), transient);
         }
 
@@ -141,6 +139,7 @@ impl Registry {
     ///   * `ctor`: A constructor function returning the newly constructed `T`.
     ///     This constructor will be called once, lazily, when the first
     ///     instance of `T` is requested.
+    #[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
     pub fn singleton<T>(&self, ctor: fn() -> T)
     where
         T: Registerable,
@@ -173,7 +172,7 @@ impl Registry {
     ///     This constructor will be called once, lazily, when the first
     ///     instance of `T` is requested.
     #[cfg(feature = "tokio")]
-    pub async fn singleton_async<T>(
+    pub async fn singleton<T>(
         &self,
         ctor: fn() -> std::pin::Pin<
             Box<dyn std::future::Future<Output = T> + Send>,
@@ -181,14 +180,13 @@ impl Registry {
     ) where
         T: Registerable + Clone,
     {
-        use crate::dependency_builder::AsyncSingletonNoDeps;
+        use crate::object_builder::AsyncSingletonNoDeps;
 
-        let singleton = AsyncObject::AsyncSingleton(Box::new(
-            AsyncSingletonNoDeps::new(ctor),
-        ));
+        let singleton =
+            Object::AsyncSingleton(Box::new(AsyncSingletonNoDeps::new(ctor)));
 
         {
-            let mut lock = self.objects_async.write().await;
+            let mut lock = self.objects.write().await;
             lock.insert(TypeId::of::<T>(), singleton);
         }
 
@@ -202,6 +200,8 @@ impl Registry {
     /// Retrieves a newly constructed `T` from this registry.
     ///
     /// Returns `None` if `T` wasn't registered or failed to construct.
+    #[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
+    #[must_use]
     pub fn get_transient<T>(&self) -> Option<T>
     where
         T: Registerable,
@@ -222,16 +222,15 @@ impl Registry {
     ///
     /// Returns `None` if `T` wasn't registered or failed to construct.
     #[cfg(feature = "tokio")]
-    pub async fn get_transient_async<T>(&self) -> Option<T>
+    #[must_use]
+    pub async fn get_transient<T>(&self) -> Option<T>
     where
         T: Registerable,
     {
-        let lock = self.objects_async.read().await;
-        if let Some(AsyncObject::AsyncTransient(ctor)) =
-            lock.get(&TypeId::of::<T>())
+        let lock = self.objects.read().await;
+        if let Some(Object::AsyncTransient(ctor)) = lock.get(&TypeId::of::<T>())
         {
             let boxed = ctor.make_transient(self).await?;
-            // let boxed = (ctor)(self).await?;
             drop(lock);
             if let Ok(obj) = boxed.downcast::<T>() {
                 return Some(*obj);
@@ -245,6 +244,8 @@ impl Registry {
     ///
     /// Returns `None` if `T` wasn't registered or failed to construct. The
     /// singleton is a ref-counted pointer object (either `Arc` or `Rc`).
+    #[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
+    #[must_use]
     pub fn get_singleton<T>(&self) -> Option<Ref<T>>
     where
         T: Registerable,
@@ -268,12 +269,13 @@ impl Registry {
     /// Returns `None` if `T` wasn't registered or failed to construct. The
     /// singleton is a ref-counted pointer object (either `Arc` or `Rc`).
     #[cfg(feature = "tokio")]
-    pub async fn get_singleton_async<T>(&self) -> Option<Ref<T>>
+    #[must_use]
+    pub async fn get_singleton<T>(&self) -> Option<Ref<T>>
     where
         T: Registerable,
     {
-        let lock = self.objects_async.read().await;
-        if let Some(AsyncObject::AsyncSingleton(singleton)) =
+        let lock = self.objects.read().await;
+        if let Some(Object::AsyncSingleton(singleton)) =
             lock.get(&TypeId::of::<T>())
         {
             let resolved = singleton.get_singleton(self).await?;
@@ -339,7 +341,7 @@ impl Registry {
     ///
     /// This registry contains the types that are marked for auto-registration
     /// via the derive macro.
-    #[cfg(not(feature = "multithread"))]
+    #[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
     pub fn global() -> std::rc::Rc<Self> {
         DEFAULT_REGISTRY.with(|val| {
             let ret =
@@ -348,12 +350,22 @@ impl Registry {
         })
     }
 
+    /// Access the global registry.
+    ///
+    /// This registry contains the types that are marked for auto-registration
+    /// via the derive macro.
+    #[cfg(feature = "tokio")]
+    pub async fn global() -> &'static Self {
+        DEFAULT_REGISTRY.get_or_init(Self::autoregistered).await
+    }
+
     /// Reset the global registry, removing all previously registered types, and
     /// re-running the auto-registration routines.
     ///
     /// # Safety
     /// Ensure that no other thread is currently using [`Registry::global()`].
     #[allow(unsafe_code)]
+    #[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
     pub unsafe fn reset_global() {
         let registry = Self::global();
         {
@@ -367,6 +379,26 @@ impl Registry {
 
             #[cfg(feature = "multithread")]
             (register.0)(registry);
+        }
+    }
+
+    /// Reset the global registry, removing all previously registered types, and
+    /// re-running the auto-registration routines.
+    ///
+    /// # Safety
+    /// Ensure that no other thread is currently using [`Registry::global()`].
+    #[allow(unsafe_code)]
+    #[cfg(feature = "tokio")]
+    pub async unsafe fn reset_global() {
+        let registry = Self::global().await;
+        {
+            let mut lock = registry.objects.write().await;
+            lock.clear();
+        }
+
+        for register in inventory::iter::<RegistrationFunc> {
+            #[cfg(not(feature = "multithread"))]
+            (register.0)(&registry);
         }
     }
 }
@@ -417,6 +449,7 @@ where
     ///
     /// For single dependencies, the destructured tuple needs to end with a
     /// comma: `(dep,)`.
+    #[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
     pub fn transient(&self, ctor: fn(Deps) -> T) {
         let transient =
             Object::Transient(Box::new(move |this| -> Option<BoxedAny> {
@@ -464,7 +497,7 @@ where
     ///
     /// The `ctor` must return a boxed `dyn Future`.
     #[cfg(feature = "tokio")]
-    pub async fn transient_async(
+    pub async fn transient(
         &self,
         ctor: fn(
             Deps,
@@ -472,13 +505,13 @@ where
             Box<dyn std::future::Future<Output = T> + Send>,
         >,
     ) {
-        use crate::dependency_builder::AsyncTransientBuilderImplWithDeps;
+        use crate::object_builder::AsyncTransientBuilderImplWithDeps;
 
-        let transient = AsyncObject::AsyncTransient(Box::new(
+        let transient = Object::AsyncTransient(Box::new(
             AsyncTransientBuilderImplWithDeps::new(ctor),
         ));
         {
-            let mut lock = self.registry.objects_async.write().await;
+            let mut lock = self.registry.objects.write().await;
             lock.insert(TypeId::of::<T>(), transient);
         }
 
@@ -527,6 +560,7 @@ where
     ///
     /// For single dependencies, the destructured tuple needs to end with a
     /// comma: `(dep,)`.
+    #[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
     pub fn singleton(&self, ctor: fn(Deps) -> T) {
         let getter = Box::new(
             move |this: &Registry, cell: &SingletonCell| -> Option<RefAny> {
@@ -579,7 +613,7 @@ where
     ///
     /// The `ctor` must return a boxed `dyn Future`.
     #[cfg(feature = "tokio")]
-    pub async fn singleton_async(
+    pub async fn singleton(
         &self,
         ctor: fn(
             Deps,
@@ -587,13 +621,12 @@ where
             Box<dyn std::future::Future<Output = T> + Send>,
         >,
     ) {
-        use crate::dependency_builder::AsyncSingletonWithDeps;
+        use crate::object_builder::AsyncSingletonWithDeps;
 
-        let singleton = AsyncObject::AsyncSingleton(Box::new(
-            AsyncSingletonWithDeps::new(ctor),
-        ));
+        let singleton =
+            Object::AsyncSingleton(Box::new(AsyncSingletonWithDeps::new(ctor)));
         {
-            let mut lock = self.registry.objects_async.write().await;
+            let mut lock = self.registry.objects.write().await;
             lock.insert(TypeId::of::<T>(), singleton);
         }
 
