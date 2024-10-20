@@ -9,8 +9,9 @@
 //! inner type via `.get`.
 //!
 //! # Examples
-//! ```
-//! # use ferrunix_core::{Registry, Singleton, Transient};
+//! ```no_run
+//! use ferrunix_core::{Registry, Singleton, Transient};
+//!
 //! struct Template {
 //!     template: &'static str,
 //! }
@@ -53,7 +54,7 @@ pub trait Dep: Registerable + private::Sealed {
     /// Looks up the dependency in `registry`, and constructs a new [`Dep`].
     ///
     /// This function is allowed to panic, if the type isn't registered.
-    #[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
+    #[cfg(not(feature = "tokio"))]
     fn new(registry: &Registry) -> Self;
 
     /// Looks up the dependency in `registry`, and constructs a new [`Dep`].
@@ -117,7 +118,7 @@ impl<T: Registerable> Dep for Transient<T> {
     ///
     /// # Panic
     /// This function panics if the `T` isn't registered.
-    #[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
+    #[cfg(not(feature = "tokio"))]
     fn new(registry: &Registry) -> Self {
         Self {
             inner: registry.get_transient::<T>().expect(
@@ -201,7 +202,7 @@ impl<T: Registerable> Dep for Singleton<T> {
     ///
     /// # Panic
     /// This function panics if the `T` isn't registered.
-    #[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
+    #[cfg(not(feature = "tokio"))]
     fn new(registry: &Registry) -> Self {
         Self {
             inner: registry.get_singleton::<T>().expect(

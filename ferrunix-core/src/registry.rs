@@ -73,7 +73,7 @@ impl Registry {
     /// # Parameters
     ///   * `ctor`: A constructor function returning the newly constructed `T`.
     ///     This constructor will be called for every `T` that is requested.
-    #[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
+    #[cfg(not(feature = "tokio"))]
     pub fn transient<T>(&self, ctor: fn() -> T)
     where
         T: Registerable,
@@ -138,7 +138,7 @@ impl Registry {
     ///   * `ctor`: A constructor function returning the newly constructed `T`.
     ///     This constructor will be called once, lazily, when the first
     ///     instance of `T` is requested.
-    #[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
+    #[cfg(not(feature = "tokio"))]
     pub fn singleton<T>(&self, ctor: fn() -> T)
     where
         T: Registerable,
@@ -198,7 +198,7 @@ impl Registry {
     /// Retrieves a newly constructed `T` from this registry.
     ///
     /// Returns `None` if `T` wasn't registered or failed to construct.
-    #[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
+    #[cfg(not(feature = "tokio"))]
     #[must_use]
     pub fn get_transient<T>(&self) -> Option<T>
     where
@@ -243,7 +243,7 @@ impl Registry {
     ///
     /// Returns `None` if `T` wasn't registered or failed to construct. The
     /// singleton is a ref-counted pointer object (either `Arc` or `Rc`).
-    #[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
+    #[cfg(not(feature = "tokio"))]
     #[must_use]
     pub fn get_singleton<T>(&self) -> Option<Ref<T>>
     where
@@ -339,7 +339,7 @@ impl Registry {
     ///
     /// This registry contains the types that are marked for auto-registration
     /// via the derive macro.
-    #[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
+    #[cfg(all(not(feature = "tokio"), not(feature = "multithread")))]
     pub fn global() -> std::rc::Rc<Self> {
         DEFAULT_REGISTRY.with(|val| {
             let ret =
@@ -363,7 +363,7 @@ impl Registry {
     /// # Safety
     /// Ensure that no other thread is currently using [`Registry::global()`].
     #[allow(unsafe_code)]
-    #[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
+    #[cfg(not(feature = "tokio"))]
     pub unsafe fn reset_global() {
         let registry = Self::global();
         {
@@ -416,11 +416,13 @@ pub struct Builder<'reg, T, Deps> {
     _marker1: PhantomData<Deps>,
 }
 
-impl<'reg, T, Deps> Builder<'reg, T, Deps>
+impl<
+        'reg,
+        T,
+        #[cfg(not(feature = "tokio"))] Deps: DepBuilder<T> + 'static,
+        #[cfg(feature = "tokio")] Deps: DepBuilder<T> + Sync + 'static,
+    > Builder<'reg, T, Deps>
 where
-// TODO:
-    // Deps: DepBuilder<T> + Sync + 'static,
-    Deps: DepBuilder<T> + 'static,
     T: Registerable,
 {
     /// Register a new transient object, with dependencies specified in
@@ -449,7 +451,7 @@ where
     ///
     /// For single dependencies, the destructured tuple needs to end with a
     /// comma: `(dep,)`.
-    #[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
+    #[cfg(not(feature = "tokio"))]
     pub fn transient(&self, ctor: fn(Deps) -> T) {
         use crate::object_builder::TransientBuilderImplWithDeps;
 
@@ -553,7 +555,7 @@ where
     ///
     /// For single dependencies, the destructured tuple needs to end with a
     /// comma: `(dep,)`.
-    #[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
+    #[cfg(not(feature = "tokio"))]
     pub fn singleton(&self, ctor: fn(Deps) -> T) {
         use crate::object_builder::SingletonGetterWithDeps;
 

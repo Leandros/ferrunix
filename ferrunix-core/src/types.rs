@@ -10,6 +10,7 @@
 mod sync {
     use std::any::Any;
 
+    use crate::object_builder::{SingletonGetter, TransientBuilder};
     use crate::Registry;
 
     pub(crate) type OnceCell<T> = once_cell::sync::OnceCell<T>;
@@ -32,12 +33,12 @@ mod sync {
     // Alias types used in [`Registry`].
     pub(crate) type BoxedAny = Box<dyn Any + Send + Sync>;
     pub(crate) type RefAny = Ref<dyn Any + Send + Sync>;
-    pub(crate) type BoxedCtor =
-        Box<dyn Fn(&Registry) -> Option<BoxedAny> + Send + Sync>;
     pub(crate) type SingletonCell = OnceCell<RefAny>;
-    pub(crate) type BoxedSingletonGetter =
-        Box<dyn Fn(&Registry, &SingletonCell) -> Option<RefAny> + Send + Sync>;
     pub(crate) type Validator = Box<dyn Fn(&Registry) -> bool + Send + Sync>;
+    pub(crate) type BoxedTransientBuilder =
+        Box<dyn TransientBuilder + Send + Sync>;
+    pub(crate) type BoxedSingletonGetter =
+        Box<dyn SingletonGetter + Send + Sync>;
 
     /// A generic reference type that's used as the default type for types with
     /// the singleton lifetime.
@@ -65,6 +66,7 @@ mod sync {
 mod unsync {
     use std::any::Any;
 
+    use crate::object_builder::{SingletonGetter, TransientBuilder};
     use crate::Registry;
 
     pub(crate) type OnceCell<T> = once_cell::unsync::OnceCell<T>;
@@ -107,11 +109,10 @@ mod unsync {
     // Alias types used in [`Registry`].
     pub(crate) type BoxedAny = Box<dyn Any>;
     pub(crate) type RefAny = Ref<dyn Any>;
-    pub(crate) type BoxedCtor = Box<dyn Fn(&Registry) -> Option<BoxedAny>>;
     pub(crate) type SingletonCell = OnceCell<RefAny>;
-    pub(crate) type BoxedSingletonGetter =
-        Box<dyn Fn(&Registry, &SingletonCell) -> Option<RefAny>>;
     pub(crate) type Validator = Box<dyn Fn(&Registry) -> bool>;
+    pub(crate) type BoxedTransientBuilder = Box<dyn TransientBuilder>;
+    pub(crate) type BoxedSingletonGetter = Box<dyn SingletonGetter>;
 
     /// A generic reference type that's used as the default type for types with
     /// the singleton lifetime.
@@ -154,13 +155,6 @@ mod tokio_ext {
     // Cell types.
     pub(crate) type OnceCell<T> = ::tokio::sync::OnceCell<T>;
     pub(crate) type SingletonCell = ::tokio::sync::OnceCell<RefAny>;
-
-    // Unused!!!!
-    pub(crate) type BoxedCtor =
-        Box<dyn Fn(&Registry) -> Option<BoxedAny> + Send + Sync>;
-    pub(crate) type BoxedSingletonGetter =
-        Box<dyn Fn(&Registry, &SingletonCell) -> Option<RefAny> + Send + Sync>;
-    // Unused!!!!
 
     /// A generic reference type that's used as the default type for types with
     /// the singleton lifetime.

@@ -37,7 +37,7 @@ pub trait DepBuilder<R> {
     /// An implementation for tuples is provided by `DepBuilderImpl!`.
     ///
     /// We advise against *manually* implementing `build`.
-    #[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
+    #[cfg(not(feature = "tokio"))]
     fn build(
         registry: &Registry,
         ctor: fn(Self) -> R,
@@ -86,7 +86,7 @@ impl<R> DepBuilder<R> for ()
 where
     R: Registerable,
 {
-    #[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
+    #[cfg(not(feature = "tokio"))]
     fn build(
         _registry: &Registry,
         ctor: fn(Self) -> R,
@@ -123,7 +123,7 @@ macro_rules! DepBuilderImpl {
             R: $crate::types::Registerable,
             $($ts: $crate::dependencies::Dep,)*
         {
-            #[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
+            #[cfg(not(feature = "tokio"))]
             fn build(registry: &$crate::registry::Registry, ctor: fn(Self) -> R, _: private::SealToken) -> Option<R> {
                 if !registry.validate::<R>() {
                     return None;
