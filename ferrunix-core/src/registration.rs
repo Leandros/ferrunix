@@ -43,6 +43,7 @@ impl RegistrationFunc {
     ///
     /// # Example
     /// ```no_run
+    /// # #![cfg(not(feature = "tokio"))]
     /// # use ferrunix_core::*;
     /// # use ferrunix_core::registration::*;
     /// #[derive(Debug)]

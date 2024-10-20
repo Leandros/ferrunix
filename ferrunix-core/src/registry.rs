@@ -39,7 +39,7 @@ impl Registry {
     ///
     /// This is the constructor for the global registry that can be acquired
     /// with [`Registry::global`].
-    #[cfg(not(feature = "tokio"))]
+    #[cfg(any(doc, not(feature = "tokio")))]
     #[must_use]
     pub fn autoregistered() -> Self {
         let registry = Self::empty();
@@ -54,7 +54,7 @@ impl Registry {
     ///
     /// This is the constructor for the global registry that can be acquired
     /// with [`Registry::global`].
-    #[cfg(feature = "tokio")]
+    #[cfg(any(doc, feature = "tokio"))]
     #[must_use]
     pub async fn autoregistered() -> Self {
         let registry = Self::empty();

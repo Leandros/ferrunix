@@ -30,30 +30,37 @@ pub(super) fn run() -> Result<()> {
         exit(1);
     }
 
-    cmd!(sh, "cargo test -p ferrunix --no-default-features").run()?;
-    cmd!(sh, "cargo test -p ferrunix --no-default-features -F derive").run()?;
-    cmd!(
-        sh,
-        "cargo test -p ferrunix --no-default-features -F derive,multithread"
-    )
-    .run()?;
-    cmd!(sh, "cargo test -p ferrunix-core --no-default-features").run()?;
-    cmd!(
-        sh,
-        "cargo test -p ferrunix-core --no-default-features -F multithread"
-    )
-    .run()?;
-    cmd!(sh, "cargo test -p ferrunix-macros --no-default-features").run()?;
-    cmd!(
-        sh,
-        "cargo test -p ferrunix-macros --no-default-features -F multithread"
-    )
-    .run()?;
-    cmd!(
-        sh,
-        "cargo test -p ferrunix-macros --no-default-features -F multithread,development"
-    )
-    .run()?;
+    let test_matrix = [
+        ("ferrunix", ""),
+        ("ferrunix", "derive"),
+        ("ferrunix", "multithread"),
+        ("ferrunix", "tokio"),
+        ("ferrunix", "derive,multithread"),
+        ("ferrunix", "derive,tokio"),
+        ("ferrunix-core", ""),
+        ("ferrunix-core", "multithread"),
+        ("ferrunix-core", "tokio"),
+        ("ferrunix-macros", ""),
+        ("ferrunix-macros", "multithread"),
+        ("ferrunix-macros", "development"),
+        ("ferrunix-macros", "development,multithread"),
+    ];
+
+    let testrunner = &["test"];
+    for (proj, features) in test_matrix {
+        if features.is_empty() {
+            cmd!(sh, "cargo {testrunner...} -p {proj} --no-default-features")
+                .run()?;
+            continue;
+        }
+
+        cmd!(
+            sh,
+            "cargo {testrunner...} -p {proj} --no-default-features -F {features}"
+        )
+        .run()?;
+    }
+
     cmd!(sh, "cargo test --all").run()?;
     cmd!(sh, "cargo clippy --tests --workspace").run()?;
 

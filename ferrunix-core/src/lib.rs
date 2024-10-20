@@ -2,6 +2,7 @@
 //!
 //! [`ferrunix`]: https://crates.io/crates/ferrunix
 //! [`ferrunix-core`]: https://crates.io/crates/ferrunix-core
+// #![doc(test(attr(cfg(not(feature = "tokio")))))]
 
 pub mod dependencies;
 pub mod dependency_builder;

@@ -35,3 +35,6 @@ darling = "0.20"
 
 [dev-dependencies]
 thiserror = "1"
+
+[package.metadata."docs.rs"]
+all-features = true
