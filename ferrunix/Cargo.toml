@@ -17,7 +17,7 @@ categories.workspace = true
 workspace = true
 
 [features]
-default = ["derive", "tokio"]
+default = ["derive"]
 multithread = ["ferrunix-core/multithread"]
 derive = ["dep:ferrunix-macros"]
 tokio = ["ferrunix-core/tokio"]

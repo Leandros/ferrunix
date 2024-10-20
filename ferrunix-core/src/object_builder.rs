@@ -17,11 +17,8 @@ pub(crate) use inner::*;
 /// All possible "objects" that can be held by the registry.
 #[cfg(not(feature = "tokio"))]
 pub(crate) enum Object {
-    Transient(crate::types::BoxedCtor),
-    Singleton(
-        crate::types::BoxedSingletonGetter,
-        crate::types::SingletonCell,
-    ),
+    Transient(Box<dyn TransientBuilder>),
+    Singleton(Box<dyn SingletonGetter>),
 }
 
 /// All possible "objects" that can be held by the registry.

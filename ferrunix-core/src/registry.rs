@@ -6,13 +6,10 @@ use std::marker::PhantomData;
 
 use crate::dependency_builder::{self, DepBuilder};
 use crate::object_builder::Object;
-use crate::types::{
-    BoxedAny, BoxedCtor, BoxedSingletonGetter, NonAsyncRwLock, RefAny,
-    Registerable, SingletonCell, Validator,
-};
+use crate::types::{NonAsyncRwLock, Registerable, Validator};
 use crate::{
     registration::RegistrationFunc, registration::DEFAULT_REGISTRY,
-    types::HashMap, types::OnceCell, types::Ref, types::RwLock,
+    types::HashMap, types::Ref, types::RwLock,
 };
 
 /// Registry for all types that can be constructed or otherwise injected.
@@ -81,18 +78,20 @@ impl Registry {
     where
         T: Registerable,
     {
-        // TODO: Move construction out of locked region.
-        self.objects.write().insert(
-            TypeId::of::<T>(),
-            Object::Transient(Box::new(move |_| -> Option<BoxedAny> {
-                let obj = ctor();
-                Some(Box::new(obj))
-            })),
-        );
-        // TODO: Move construction out of locked region.
-        self.validation
-            .write()
-            .insert(TypeId::of::<T>(), Box::new(|_| true));
+        use crate::object_builder::TransientBuilderImplNoDeps;
+
+        let transient =
+            Object::Transient(Box::new(TransientBuilderImplNoDeps::new(ctor)));
+        {
+            let mut lock = self.objects.write();
+            lock.insert(TypeId::of::<T>(), transient);
+        }
+
+        let validator: Validator = Box::new(|_| true);
+        {
+            let mut lock = self.validation.write();
+            lock.insert(TypeId::of::<T>(), validator);
+        }
     }
 
     /// Register a new transient object, without dependencies.
@@ -144,22 +143,21 @@ impl Registry {
     where
         T: Registerable,
     {
-        let getter = Box::new(
-            move |_this: &Self, cell: &SingletonCell| -> Option<RefAny> {
-                let rc = cell.get_or_init(|| Ref::new(ctor()));
-                Some(Ref::clone(rc))
-            },
-        );
+        use crate::object_builder::SingletonGetterNoDeps;
 
-        // TODO: Move construction out of locked region.
-        self.objects.write().insert(
-            TypeId::of::<T>(),
-            Object::Singleton(getter, OnceCell::new()),
-        );
-        // TODO: Move construction out of locked region.
-        self.validation
-            .write()
-            .insert(TypeId::of::<T>(), Box::new(|_| true));
+        let singleton =
+            Object::Singleton(Box::new(SingletonGetterNoDeps::new(ctor)));
+
+        {
+            let mut lock = self.objects.write();
+            lock.insert(TypeId::of::<T>(), singleton);
+        }
+
+        let validator: Validator = Box::new(|_| true);
+        {
+            let mut lock = self.validation.write();
+            lock.insert(TypeId::of::<T>(), validator);
+        }
     }
 
     /// Register a new singleton object, without dependencies.
@@ -207,10 +205,11 @@ impl Registry {
         T: Registerable,
     {
         let lock = self.objects.read();
-        if let Some(Object::Transient(ctor)) = lock.get(&TypeId::of::<T>()) {
-            let boxed = (ctor)(self)?;
+        if let Some(Object::Transient(transient)) = lock.get(&TypeId::of::<T>())
+        {
+            let resolved = transient.make_transient(self)?;
             drop(lock);
-            if let Ok(obj) = boxed.downcast::<T>() {
+            if let Ok(obj) = resolved.downcast::<T>() {
                 return Some(*obj);
             }
         }
@@ -251,12 +250,11 @@ impl Registry {
         T: Registerable,
     {
         let lock = self.objects.read();
-        if let Some(Object::Singleton(getter, cell)) =
-            lock.get(&TypeId::of::<T>())
+        if let Some(Object::Singleton(singleton)) = lock.get(&TypeId::of::<T>())
         {
-            let singleton = (getter)(self, cell)?;
+            let resolved = singleton.get_singleton(self)?;
             drop(lock);
-            if let Ok(obj) = singleton.downcast::<T>() {
+            if let Ok(obj) = resolved.downcast::<T>() {
                 return Some(obj);
             }
         }
@@ -420,7 +418,9 @@ pub struct Builder<'reg, T, Deps> {
 
 impl<'reg, T, Deps> Builder<'reg, T, Deps>
 where
-    Deps: DepBuilder<T> + Sync + 'static,
+// TODO:
+    // Deps: DepBuilder<T> + Sync + 'static,
+    Deps: DepBuilder<T> + 'static,
     T: Registerable,
 {
     /// Register a new transient object, with dependencies specified in
@@ -451,18 +451,11 @@ where
     /// comma: `(dep,)`.
     #[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
     pub fn transient(&self, ctor: fn(Deps) -> T) {
-        let transient =
-            Object::Transient(Box::new(move |this| -> Option<BoxedAny> {
-                #[allow(clippy::option_if_let_else)]
-                match Deps::build(
-                    this,
-                    ctor,
-                    dependency_builder::private::SealToken,
-                ) {
-                    Some(obj) => Some(Box::new(obj)),
-                    None => None,
-                }
-            }));
+        use crate::object_builder::TransientBuilderImplWithDeps;
+
+        let transient = Object::Transient(Box::new(
+            TransientBuilderImplWithDeps::new(ctor),
+        ));
         {
             let mut lock = self.registry.objects.write();
             lock.insert(TypeId::of::<T>(), transient);
@@ -562,23 +555,10 @@ where
     /// comma: `(dep,)`.
     #[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
     pub fn singleton(&self, ctor: fn(Deps) -> T) {
-        let getter = Box::new(
-            move |this: &Registry, cell: &SingletonCell| -> Option<RefAny> {
-                #[allow(clippy::option_if_let_else)]
-                match Deps::build(
-                    this,
-                    ctor,
-                    dependency_builder::private::SealToken,
-                ) {
-                    Some(obj) => {
-                        let rc = cell.get_or_init(|| Ref::new(obj));
-                        Some(Ref::clone(rc))
-                    }
-                    None => None,
-                }
-            },
-        );
-        let singleton = Object::Singleton(getter, OnceCell::new());
+        use crate::object_builder::SingletonGetterWithDeps;
+
+        let singleton =
+            Object::Singleton(Box::new(SingletonGetterWithDeps::new(ctor)));
         {
             let mut lock = self.registry.objects.write();
             lock.insert(TypeId::of::<T>(), singleton);
