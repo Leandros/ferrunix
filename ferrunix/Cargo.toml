@@ -17,7 +17,7 @@ categories.workspace = true
 workspace = true
 
 [features]
-default = ["derive"]
+default = ["derive", "tokio"]
 multithread = ["ferrunix-core/multithread"]
 derive = ["dep:ferrunix-macros"]
 tokio = ["ferrunix-core/tokio"]
@@ -29,6 +29,7 @@ ferrunix-macros = { path = "../ferrunix-macros", optional = true, version = "=0.
 [dev-dependencies]
 thiserror = "1"
 tokio = { version = "1", features = ["full"] }
+async-trait = "0.1"
 
 # [package.metadata."docs.rs"]
 # all-features = true

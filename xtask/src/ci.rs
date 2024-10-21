@@ -1,8 +1,6 @@
 #![allow(clippy::exit)]
 //! Xtask CI "emulation".
 
-use std::process::exit;
-
 use anyhow::Result;
 use xshell::{cmd, Shell};
 
@@ -13,22 +11,28 @@ pub(super) fn run() -> Result<()> {
     // sh.set_var("CARGO_INCREMENTAL", "0");
     // sh.set_var("CARGO_TERM_COLOR", "always");
 
-    if let Err(err) = cmd!(sh, "cargo outdated --version").output() {
-        eprintln!("failed to find `cargo-outdated`: {err}");
-        eprintln!(
-            "try installing it with: cargo install --locked cargo-outdated"
-        );
-        exit(1);
-    }
+    let has_cargo_outdated =
+        if let Err(err) = cmd!(sh, "cargo outdated --version").output() {
+            eprintln!("failed to find `cargo-outdated`: {err}");
+            eprintln!(
+                "try installing it with: cargo install --locked cargo-outdated"
+            );
+            false
+        } else {
+            true
+        };
 
-    if let Err(err) = cmd!(sh, "cargo semver-checks --version").output() {
-        eprintln!("failed to find `cargo-semver-checks`: {err}");
-        eprintln!(
-            "try installing it with: cargo install --locked \
+    let has_cargo_semver =
+        if let Err(err) = cmd!(sh, "cargo semver-checks --version").output() {
+            eprintln!("failed to find `cargo-semver-checks`: {err}");
+            eprintln!(
+                "try installing it with: cargo install --locked \
              cargo-semver-checks"
-        );
-        exit(1);
-    }
+            );
+            false
+        } else {
+            true
+        };
 
     let test_matrix = [
         ("ferrunix", ""),
@@ -46,7 +50,8 @@ pub(super) fn run() -> Result<()> {
         ("ferrunix-macros", "development,multithread"),
     ];
 
-    let testrunner = &["test"];
+    let testrunner = &["nextest", "run"];
+    // let testrunner = &["test"];
     for (proj, features) in test_matrix {
         if features.is_empty() {
             cmd!(sh, "cargo {testrunner...} -p {proj} --no-default-features")
@@ -61,11 +66,16 @@ pub(super) fn run() -> Result<()> {
         .run()?;
     }
 
-    cmd!(sh, "cargo test --all").run()?;
+    // cmd!(sh, "cargo test --all").run()?;
     cmd!(sh, "cargo clippy --tests --workspace").run()?;
 
-    cmd!(sh, "cargo outdated --workspace --exit-code 1").run()?;
-    cmd!(sh, "cargo semver-checks").run()?;
+    if has_cargo_outdated {
+        cmd!(sh, "cargo outdated --workspace --exit-code 1").run()?;
+    }
+
+    if has_cargo_semver {
+        cmd!(sh, "cargo semver-checks").run()?;
+    }
 
     Ok(())
 }
