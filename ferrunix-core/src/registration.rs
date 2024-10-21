@@ -2,6 +2,7 @@
 //!
 //! The global registry is available via [`Registry::global`].
 
+use crate::types::RegisterFn;
 use crate::{types::OnceCell, Registry};
 
 /// The global, `'static` default [`Registry`]. It's constructed and accessible
@@ -29,7 +30,7 @@ pub(crate) static DEFAULT_REGISTRY: OnceCell<Registry> = OnceCell::const_new();
 ///
 /// This is, usually, used by the derive macro, and not manually.
 #[non_exhaustive]
-pub struct RegistrationFunc(pub(crate) fn(&Registry));
+pub struct RegistrationFunc(pub(crate) RegisterFn);
 
 impl RegistrationFunc {
     /// Create a new [`RegistrationFunc`] from a `register` function.
@@ -43,7 +44,6 @@ impl RegistrationFunc {
     ///
     /// # Example
     /// ```no_run
-    /// # #![cfg(not(feature = "tokio"))]
     /// # use ferrunix_core::*;
     /// # use ferrunix_core::registration::*;
     /// #[derive(Debug)]
@@ -64,7 +64,7 @@ impl RegistrationFunc {
     ///     StringTemplate::register
     /// ));
     /// ```
-    pub const fn new(register: fn(&Registry) -> ()) -> Self {
+    pub const fn new(register: RegisterFn) -> Self {
         Self(register)
     }
 }

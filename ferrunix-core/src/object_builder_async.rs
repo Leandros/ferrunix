@@ -1,41 +1,74 @@
+//! Abstraction layer to build transient and singleton dependencies, asynchronously.
 use crate::dependency_builder::DepBuilder;
 use crate::types::{BoxedAny, Ref, RefAny, Registerable};
 use crate::Registry;
 
+/// Trait to build a new object with transient lifetime.
+///
+/// This trait is implemented twice, once to build objects without dependencies, and
+/// once to build objects with any number of dependencies:
+///
+///   * [`AsyncTransientBuilderImplNoDeps`]
+///   * [`AsyncTransientBuilderImplWithDeps`]
+///
+/// This is an `async` trait.
 #[async_trait::async_trait]
 pub(crate) trait AsyncTransientBuilder {
+    /// Constructs a new object; it may use the [`Registry`] to construct any
+    /// dependencies.
+    ///
+    /// <div class="warning">It must not use the global registry.</div>
+    ///
+    /// May return `None` if the dependencies couldn't be fulfilled.
     async fn make_transient(&self, registry: &Registry) -> Option<BoxedAny>;
 }
 
+/// Trait to build a new object with singleton lifetime.
+///
+/// This trait is implemented twice, once to build objects without dependencies, and
+/// once to build objects with any number of dependencies:
+///
+///   * [`AsyncSingletonNoDeps`]
+///   * [`AsyncSingletonWithDeps`]
 #[async_trait::async_trait]
 pub(crate) trait AsyncSingleton {
+    /// Constructs a new object; it may use the [`Registry`] to construct any
+    /// dependencies.
+    ///
+    /// <div class="warning">It must not use the global registry.</div>
+    ///
+    /// May return `None` if the dependencies couldn't be fulfilled.
     async fn get_singleton(&self, registry: &Registry) -> Option<RefAny>;
 }
 
-pub(crate) struct AsyncTransientBuilderImplNoDeps<T, Deps> {
+//          ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+//          ┃                   TRANSIENT (no deps)                   ┃
+//          ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+/// Construct a new transient with no dependencies. Usually used through `dyn AsyncTransientBuilder`.
+pub(crate) struct AsyncTransientBuilderImplNoDeps<T> {
+    /// Constructor, returns a boxed future to `T`.
     ctor:
         fn() -> std::pin::Pin<Box<dyn std::future::Future<Output = T> + Send>>,
-    _marker: std::marker::PhantomData<Deps>,
 }
 
-impl<T> AsyncTransientBuilderImplNoDeps<T, ()> {
+impl<T> AsyncTransientBuilderImplNoDeps<T> {
+    /// Create a new [`AsyncTransientBuilder`] using `ctor` to create new objects.
+    ///
+    /// `ctor` should not have side-effects. It may be called multiple times.
     pub(crate) fn new(
         ctor: fn() -> std::pin::Pin<
             Box<dyn std::future::Future<Output = T> + Send>,
         >,
     ) -> Self {
-        Self {
-            ctor,
-            _marker: std::marker::PhantomData::<()>,
-        }
+        Self { ctor }
     }
 }
 
 #[async_trait::async_trait]
-impl<T, Deps> AsyncTransientBuilder for AsyncTransientBuilderImplNoDeps<T, Deps>
+impl<T> AsyncTransientBuilder for AsyncTransientBuilderImplNoDeps<T>
 where
     Self: Send + Sync,
-    Deps: DepBuilder<T> + 'static,
     T: Registerable,
 {
     async fn make_transient(&self, _: &Registry) -> Option<BoxedAny> {
@@ -44,7 +77,16 @@ where
     }
 }
 
+//          ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+//          ┃                  TRANSIENT (with deps)                  ┃
+//          ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+/// Construct a new transient with any number of dependencies. Usually used through `dyn
+/// TransientBuilder`.
+///
+/// The dependency tuple `Deps` must implement [`DepBuilder<T>`].
 pub(crate) struct AsyncTransientBuilderImplWithDeps<T, Deps> {
+    /// Constructor, returns a boxed future to `T`.
     ctor: fn(
         Deps,
     )
@@ -52,6 +94,9 @@ pub(crate) struct AsyncTransientBuilderImplWithDeps<T, Deps> {
 }
 
 impl<T, Deps> AsyncTransientBuilderImplWithDeps<T, Deps> {
+    /// Create a new [`AsyncTransientBuilder`] using `ctor` to create new objects.
+    ///
+    /// `ctor` should not have side-effects. It may be called multiple times.
     pub(crate) fn new(
         ctor: fn(
             Deps,
@@ -86,13 +131,25 @@ where
     }
 }
 
+//          ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+//          ┃                   SINGLETON (no deps)                   ┃
+//          ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+/// Construct, and returns, a new singleton with no dependencies. Usually used through `dyn
+/// AsyncSingleton`.
 pub(crate) struct AsyncSingletonNoDeps<T> {
+    /// Constructor, returns a boxed future to `T`.
     ctor:
         fn() -> std::pin::Pin<Box<dyn std::future::Future<Output = T> + Send>>,
+    /// Cell containing the constructed `T`.
     cell: ::tokio::sync::OnceCell<Ref<T>>,
 }
 
 impl<T> AsyncSingletonNoDeps<T> {
+    /// Create a new [`SingletonGetter`] using `ctor` to create new objects.
+    /// Objects are stored internally in `cell`.
+    ///
+    /// `ctor` may contain side-effects. It's guaranteed to be only called once (for each thread).
     pub(crate) fn new(
         ctor: fn() -> std::pin::Pin<
             Box<dyn std::future::Future<Output = T> + Send>,
@@ -124,15 +181,29 @@ where
     }
 }
 
+//          ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+//          ┃                  SINGLETON (with deps)                  ┃
+//          ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+/// Construct a new singleton with any number of dependencies. Usually used through `dyn
+/// AsyncSingleton`.
+///
+/// The dependency tuple `Deps` must implement [`DepBuilder<T>`].
 pub(crate) struct AsyncSingletonWithDeps<T, Deps> {
+    /// Constructor, returns a boxed future to `T`.
     ctor: fn(
         Deps,
     )
         -> std::pin::Pin<Box<dyn std::future::Future<Output = T> + Send>>,
+    /// Cell containing the constructed `T`.
     cell: ::tokio::sync::OnceCell<Ref<T>>,
 }
 
 impl<T, Deps> AsyncSingletonWithDeps<T, Deps> {
+    /// Create a new [`SingletonGetter`] using `ctor` to create new objects.
+    /// Objects are stored internally in `cell`.
+    ///
+    /// `ctor` may contain side-effects. It's guaranteed to be only called once (for each thread).
     pub(crate) fn new(
         ctor: fn(
             Deps,

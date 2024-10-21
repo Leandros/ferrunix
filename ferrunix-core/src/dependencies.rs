@@ -54,13 +54,13 @@ pub trait Dep: Registerable + private::Sealed {
     /// Looks up the dependency in `registry`, and constructs a new [`Dep`].
     ///
     /// This function is allowed to panic, if the type isn't registered.
-    #[cfg(any(doc, not(feature = "tokio")))]
+    #[cfg(not(feature = "tokio"))]
     fn new(registry: &Registry) -> Self;
 
     /// Looks up the dependency in `registry`, and constructs a new [`Dep`].
     ///
     /// This function is allowed to panic, if the type isn't registered.
-    #[cfg(any(doc, feature = "tokio"))]
+    #[cfg(feature = "tokio")]
     fn new(
         registry: &Registry,
     ) -> impl std::future::Future<Output = Self> + Send
@@ -118,7 +118,7 @@ impl<T: Registerable> Dep for Transient<T> {
     ///
     /// # Panic
     /// This function panics if the `T` isn't registered.
-    #[cfg(any(doc, not(feature = "tokio")))]
+    #[cfg(not(feature = "tokio"))]
     fn new(registry: &Registry) -> Self {
         Self {
             inner: registry.get_transient::<T>().expect(
@@ -132,7 +132,7 @@ impl<T: Registerable> Dep for Transient<T> {
     ///
     /// # Panic
     /// This function panics if the `T` isn't registered.
-    #[cfg(any(doc, feature = "tokio"))]
+    #[cfg(feature = "tokio")]
     async fn new(registry: &Registry) -> Self {
         Self {
             inner: registry.get_transient::<T>().await.expect(
@@ -202,7 +202,7 @@ impl<T: Registerable> Dep for Singleton<T> {
     ///
     /// # Panic
     /// This function panics if the `T` isn't registered.
-    #[cfg(any(doc, not(feature = "tokio")))]
+    #[cfg(not(feature = "tokio"))]
     fn new(registry: &Registry) -> Self {
         Self {
             inner: registry.get_singleton::<T>().expect(
@@ -216,7 +216,7 @@ impl<T: Registerable> Dep for Singleton<T> {
     ///
     /// # Panic
     /// This function panics if the `T` isn't registered.
-    #[cfg(any(doc, feature = "tokio"))]
+    #[cfg(feature = "tokio")]
     async fn new(registry: &Registry) -> Self {
         Self {
             inner: registry.get_singleton::<T>().await.expect(

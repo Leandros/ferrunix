@@ -35,6 +35,7 @@ mod sync {
     pub(crate) type RefAny = Ref<dyn Any + Send + Sync>;
     pub(crate) type SingletonCell = OnceCell<RefAny>;
     pub(crate) type Validator = Box<dyn Fn(&Registry) -> bool + Send + Sync>;
+    pub(crate) type RegisterFn = fn(&Registry) -> ();
     pub(crate) type BoxedTransientBuilder =
         Box<dyn TransientBuilder + Send + Sync>;
     pub(crate) type BoxedSingletonGetter =
@@ -111,6 +112,7 @@ mod unsync {
     pub(crate) type RefAny = Ref<dyn Any>;
     pub(crate) type SingletonCell = OnceCell<RefAny>;
     pub(crate) type Validator = Box<dyn Fn(&Registry) -> bool>;
+    pub(crate) type RegisterFn = fn(&Registry) -> ();
     pub(crate) type BoxedTransientBuilder = Box<dyn TransientBuilder>;
     pub(crate) type BoxedSingletonGetter = Box<dyn SingletonGetter>;
 
@@ -144,6 +146,11 @@ mod tokio_ext {
     pub(crate) type BoxedAny = Box<dyn Any + Send + Sync>;
     pub(crate) type RefAny = Ref<dyn Any + Send + Sync>;
     pub(crate) type Validator = Box<dyn Fn(&Registry) -> bool + Send + Sync>;
+    pub(crate) type RegisterFn = fn(
+        &Registry,
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = ()> + Send>,
+    >;
 
     // `RwLock` types.
     pub(crate) type NonAsyncRwLock<T> = parking_lot::RwLock<T>;
