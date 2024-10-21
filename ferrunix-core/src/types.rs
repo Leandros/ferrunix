@@ -6,7 +6,7 @@
 )]
 
 /// Types that are enabled when the `multithread` feature is set.
-#[cfg(feature = "multithread")]
+#[cfg(all(feature = "multithread", not(feature = "tokio")))]
 mod sync {
     use std::any::Any;
 
@@ -184,7 +184,7 @@ mod tokio_ext {
     impl<T> Registerable for T where T: Send + Sync + 'static {}
 }
 
-#[cfg(feature = "multithread")]
+#[cfg(all(feature = "multithread", not(feature = "tokio")))]
 pub use sync::*;
 
 #[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]

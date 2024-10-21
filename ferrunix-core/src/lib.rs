@@ -21,8 +21,3 @@ pub use dependencies::Transient;
 pub use registry::Registry;
 #[doc(inline)]
 pub use types::Ref;
-
-#[cfg(all(feature = "tokio", feature = "multithread"))]
-compile_error!(
-    "the `ferrunix-core/tokio` and `ferrunix-core/multithread` feature are mutually exclusive"
-);

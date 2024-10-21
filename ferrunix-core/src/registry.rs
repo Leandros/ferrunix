@@ -330,7 +330,7 @@ impl Registry {
     ///
     /// This registry contains the types that are marked for auto-registration
     /// via the derive macro.
-    #[cfg(feature = "multithread")]
+    #[cfg(all(feature = "multithread", not(feature = "tokio")))]
     pub fn global() -> &'static Self {
         DEFAULT_REGISTRY.get_or_init(Self::autoregistered)
     }

@@ -7,7 +7,7 @@ use crate::{types::OnceCell, Registry};
 
 /// The global, `'static` default [`Registry`]. It's constructed and accessible
 /// via [`Registry::global`].
-#[cfg(feature = "multithread")]
+#[cfg(all(feature = "multithread", not(feature = "tokio")))]
 pub(crate) static DEFAULT_REGISTRY: OnceCell<Registry> = OnceCell::new();
 
 #[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
