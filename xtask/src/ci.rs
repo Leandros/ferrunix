@@ -67,7 +67,9 @@ pub(super) fn run() -> Result<()> {
     }
 
     // cmd!(sh, "cargo test --all").run()?;
-    cmd!(sh, "cargo clippy --tests --workspace").run()?;
+    if cmd!(sh, "cargo clippy --version").output().is_ok() {
+        cmd!(sh, "cargo clippy --tests --workspace").run()?;
+    }
 
     if has_cargo_outdated {
         cmd!(sh, "cargo outdated --workspace --exit-code 1").run()?;

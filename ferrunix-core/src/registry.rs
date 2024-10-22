@@ -442,11 +442,10 @@ pub struct Builder<'reg, T, Deps> {
 }
 
 impl<
-        'reg,
         T,
         #[cfg(not(feature = "tokio"))] Deps: DepBuilder<T> + 'static,
         #[cfg(feature = "tokio")] Deps: DepBuilder<T> + Sync + 'static,
-    > Builder<'reg, T, Deps>
+    > Builder<'_, T, Deps>
 where
     T: Registerable,
 {
