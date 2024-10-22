@@ -1,4 +1,7 @@
 // #![cfg(not(miri))]
+#![allow(unused)]
+
+use std::path::PathBuf;
 
 use ferrunix::{Inject, RegistrationFunc, Registry};
 
@@ -27,6 +30,28 @@ use ferrunix::{Inject, RegistrationFunc, Registry};
 
 // ferrunix::autoregister!(RegistrationFunc::new(Empty::register));
 
+#[derive(Inject)]
+#[provides(transient)]
+struct CargoToml {
+    contents: String,
+}
+
+impl CargoToml {
+    #[allow(clippy::unwrap_used)]
+    pub async fn new() -> Self {
+        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
+            .map(PathBuf::from)
+            .unwrap();
+        let manifest_dir = manifest_dir.join("Cargo.toml");
+        let contents = tokio::fs::read_to_string(manifest_dir).await.unwrap();
+
+        Self { contents }
+    }
+
+    pub fn contents(&self) -> &str {
+        &self.contents
+    }
+}
 
 #[derive(Inject)]
 #[provides(transient)]
@@ -37,6 +62,8 @@ struct Dep0 {}
 struct Dep1 {
     #[inject(transient)]
     dep0: Dep0,
+    #[inject(ctor = "CargoToml::new().await")]
+    cargotoml: CargoToml,
 }
 
 #[derive(Inject)]
