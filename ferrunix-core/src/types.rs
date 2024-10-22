@@ -146,10 +146,10 @@ mod tokio_ext {
     pub(crate) type BoxedAny = Box<dyn Any + Send + Sync>;
     pub(crate) type RefAny = Ref<dyn Any + Send + Sync>;
     pub(crate) type Validator = Box<dyn Fn(&Registry) -> bool + Send + Sync>;
-    pub(crate) type RegisterFn = fn(
-        &Registry,
+    pub(crate) type RegisterFn<'reg> = fn(
+        &'reg Registry,
     ) -> std::pin::Pin<
-        Box<dyn std::future::Future<Output = ()> + Send>,
+        Box<dyn std::future::Future<Output = ()> + Send + 'reg>,
     >;
 
     // `RwLock` types.

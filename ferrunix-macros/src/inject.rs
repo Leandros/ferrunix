@@ -17,12 +17,14 @@ pub(crate) fn derive_macro_impl(
     let struct_name = &input.ident;
 
     let registration = registration(input, attrs)?;
+    let sig = register_func_sig();
+    let boxed_registration = box_if_required(&registration);
     let expanded = quote! {
         #[automatically_derived]
         impl #struct_name {
             #[allow(clippy::use_self, dead_code)]
-            pub(crate) fn register(registry: &::ferrunix::Registry) {
-                #registration
+            #sig {
+                #boxed_registration
             }
         }
 
@@ -32,6 +34,30 @@ pub(crate) fn derive_macro_impl(
     };
 
     Ok(expanded)
+}
+
+fn register_func_sig() -> proc_macro2::TokenStream {
+    #[cfg(not(feature = "tokio"))]
+    quote! { pub(crate) fn register(registry: &::ferrunix::Registry) }
+
+    #[cfg(feature = "tokio")]
+    quote! { pub(crate) fn register(registry: &::ferrunix::Registry) -> ::std::pin::Pin<
+        ::std::boxed::Box<dyn ::std::future::Future<Output = ()> + Send>,
+    > }
+}
+
+fn box_if_required(tokens: &proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+    #[cfg(not(feature = "tokio"))]
+    {
+        tokens
+    }
+
+    #[cfg(feature = "tokio")]
+    {
+        quote! {
+            ::std::boxed::Box::pin(async move { #tokens })
+        }
+    }
 }
 
 fn registration(

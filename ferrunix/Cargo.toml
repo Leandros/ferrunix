@@ -1,6 +1,6 @@
 [package]
 name = "ferrunix"
-version = "0.2.0"
+version = "0.3.0"
 description = "A lightweight run-time dependency injection framework for Rust"
 readme = "README.md"
 # Inherited.
@@ -20,10 +20,10 @@ workspace = true
 default = ["derive", "tokio"]
 multithread = ["ferrunix-core/multithread"]
 derive = ["dep:ferrunix-macros"]
-tokio = ["ferrunix-core/tokio"]
+tokio = ["ferrunix-core/tokio", "ferrunix-macros/tokio"]
 
 [dependencies]
-ferrunix-core = { path = "../ferrunix-core", default-features = false, version = "=0.2.0" }
+ferrunix-core = { path = "../ferrunix-core", default-features = false, version = "=0.3.0" }
 ferrunix-macros = { path = "../ferrunix-macros", optional = true, version = "=0.2.0" }
 
 [dev-dependencies]

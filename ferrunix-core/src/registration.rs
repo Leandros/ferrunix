@@ -30,9 +30,9 @@ pub(crate) static DEFAULT_REGISTRY: OnceCell<Registry> = OnceCell::const_new();
 ///
 /// This is, usually, used by the derive macro, and not manually.
 #[non_exhaustive]
-pub struct RegistrationFunc(pub(crate) RegisterFn);
+pub struct RegistrationFunc<'reg>(pub(crate) RegisterFn<'reg>);
 
-impl RegistrationFunc {
+impl<'reg> RegistrationFunc<'reg> {
     /// Create a new [`RegistrationFunc`] from a `register` function.
     ///
     /// The `register` function gets passed a [`Registry`], which it must use to
@@ -64,19 +64,19 @@ impl RegistrationFunc {
     ///     StringTemplate::register
     /// ));
     /// ```
-    pub const fn new(register: RegisterFn) -> Self {
+    pub const fn new(register: RegisterFn<'reg>) -> Self {
         Self(register)
     }
 }
 
-impl std::fmt::Debug for RegistrationFunc {
+impl std::fmt::Debug for RegistrationFunc<'_> {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         fmt.debug_tuple("RegistrationFunc").finish()
     }
 }
 
 // Create a new inventory for the auto-registration.
-inventory::collect!(RegistrationFunc);
+inventory::collect!(RegistrationFunc<'static>);
 
 /// Use `autoregister` to register a new [`RegistrationFunc`].
 pub use inventory::submit as autoregister;

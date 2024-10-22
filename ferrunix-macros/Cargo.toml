@@ -21,12 +21,11 @@ proc-macro = true
 
 [features]
 default = ["development"]
-multithread = ["ferrunix-core/multithread"]
+multithread = []
+tokio = []
 development = ["syn/extra-traits", "dep:prettyplease"]
 
 [dependencies]
-ferrunix-core = { path = "../ferrunix-core", default-features = false, version = "=0.2.0" }
-
 syn = { version = "2", features = ["extra-traits"] }
 prettyplease = { version = "0.2", optional = true }
 proc-macro2 = "1.0.60"

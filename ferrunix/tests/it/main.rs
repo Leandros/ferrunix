@@ -3,9 +3,11 @@
 mod common;
 mod validate_traits;
 
-#[cfg(feature = "derive")]
-// TODO
-// mod derive_simple;
+#[cfg(all(feature = "derive", feature = "tokio"))]
+mod derive_async;
+#[cfg(all(feature = "derive", not(feature = "tokio")))]
+mod derive_simple;
+
 #[cfg(not(feature = "tokio"))]
 mod manual;
 #[cfg(not(feature = "tokio"))]

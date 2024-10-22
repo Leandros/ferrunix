@@ -1,6 +1,6 @@
 [package]
 name = "ferrunix-core"
-version = "0.2.0"
+version = "0.3.0"
 description = "Core types, traits, and implementations for ferrunix"
 readme = "README.md"
 # Inherited.
@@ -17,7 +17,7 @@ categories.workspace = true
 workspace = true
 
 [features]
-default = []
+default = ["multithread", "tokio"]
 multithread = ["once_cell/parking_lot"]
 tokio = ["dep:tokio", "dep:async-trait"]
 
