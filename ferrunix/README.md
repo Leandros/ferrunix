@@ -69,14 +69,18 @@ fn main() {
 }
 ```
 
-## Features
+## Cargo Feature Flags
 
 Ferrunix has the following features to enable further functionality.
-Default features are marked with `*`.
+Features enabled by default are marked with `*`.
 
-- `multithread` (`*`): Enable support for access to the registry from multiple threads.
-    This adds a bound that all registered types must be `Send` and `Sync`.
-- `derive` (`*`): Enable support for the `#[derive(Inject)]` macro.
+- `multithread`: Enables support for accessing the registry from multiple
+    threads. This adds a bound that all registered types must be `Send` and
+    `Sync`.
+- `derive` (`*`): Enables support for the `#[derive(Inject)]` macro.
+- `tokio`: Enables support for `async` constructors. Bumps the MSRV up to
+    `1.75.0` because some of the internal traits require
+    [RPITIT](https://blog.rust-lang.org/2023/12/21/async-fn-rpit-in-traits.html#whats-stabilizing).
 
 #### License
 

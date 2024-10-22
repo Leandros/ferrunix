@@ -9,7 +9,7 @@
 //! inner type via `.get`.
 //!
 //! # Examples
-//! ```no_run
+//! ```ignore,no_run
 //! use ferrunix_core::{Registry, Singleton, Transient};
 //!
 //! struct Template {

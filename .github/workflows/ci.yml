@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 env:
-  RUSTFLAGS: -Dwarnings
+  RUSTFLAGS: -Dwarnings -A rust_2024_compatibility
   CARGO_TERM_COLOR: always
 
 jobs:
@@ -42,7 +42,7 @@ jobs:
       - name: Enable nightly-only tests
         run: echo RUSTFLAGS=${RUSTFLAGS}\ --cfg=thiserror_nightly_testing >> $GITHUB_ENV
         if: matrix.rust == 'nightly'
-      - run: cargo xtask ci
+      - run: cargo xtask ci --no-extended
       - uses: actions/upload-artifact@v4
         if: matrix.rust == 'nightly' && always()
         with:

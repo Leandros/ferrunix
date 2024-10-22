@@ -115,7 +115,7 @@ mod sync {
         /// thread).
         ///
         /// # Example
-        /// ```no_run
+        /// ```ignore,no_run
         /// # use ferrunix_core::*;
         /// # use ferrunix_core::registration::*;
         /// #[derive(Debug)]

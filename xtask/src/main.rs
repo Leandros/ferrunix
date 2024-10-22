@@ -21,7 +21,7 @@ struct Cli {
 #[derive(Debug, Subcommand)]
 enum CliCommands {
     /// Build the workspace, similar to how the CI would build it.
-    CI,
+    CI(ci::CiArgs),
     /// Publish all packages in the workspace to crates.io.
     Publish(publish::PublishArgs)
 }
@@ -30,7 +30,7 @@ fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        CliCommands::CI => ci::run()?,
+        CliCommands::CI(ref args) => ci::run(args)?,
         CliCommands::Publish(ref args) => publish::run(args)?,
     }
 
