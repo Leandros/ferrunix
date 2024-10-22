@@ -20,7 +20,7 @@ workspace = true
 default = ["derive"]
 multithread = ["ferrunix-core/multithread"]
 derive = ["dep:ferrunix-macros"]
-tokio = ["ferrunix-core/tokio", "ferrunix-macros/tokio"]
+tokio = ["ferrunix-core/tokio", "ferrunix-macros?/tokio"]
 
 [dependencies]
 ferrunix-core = { path = "../ferrunix-core", default-features = false, version = "=0.3.0" }
