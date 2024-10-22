@@ -25,10 +25,13 @@ thread_local! {
 #[cfg(feature = "tokio")]
 pub(crate) static DEFAULT_REGISTRY: OnceCell<Registry> = OnceCell::const_new();
 
-/// TODO
+/// Synchronous registration.
 #[cfg(not(feature = "tokio"))]
-mod sync {
-    use crate::types::RegisterFn;
+mod unsync {
+    use crate::Registry;
+
+    /// Signature of the function for the registration; usually created via the `derive` macro.
+    pub(crate) type RegisterFn = fn(&Registry) -> ();
 
     /// All auto-registration functions need to use this type for registration.
     ///
@@ -78,20 +81,30 @@ mod sync {
             fmt.debug_tuple("RegistrationFunc").finish()
         }
     }
+
+    // Create a new inventory for the auto-registration.
+    inventory::collect!(RegistrationFunc);
 }
 
-/// TODO
+/// Asynchronous registration.
 #[cfg(feature = "tokio")]
-mod tokio_ext {
-    use crate::types::RegisterFn;
+mod sync {
+    use crate::Registry;
+
+    /// Signature of the function for the registration; usually created via the `derive` macro.
+    pub(crate) type RegisterFn = for<'reg> fn(
+        &'reg Registry,
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = ()> + Send + 'reg>,
+    >;
 
     /// All auto-registration functions need to use this type for registration.
     ///
     /// This is, usually, used by the derive macro, and not manually.
     #[non_exhaustive]
-    pub struct RegistrationFunc<'reg>(pub(crate) RegisterFn<'reg>);
+    pub struct RegistrationFunc(pub(crate) RegisterFn);
 
-    impl<'reg> RegistrationFunc<'reg> {
+    impl RegistrationFunc {
         /// Create a new [`RegistrationFunc`] from a `register` function.
         ///
         /// The `register` function gets passed a [`Registry`], which it must use to
@@ -123,26 +136,26 @@ mod tokio_ext {
         ///     StringTemplate::register
         /// ));
         /// ```
-        pub const fn new(register: RegisterFn<'reg>) -> Self {
+        pub const fn new(register: RegisterFn) -> Self {
             Self(register)
         }
     }
 
-    impl std::fmt::Debug for RegistrationFunc<'_> {
+    impl std::fmt::Debug for RegistrationFunc {
         fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             fmt.debug_tuple("RegistrationFunc").finish()
         }
     }
 
     // Create a new inventory for the auto-registration.
-    inventory::collect!(RegistrationFunc<'static>);
+    inventory::collect!(RegistrationFunc);
 }
 
 #[cfg(feature = "tokio")]
-pub use tokio_ext::*;
+pub use sync::*;
 
-// #[cfg(not(feature = "tokio"))]
-// pub use sync::*;
+#[cfg(not(feature = "tokio"))]
+pub use unsync::*;
 
 /// Use `autoregister` to register a new [`RegistrationFunc`].
 pub use inventory::submit as autoregister;

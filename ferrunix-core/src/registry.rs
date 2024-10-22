@@ -54,27 +54,32 @@ impl Registry {
     ///
     /// This is the constructor for the global registry that can be acquired
     /// with [`Registry::global`].
+    ///
+    /// # Panics
+    ///
     #[cfg(feature = "tokio")]
     #[must_use]
     pub async fn autoregistered() -> Self {
-        let registry = Self::empty();
+        use std::sync::Arc;
 
-        // SAFETY: Calling the `register` func requires, due to the `inventory::collect!`
-        // requirements of having a `static` lifetime, that the reference passed in also has a
-        // `static` lifetime. Of course, this is not true. It only needs to live as long as this
-        // function call.
-        #[allow(unsafe_code)]
-        let registry_ref =
-            unsafe { std::mem::transmute::<&Self, &'static Self>(&registry) };
+        let registry = Arc::new(Self::empty());
 
         let mut set = tokio::task::JoinSet::new();
-        for register in inventory::iter::<RegistrationFunc<'_>> {
-            set.spawn((register.0)(registry_ref));
+        for register in inventory::iter::<RegistrationFunc> {
+            let registry = Arc::clone(&registry);
+            set.spawn(async move {
+                let inner_registry = registry;
+                (register.0)(&inner_registry).await;
+            });
         }
 
         set.join_all().await;
 
-        registry
+        assert_eq!(
+            Arc::strong_count(&registry), 1,
+            "all of the tasks in the `JoinSet` should've joined, dropping their \
+            Arc's. some task is still holding an Arc");
+        Arc::try_unwrap(registry).expect("all tasks above are joined")
     }
 
     /// Register a new transient object, without dependencies.
@@ -406,7 +411,7 @@ impl Registry {
             lock.clear();
         }
 
-        for register in inventory::iter::<RegistrationFunc<'_>> {
+        for register in inventory::iter::<RegistrationFunc> {
             (register.0)(registry).await;
         }
     }

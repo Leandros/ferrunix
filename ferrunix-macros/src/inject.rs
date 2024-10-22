@@ -49,7 +49,7 @@ fn register_func_sig() -> proc_macro2::TokenStream {
 fn box_if_required(tokens: &proc_macro2::TokenStream) -> proc_macro2::TokenStream {
     #[cfg(not(feature = "tokio"))]
     {
-        tokens
+        tokens.clone()
     }
 
     #[cfg(feature = "tokio")]
