@@ -11,6 +11,7 @@ permissions:
 
 env:
   RUSTFLAGS: -Dwarnings
+  CARGO_TERM_COLOR: always
 
 jobs:
   pre_ci:
@@ -32,6 +33,9 @@ jobs:
         with:
           toolchain: ${{matrix.rust}}
           components: rust-src
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
       - name: Enable type layout randomization
         run: echo RUSTFLAGS=${RUSTFLAGS}\ -Zrandomize-layout >> $GITHUB_ENV
         if: matrix.rust == 'nightly'
