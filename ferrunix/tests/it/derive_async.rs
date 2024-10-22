@@ -27,13 +27,24 @@ use ferrunix::{Inject, RegistrationFunc, Registry};
 
 // ferrunix::autoregister!(RegistrationFunc::new(Empty::register));
 
+
 #[derive(Inject)]
-#[provides(transient = "StringTemplate")]
-struct StringTemplate {
-    #[inject(ctor = r#""The Magic Number is ""#)]
-    raw: &'static str,
+#[provides(transient)]
+struct Dep0 {}
+
+#[derive(Inject)]
+#[provides(transient)]
+struct Dep1 {
+    #[inject(transient)]
+    dep0: Dep0,
 }
 
+#[derive(Inject)]
+#[provides(transient)]
+struct Dep2 {
+    #[inject(transient)]
+    dep1: Dep1,
+}
 
 #[tokio::test]
 async fn simple_derive() {
