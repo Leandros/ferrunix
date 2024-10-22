@@ -41,15 +41,23 @@ fn register_func_sig() -> proc_macro2::TokenStream {
     quote! { pub(crate) fn register(registry: &::ferrunix::Registry) }
 
     #[cfg(feature = "tokio")]
-    quote! { pub(crate) fn register(registry: &::ferrunix::Registry) -> ::std::pin::Pin<
-        ::std::boxed::Box<dyn ::std::future::Future<Output = ()> + Send>,
-    > }
+    quote! {
+        pub(crate) fn register<'reg>(
+            registry: &'reg ::ferrunix::Registry,
+        ) -> ::std::pin::Pin<
+            ::std::boxed::Box<dyn ::std::future::Future<Output = ()> + Send + 'reg>,
+        >
+        where
+            Self: Sync + 'static,
+    }
 }
 
-fn box_if_required(tokens: &proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+fn box_if_required(
+    tokens: &proc_macro2::TokenStream,
+) -> proc_macro2::TokenStream {
     #[cfg(not(feature = "tokio"))]
     {
-        tokens.clone()
+        quote! { { #tokens } }
     }
 
     #[cfg(feature = "tokio")]
@@ -58,6 +66,14 @@ fn box_if_required(tokens: &proc_macro2::TokenStream) -> proc_macro2::TokenStrea
             ::std::boxed::Box::pin(async move { #tokens })
         }
     }
+}
+
+fn await_if_needed() -> Option<proc_macro2::TokenStream> {
+    (cfg!(feature = "tokio")).then(|| {
+        quote! {
+           .await
+        }
+    })
 }
 
 fn registration(
@@ -103,11 +119,13 @@ fn registration_empty(
     dependency_type: &syn::Ident,
 ) -> syn::Result<proc_macro2::TokenStream> {
     let ctor = get_ctor_for(registered_ty, quote!(Self {}))?;
+    let ctor = box_if_required(&ctor);
+    let ifawait = await_if_needed();
 
     let tokens = quote! {
         registry.#dependency_type::<#registered_ty>(|| {
             #ctor
-        });
+        })#ifawait;
     };
 
     Ok(tokens)
