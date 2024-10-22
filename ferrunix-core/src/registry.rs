@@ -56,7 +56,7 @@ impl Registry {
     /// with [`Registry::global`].
     ///
     /// # Panics
-    ///
+    /// If any of the constructors panic.
     #[cfg(feature = "tokio")]
     #[must_use]
     pub async fn autoregistered() -> Self {
@@ -73,7 +73,16 @@ impl Registry {
             });
         }
 
-        set.join_all().await;
+        #[allow(clippy::panic)]
+        while let Some(res) = set.join_next().await {
+            match res {
+                Ok(_) => continue,
+                Err(err) if err.is_panic() => {
+                    std::panic::resume_unwind(err.into_panic())
+                }
+                Err(err) => panic!("{err}"),
+            }
+        }
 
         assert_eq!(
             Arc::strong_count(&registry), 1,
