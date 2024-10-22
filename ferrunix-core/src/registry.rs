@@ -58,9 +58,21 @@ impl Registry {
     #[must_use]
     pub async fn autoregistered() -> Self {
         let registry = Self::empty();
-        for register in inventory::iter::<RegistrationFunc> {
-            (register.0)(&registry).await;
+
+        // SAFETY: Calling the `register` func requires, due to the `inventory::collect!`
+        // requirements of having a `static` lifetime, that the reference passed in also has a
+        // `static` lifetime. Of course, this is not true. It only needs to live as long as this
+        // function call.
+        #[allow(unsafe_code)]
+        let registry_ref =
+            unsafe { std::mem::transmute::<&Self, &'static Self>(&registry) };
+
+        let mut set = tokio::task::JoinSet::new();
+        for register in inventory::iter::<RegistrationFunc<'_>> {
+            set.spawn((register.0)(registry_ref));
         }
+
+        set.join_all().await;
 
         registry
     }
@@ -394,7 +406,7 @@ impl Registry {
             lock.clear();
         }
 
-        for register in inventory::iter::<RegistrationFunc> {
+        for register in inventory::iter::<RegistrationFunc<'_>> {
             (register.0)(registry).await;
         }
     }

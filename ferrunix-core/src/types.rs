@@ -152,6 +152,12 @@ mod tokio_ext {
         Box<dyn std::future::Future<Output = ()> + Send + 'reg>,
     >;
 
+    // pub(crate) type RegisterFn = fn(
+    //     &Registry,
+    // ) -> std::pin::Pin<
+    //     Box<dyn std::future::Future<Output = ()> + Send>,
+    // >;
+
     // `RwLock` types.
     pub(crate) type NonAsyncRwLock<T> = parking_lot::RwLock<T>;
     pub(crate) type RwLock<T> = ::tokio::sync::RwLock<T>;
