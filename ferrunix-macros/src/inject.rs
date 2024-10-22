@@ -143,6 +143,8 @@ fn registration_fields(
     let dependency_tuple = into_dependency_tuple(&fields);
     let dependency_idents = into_dependency_idents(&fields);
     let constructor = type_ctor(registered_ty, input, &fields)?;
+    let constructor = box_if_required(&constructor);
+    let ifawait = await_if_needed();
 
     let tokens = match (dependency_tuple, dependency_idents) {
         (Some(types), Some(idents)) => {
@@ -151,7 +153,7 @@ fn registration_fields(
                     .with_deps::<#registered_ty, #types>()
                     .#dependency_type(|#idents| {
                         #constructor
-                    });
+                    })#ifawait;
             }
         }
 
@@ -159,7 +161,7 @@ fn registration_fields(
             quote! {
                 registry.#dependency_type::<#registered_ty>(|| {
                     #constructor
-                });
+                })#ifawait;
             }
         }
     };

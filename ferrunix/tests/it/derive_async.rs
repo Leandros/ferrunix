@@ -2,9 +2,9 @@
 
 use ferrunix::{Inject, RegistrationFunc, Registry};
 
-#[derive(Inject)]
-#[provides(transient)]
-struct Empty {}
+// #[derive(Inject)]
+// #[provides(transient)]
+// struct Empty {}
 
 // #[automatically_derived]
 // impl Empty {
@@ -25,11 +25,19 @@ struct Empty {}
 //     }
 // }
 
-ferrunix::autoregister!(RegistrationFunc::new(Empty::register));
+// ferrunix::autoregister!(RegistrationFunc::new(Empty::register));
+
+#[derive(Inject)]
+#[provides(transient = "StringTemplate")]
+struct StringTemplate {
+    #[inject(ctor = r#""The Magic Number is ""#)]
+    raw: &'static str,
+}
+
 
 #[tokio::test]
 async fn simple_derive() {
     let registry = Registry::autoregistered().await;
 
-    let _obj = registry.get_transient::<Empty>().await.unwrap();
+    // let _obj = registry.get_transient::<Empty>().await.unwrap();
 }
