@@ -35,5 +35,6 @@ skeptic = "=0.13.5"
 [build-dependencies]
 skeptic = "=0.13.5"
 
-# [package.metadata."docs.rs"]
-# all-features = true
+# Docs about this available here <https://docs.rs/about/metadata>
+[package.metadata."docs.rs"]
+features = ["derive", "multithread"]

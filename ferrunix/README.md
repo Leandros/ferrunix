@@ -8,6 +8,7 @@
 [![Build Status](https://github.com/leandros/ferrunix/actions/workflows/ci.yml/badge.svg)](https://github.com/leandros/ferrunix/actions)
 [![Crates.io](https://img.shields.io/crates/v/ferrunix.svg)](https://crates.io/crates/ferrunix)
 [![API reference](https://docs.rs/ferrunix/badge.svg)](https://docs.rs/ferrunix/)
+![MSRV](https://img.shields.io/crates/msrv/ferrunix)
 ![License](https://img.shields.io/crates/l/ferrunix.svg)
 
   </p>
@@ -15,7 +16,7 @@
 
 ```toml
 [dependencies]
-ferrunix = "0"
+ferrunix = "0.3"
 ```
 
 *Compiler support: requires rustc 1.64+*
@@ -30,9 +31,9 @@ documentation is provided for each major feature separately.
 
 |    Feature Flags    | Link to Documentation |
 | ------------------- | --------------------- |
-| none                | link to docs          |
-| multithread         | link to docs          |
-| tokio               | link to docs          |
+| `none`              | [link to docs](https://leandros.github.io/ferrunix/docs-default/ferrunix/)     |
+| `multithread`       | [link to docs](https://leandros.github.io/ferrunix/docs-multithread/ferrunix/) |
+| `tokio`             | [link to docs](https://leandros.github.io/ferrunix/docs-multithread/ferrunix/) |
 
 
 ## Features
@@ -53,8 +54,7 @@ Ferrunix has the following features to enable further functionality.
 Features enabled by default are marked with `*`.
 
 - `multithread`: Enables support for accessing the registry from multiple
-    threads. This adds a bound that all registered types must be `Send` and
-    `Sync`.
+    threads. This adds a bound that all registered types must be `Send`.
 - `derive` (`*`): Enables support for the `#[derive(Inject)]` macro.
 - `tokio`: Enables support for `async` constructors. Bumps the MSRV up to
     `1.75.0` because some of the internal traits require

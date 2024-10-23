@@ -35,5 +35,6 @@ darling = "0.20"
 [dev-dependencies]
 thiserror = "1"
 
+# Docs about this available here <https://docs.rs/about/metadata>
 [package.metadata."docs.rs"]
-all-features = true
+features = ["multithread"]

@@ -29,5 +29,6 @@ inventory = "0.3.1"
 tokio = { version = "1.21", default-features = false, features = ["rt", "sync", "parking_lot"], optional = true }
 async-trait = { version = "0.1", optional = true }
 
+# Docs about this available here <https://docs.rs/about/metadata>
 [package.metadata."docs.rs"]
-all-features = true
+features = ["multithread"]

@@ -24,7 +24,8 @@ being too intrusive. Therefore, it's fundamental to understand how [`ferrunix`]
 works.
 
 ```rust
-extern crate ferrunix;
+# #![allow(unused)]
+# extern crate ferrunix;
 
 use ferrunix::Registry;
 
