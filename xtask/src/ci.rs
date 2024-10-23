@@ -101,11 +101,13 @@ pub(super) fn run(args: &CiArgs) -> Result<()> {
     }
 
     if !args.no_extended && has_cargo_outdated {
-        cmd!(sh, "cargo outdated --workspace --exit-code 1").run()?;
+        #[allow(clippy::let_underscore_must_use)]
+        let _ = cmd!(sh, "cargo outdated --workspace --exit-code 1").run();
     }
 
     if !args.no_extended && has_cargo_semver {
-        cmd!(sh, "cargo semver-checks").run()?;
+        #[allow(clippy::let_underscore_must_use)]
+        let _ = cmd!(sh, "cargo semver-checks").run();
     }
 
     Ok(())

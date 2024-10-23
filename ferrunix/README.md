@@ -20,7 +20,20 @@ ferrunix = "0"
 
 *Compiler support: requires rustc 1.64+*
 
-## [Changelog](https://github.com/Leandros/ferrunix/releases)
+**Check out the [User Guide](https://leandros.github.io/ferrunix/book).**
+
+
+## Documentation
+
+Due to how the various features affect the public API of the library, the
+documentation is provided for each major feature separately.
+
+|    Feature Flags    | Link to Documentation |
+| ------------------- | --------------------- |
+| none                | link to docs          |
+| multithread         | link to docs          |
+| tokio               | link to docs          |
+
 
 ## Features
 
@@ -33,41 +46,6 @@ ferrunix = "0"
 - Derive macro (`#[derive(Inject)]`) to simplify registration.
 - Automatic registration of types.
 - One global registry; with support for multipiple sub-registries.
-
-## Usage
-
-Add the dependency to your `Cargo.toml`:
-
-```bash
-cargo add ferrunix
-```
-
-Register your types with the [`Registry`](https://docs.rs/ferrunix/latest/ferrunix/):
-
-```rust
-use ferrunix::{Ref, Registry, Transient};
-use example::{Logger, BillingService, SysLog}
-
-#[derive(Debug, Default)]
-pub struct ExampleService {}
-
-impl ExampleService {
-    pub fn do_work(&self) {
-        // Omitted for brevity...
-    }
-}
-
-fn main() {
-    let registry = Registry::global();
-    registry.transient(|| ExampleService::default());
-    // Register more types here ...
-
-    debug_assert!(registry.validate_all());
-
-    let service = registry.get_transient::<ExampleService>().unwrap();
-    service.do_work();
-}
-```
 
 ## Cargo Feature Flags
 

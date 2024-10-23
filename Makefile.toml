@@ -1,0 +1,40 @@
+[env]
+CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = true
+CARGO_MAKE_WORKSPACE_SKIP_MEMBERS = ["examples/*", "xtask"]
+
+[tasks.build]
+command = "cargo"
+args = ["build"]
+
+[tasks.test]
+command = "cargo"
+args = ["xtask", "ci", "-t", "nextest"]
+
+[tasks.book]
+command = "mdbook"
+args = ["build", "book"]
+workspace = false
+dependencies = ["build", "test"]
+
+[tasks.docs-default]
+command = "cargo"
+args = ["doc", "--target-dir", "target/doc-default", "--no-default-features"]
+workspace = false
+
+[tasks.docs-multithread]
+command = "cargo"
+args = ["doc", "--target-dir", "target/doc-multithread", "--no-default-features", "-F", "multithread"]
+workspace = false
+
+[tasks.docs-tokio]
+command = "cargo"
+args = ["doc", "--target-dir", "target/doc-tokio", "--no-default-features", "-F", "tokio"]
+workspace = false
+
+[tasks.docs]
+dependencies = [
+    "docs-default",
+    "docs-multithread",
+    "docs-tokio",
+]
+workspace = false

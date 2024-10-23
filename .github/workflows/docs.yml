@@ -1,0 +1,26 @@
+name: DocsDeployment
+on:
+  push:
+    branches:
+      - master
+      - dev
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write  # To push to a GitHub Pages site
+      id-token: write # To update the deployment status
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-make
+      - run: cargo make docs
