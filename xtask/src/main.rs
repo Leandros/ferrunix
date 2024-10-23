@@ -3,6 +3,7 @@
 use clap::{Parser, Subcommand};
 
 mod ci;
+mod docs;
 mod publish;
 
 /// All xtask CLI arguments.
@@ -23,7 +24,9 @@ enum CliCommands {
     /// Build the workspace, similar to how the CI would build it.
     CI(ci::CiArgs),
     /// Publish all packages in the workspace to crates.io.
-    Publish(publish::PublishArgs)
+    Publish(publish::PublishArgs),
+    /// Compile and package the documentation.
+    Docs(docs::DocsArgs),
 }
 
 fn main() -> anyhow::Result<()> {
@@ -32,6 +35,7 @@ fn main() -> anyhow::Result<()> {
     match cli.command {
         CliCommands::CI(ref args) => ci::run(args)?,
         CliCommands::Publish(ref args) => publish::run(args)?,
+        CliCommands::Docs(ref args) => docs::run(args)?,
     }
 
     Ok(())
