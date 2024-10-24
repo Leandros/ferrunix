@@ -1,4 +1,5 @@
 //! Testing the book and `README.md`.
+#![cfg(not(miri))]
 #![allow(
     missing_docs,
     rustdoc::all,

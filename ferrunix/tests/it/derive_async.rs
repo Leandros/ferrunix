@@ -1,4 +1,4 @@
-// #![cfg(not(miri))]
+#![cfg(not(miri))]
 #![allow(unused)]
 
 use std::path::PathBuf;
