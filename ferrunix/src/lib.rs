@@ -1,6 +1,15 @@
-#![cfg_attr(feature = "multithread", doc = "_You're viewing the documentation with the **`multithread` feature** turned on._\n\n")]
-#![cfg_attr(feature = "tokio", doc = "_You're viewing the documentation with the **`tokio` feature** turned on._\n\n")]
-#![cfg_attr(not(feature = "tokio"), doc = "#### _You're viewing the documentation with **`no features`** turned on._\n\n")]
+#![cfg_attr(
+    feature = "multithread",
+    doc = "_You're viewing the documentation with the **`multithread` feature** turned on._\n\n"
+)]
+#![cfg_attr(
+    feature = "tokio",
+    doc = "_You're viewing the documentation with the **`tokio` feature** turned on._\n\n"
+)]
+#![cfg_attr(
+    all(not(feature = "tokio"), not(feature = "multithread")),
+    doc = "#### _You're viewing the documentation with **`no features`** turned on._\n\n"
+)]
 //! # Ferrunix
 //!
 //! A simple, idiomatic, and lightweight [dependency injection] framework for Rust.

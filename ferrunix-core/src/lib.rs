@@ -1,7 +1,18 @@
+#![cfg_attr(
+    feature = "multithread",
+    doc = "_You're viewing the documentation with the **`multithread` feature** turned on._\n\n"
+)]
+#![cfg_attr(
+    feature = "tokio",
+    doc = "_You're viewing the documentation with the **`tokio` feature** turned on._\n\n"
+)]
+#![cfg_attr(
+    all(not(feature = "tokio"), not(feature = "multithread")),
+    doc = "#### _You're viewing the documentation with **`no features`** turned on._\n\n"
+)]
 //! Core types, traits, and implementations for [`ferrunix`].
 //!
 //! [`ferrunix`]: https://crates.io/crates/ferrunix
-//! [`ferrunix-core`]: https://crates.io/crates/ferrunix-core
 
 pub mod dependencies;
 pub mod dependency_builder;
