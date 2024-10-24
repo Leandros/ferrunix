@@ -6,7 +6,9 @@ use std::marker::PhantomData;
 
 use crate::dependency_builder::{self, DepBuilder};
 use crate::object_builder::Object;
-use crate::types::{NonAsyncRwLock, Registerable, Validator};
+use crate::types::{
+    NonAsyncRwLock, Registerable, RegisterableSingleton, Validator,
+};
 use crate::{
     registration::RegistrationFunc, registration::DEFAULT_REGISTRY,
     types::HashMap, types::Ref, types::RwLock,
@@ -167,7 +169,7 @@ impl Registry {
     #[cfg(not(feature = "tokio"))]
     pub fn singleton<T>(&self, ctor: fn() -> T)
     where
-        T: Registerable,
+        T: RegisterableSingleton,
     {
         use crate::object_builder::SingletonGetterNoDeps;
 
@@ -202,7 +204,7 @@ impl Registry {
             Box<dyn std::future::Future<Output = T> + Send>,
         >,
     ) where
-        T: Registerable + Clone,
+        T: RegisterableSingleton + Clone,
     {
         use crate::object_builder::AsyncSingletonNoDeps;
 
@@ -273,7 +275,7 @@ impl Registry {
     #[must_use]
     pub fn get_singleton<T>(&self) -> Option<Ref<T>>
     where
-        T: Registerable,
+        T: RegisterableSingleton,
     {
         let lock = self.objects.read();
         if let Some(Object::Singleton(singleton)) = lock.get(&TypeId::of::<T>())
@@ -296,7 +298,7 @@ impl Registry {
     #[must_use]
     pub async fn get_singleton<T>(&self) -> Option<Ref<T>>
     where
-        T: Registerable,
+        T: RegisterableSingleton,
     {
         let lock = self.objects.read().await;
         if let Some(Object::AsyncSingleton(singleton)) =
@@ -551,7 +553,16 @@ where
             lock.insert(TypeId::of::<T>(), validator);
         }
     }
+}
 
+impl<
+        T,
+        #[cfg(not(feature = "tokio"))] Deps: DepBuilder<T> + 'static,
+        #[cfg(feature = "tokio")] Deps: DepBuilder<T> + Sync + 'static,
+    > Builder<'_, T, Deps>
+where
+    T: RegisterableSingleton,
+{
     /// Register a new singleton object, with dependencies specified in
     /// `.with_deps`.
     ///

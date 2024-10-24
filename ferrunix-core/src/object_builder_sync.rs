@@ -1,6 +1,6 @@
 //! Abstraction layer to build transient and singleton dependencies.
 use crate::dependency_builder::DepBuilder;
-use crate::types::{BoxedAny, OnceCell, Ref, RefAny, Registerable};
+use crate::types::{BoxedAny, OnceCell, Ref, RefAny, Registerable, RegisterableSingleton};
 use crate::Registry;
 
 /// Trait to build a new object with transient lifetime.
@@ -134,7 +134,7 @@ impl<T> SingletonGetterNoDeps<T> {
 
 impl<T> SingletonGetter for SingletonGetterNoDeps<T>
 where
-    T: Registerable,
+    T: RegisterableSingleton,
 {
     fn get_singleton(&self, _registry: &Registry) -> Option<RefAny> {
         let rc = self.cell.get_or_init(|| Ref::new((self.ctor)()));
@@ -174,7 +174,7 @@ impl<T, Deps> SingletonGetterWithDeps<T, Deps> {
 impl<T, Deps> SingletonGetter for SingletonGetterWithDeps<T, Deps>
 where
     Deps: DepBuilder<T> + 'static,
-    T: Registerable,
+    T: RegisterableSingleton,
 {
     fn get_singleton(&self, registry: &Registry) -> Option<RefAny> {
         #[allow(clippy::option_if_let_else)]

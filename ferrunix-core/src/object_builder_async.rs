@@ -1,6 +1,6 @@
 //! Abstraction layer to build transient and singleton dependencies, asynchronously.
 use crate::dependency_builder::DepBuilder;
-use crate::types::{BoxedAny, Ref, RefAny, Registerable};
+use crate::types::{BoxedAny, Ref, RefAny, Registerable, RegisterableSingleton};
 use crate::Registry;
 
 /// Trait to build a new object with transient lifetime.
@@ -166,7 +166,7 @@ impl<T> AsyncSingletonNoDeps<T> {
 impl<T> AsyncSingleton for AsyncSingletonNoDeps<T>
 where
     Self: Send,
-    T: Registerable,
+    T: RegisterableSingleton,
 {
     async fn get_singleton(&self, _registry: &Registry) -> Option<RefAny> {
         let rc = self
@@ -223,7 +223,7 @@ impl<T, Deps> AsyncSingleton for AsyncSingletonWithDeps<T, Deps>
 where
     Self: Send,
     Deps: DepBuilder<T> + 'static,
-    T: Registerable,
+    T: RegisterableSingleton,
 {
     async fn get_singleton(&self, registry: &Registry) -> Option<RefAny> {
         #[allow(clippy::option_if_let_else)]

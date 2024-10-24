@@ -31,14 +31,15 @@ mod sync {
     pub(crate) type HashMap<K, V> = std::collections::HashMap<K, V>;
 
     // Alias types used in [`Registry`].
-    pub(crate) type BoxedAny = Box<dyn Any + Send + Sync>;
-    pub(crate) type RefAny = Ref<dyn Any + Send + Sync>;
+    pub(crate) type BoxedAny = Box<dyn Any>;
+    pub(crate) type RefAny = Ref<dyn Any + Send + Sync + 'static>;
     pub(crate) type SingletonCell = OnceCell<RefAny>;
-    pub(crate) type Validator = Box<dyn Fn(&Registry) -> bool + Send + Sync>;
+    pub(crate) type Validator =
+        Box<dyn Fn(&Registry) -> bool + Send + Sync + 'static>;
     pub(crate) type BoxedTransientBuilder =
-        Box<dyn TransientBuilder + Send + Sync>;
+        Box<dyn TransientBuilder + Send + Sync + 'static>;
     pub(crate) type BoxedSingletonGetter =
-        Box<dyn SingletonGetter + Send + Sync>;
+        Box<dyn SingletonGetter + Send + Sync + 'static>;
 
     /// A generic reference type that's used as the default type for types with
     /// the singleton lifetime.
@@ -51,14 +52,22 @@ mod sync {
     /// simplifies enabling `multithread` when required.
     pub type Ref<T> = std::sync::Arc<T>;
 
-    /// A marker trait for all types that can be registered with [`Registry`].
+    /// A marker trait for all types that can be registered with [`Registry::transient`].
+    ///
+    /// It's automatically implemented for all types that are valid. Generally,
+    /// those are all types with a `'static` lifetime.
+    pub trait Registerable: 'static {}
+
+    impl<T> Registerable for T where T: 'static {}
+
+    /// A marker trait for all types that can be registered with [`Registry::singleton`].
     ///
     /// It's automatically implemented for all types that are valid. Generally,
     /// those are all types with a `'static` lifetime, that are also `Send`
     /// and `Sync`.
-    pub trait Registerable: Send + Sync + 'static {}
+    pub trait RegisterableSingleton: Send + Sync + 'static {}
 
-    impl<T> Registerable for T where T: Send + Sync + 'static {}
+    impl<T> RegisterableSingleton for T where T: Send + Sync + 'static {}
 }
 
 /// Types that are enabled when the `multithread` feature is **NOT** set.
@@ -125,13 +134,21 @@ mod unsync {
     /// simplifies enabling `multithread` when required.
     pub type Ref<T> = std::rc::Rc<T>;
 
-    /// A marker trait for all types that can be registered with [`Registry`].
+    /// A marker trait for all types that can be registered with [`Registry::transient`].
     ///
     /// It's automatically implemented for all types that are valid. Generally,
     /// those are all types with a `'static` lifetime.
     pub trait Registerable: 'static {}
 
     impl<T> Registerable for T where T: 'static {}
+
+    /// A marker trait for all types that can be registered with [`Registry::singleton`].
+    ///
+    /// It's automatically implemented for all types that are valid. Generally,
+    /// those are all types with a `'static` lifetime.
+    pub trait RegisterableSingleton: 'static {}
+
+    impl<T> RegisterableSingleton for T where T: 'static {}
 }
 
 #[cfg(feature = "tokio")]
@@ -141,9 +158,9 @@ mod tokio_ext {
     use crate::Registry;
 
     // Alias types used in [`Registry`].
-    pub(crate) type BoxedAny = Box<dyn Any + Send + Sync>;
-    pub(crate) type RefAny = Ref<dyn Any + Send + Sync>;
-    pub(crate) type Validator = Box<dyn Fn(&Registry) -> bool + Send + Sync>;
+    pub(crate) type BoxedAny = Box<dyn Any + Send>;
+    pub(crate) type RefAny = Ref<dyn Any + Send + Sync + 'static>;
+    pub(crate) type Validator = Box<dyn Fn(&Registry) -> bool + Send + Sync + 'static>;
 
     // `RwLock` types.
     pub(crate) type NonAsyncRwLock<T> = parking_lot::RwLock<T>;
@@ -167,14 +184,22 @@ mod tokio_ext {
     /// simplifies enabling `multithread` when required.
     pub type Ref<T> = std::sync::Arc<T>;
 
-    /// A marker trait for all types that can be registered with [`Registry`].
+    /// A marker trait for all types that can be registered with [`Registry::transient`].
+    ///
+    /// It's automatically implemented for all types that are valid. Generally,
+    /// those are all types with a `'static` lifetime, that are also `Send`.
+    pub trait Registerable: Send + 'static {}
+
+    impl<T> Registerable for T where T: Send + 'static {}
+
+    /// A marker trait for all types that can be registered with [`Registry::singleton`].
     ///
     /// It's automatically implemented for all types that are valid. Generally,
     /// those are all types with a `'static` lifetime, that are also `Send`
     /// and `Sync`.
-    pub trait Registerable: Send + Sync + 'static {}
+    pub trait RegisterableSingleton: Send + Sync + 'static {}
 
-    impl<T> Registerable for T where T: Send + Sync + 'static {}
+    impl<T> RegisterableSingleton for T where T: Send + Sync + 'static {}
 }
 
 #[cfg(all(feature = "multithread", not(feature = "tokio")))]
