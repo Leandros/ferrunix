@@ -11,6 +11,7 @@ permissions:
 
 env:
   RUSTFLAGS: -Dwarnings
+  CARGO_TERM_COLOR: always
 
 jobs:
   pre_ci:
@@ -32,20 +33,16 @@ jobs:
         with:
           toolchain: ${{matrix.rust}}
           components: rust-src
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
       - name: Enable type layout randomization
         run: echo RUSTFLAGS=${RUSTFLAGS}\ -Zrandomize-layout >> $GITHUB_ENV
         if: matrix.rust == 'nightly'
       - name: Enable nightly-only tests
         run: echo RUSTFLAGS=${RUSTFLAGS}\ --cfg=thiserror_nightly_testing >> $GITHUB_ENV
         if: matrix.rust == 'nightly'
-      - run: cargo test -p ferrunix --no-default-features
-      - run: cargo test -p ferrunix --no-default-features -F derive
-      - run: cargo test -p ferrunix --no-default-features -F derive,multithread
-      - run: cargo test -p ferrunix-core --no-default-features
-      - run: cargo test -p ferrunix-core --no-default-features -F multithread
-      - run: cargo test -p ferrunix-macros --no-default-features
-      - run: cargo test -p ferrunix-macros --no-default-features -F multithread
-      - run: cargo test -p ferrunix-macros --no-default-features -F multithread,development
+      - run: cargo xtask ci --no-extended
       - uses: actions/upload-artifact@v4
         if: matrix.rust == 'nightly' && always()
         with:

@@ -5,25 +5,19 @@ use std::any::TypeId;
 use std::marker::PhantomData;
 
 use crate::dependency_builder::{self, DepBuilder};
+use crate::object_builder::Object;
 use crate::types::{
-    BoxedAny, BoxedCtor, BoxedSingletonGetter, RefAny, Registerable,
-    SingletonCell, Validator,
+    NonAsyncRwLock, Registerable, RegisterableSingleton, Validator,
 };
 use crate::{
     registration::RegistrationFunc, registration::DEFAULT_REGISTRY,
-    types::HashMap, types::OnceCell, types::Ref, types::RwLock,
+    types::HashMap, types::Ref, types::RwLock,
 };
-
-/// All possible "objects" that can be held by the registry.
-enum Object {
-    Transient(BoxedCtor),
-    Singleton(BoxedSingletonGetter, SingletonCell),
-}
 
 /// Registry for all types that can be constructed or otherwise injected.
 pub struct Registry {
     objects: RwLock<HashMap<TypeId, Object>>,
-    validation: RwLock<HashMap<TypeId, Validator>>,
+    validation: NonAsyncRwLock<HashMap<TypeId, Validator>>,
 }
 
 impl Registry {
@@ -39,7 +33,7 @@ impl Registry {
     pub fn empty() -> Self {
         Self {
             objects: RwLock::new(HashMap::new()),
-            validation: RwLock::new(HashMap::new()),
+            validation: NonAsyncRwLock::new(HashMap::new()),
         }
     }
 
@@ -47,6 +41,7 @@ impl Registry {
     ///
     /// This is the constructor for the global registry that can be acquired
     /// with [`Registry::global`].
+    #[cfg(not(feature = "tokio"))]
     #[must_use]
     pub fn autoregistered() -> Self {
         let registry = Self::empty();
@@ -57,6 +52,47 @@ impl Registry {
         registry
     }
 
+    /// Create an empty registry, and add all autoregistered types into it.
+    ///
+    /// This is the constructor for the global registry that can be acquired
+    /// with [`Registry::global`].
+    ///
+    /// # Panics
+    /// If any of the constructors panic.
+    #[cfg(feature = "tokio")]
+    #[must_use]
+    pub async fn autoregistered() -> Self {
+        use std::sync::Arc;
+
+        let registry = Arc::new(Self::empty());
+
+        let mut set = tokio::task::JoinSet::new();
+        for register in inventory::iter::<RegistrationFunc> {
+            let registry = Arc::clone(&registry);
+            set.spawn(async move {
+                let inner_registry = registry;
+                (register.0)(&inner_registry).await;
+            });
+        }
+
+        #[allow(clippy::panic)]
+        while let Some(res) = set.join_next().await {
+            match res {
+                Ok(_) => continue,
+                Err(err) if err.is_panic() => {
+                    std::panic::resume_unwind(err.into_panic())
+                }
+                Err(err) => panic!("{err}"),
+            }
+        }
+
+        assert_eq!(
+            Arc::strong_count(&registry), 1,
+            "all of the tasks in the `JoinSet` should've joined, dropping their \
+            Arc's. some task is still holding an Arc");
+        Arc::try_unwrap(registry).expect("all tasks above are joined")
+    }
+
     /// Register a new transient object, without dependencies.
     ///
     /// To register a type with dependencies, use the builder returned from
@@ -65,20 +101,60 @@ impl Registry {
     /// # Parameters
     ///   * `ctor`: A constructor function returning the newly constructed `T`.
     ///     This constructor will be called for every `T` that is requested.
+    #[cfg(not(feature = "tokio"))]
     pub fn transient<T>(&self, ctor: fn() -> T)
     where
         T: Registerable,
     {
-        self.objects.write().insert(
-            TypeId::of::<T>(),
-            Object::Transient(Box::new(move |_| -> Option<BoxedAny> {
-                let obj = ctor();
-                Some(Box::new(obj))
-            })),
-        );
-        self.validation
-            .write()
-            .insert(TypeId::of::<T>(), Box::new(|_| true));
+        use crate::object_builder::TransientBuilderImplNoDeps;
+
+        let transient =
+            Object::Transient(Box::new(TransientBuilderImplNoDeps::new(ctor)));
+        {
+            let mut lock = self.objects.write();
+            lock.insert(TypeId::of::<T>(), transient);
+        }
+
+        let validator: Validator = Box::new(|_| true);
+        {
+            let mut lock = self.validation.write();
+            lock.insert(TypeId::of::<T>(), validator);
+        }
+    }
+
+    /// Register a new transient object, without dependencies.
+    ///
+    /// To register a type with dependencies, use the builder returned from
+    /// [`Registry::with_deps`].
+    ///
+    /// # Parameters
+    ///   * `ctor`: A constructor function returning the newly constructed `T`.
+    ///     This constructor will be called for every `T` that is requested.
+    #[cfg(feature = "tokio")]
+    pub async fn transient<T>(
+        &self,
+        ctor: fn() -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = T> + Send>,
+        >,
+    ) where
+        T: Registerable,
+    {
+        use crate::object_builder::AsyncTransientBuilderImplNoDeps;
+
+        let transient = Object::AsyncTransient(Box::new(
+            AsyncTransientBuilderImplNoDeps::new(ctor),
+        ));
+
+        {
+            let mut lock = self.objects.write().await;
+            lock.insert(TypeId::of::<T>(), transient);
+        }
+
+        let validator: Validator = Box::new(|_| true);
+        {
+            let mut lock = self.validation.write();
+            lock.insert(TypeId::of::<T>(), validator);
+        }
     }
 
     /// Register a new singleton object, without dependencies.
@@ -90,36 +166,99 @@ impl Registry {
     ///   * `ctor`: A constructor function returning the newly constructed `T`.
     ///     This constructor will be called once, lazily, when the first
     ///     instance of `T` is requested.
+    #[cfg(not(feature = "tokio"))]
     pub fn singleton<T>(&self, ctor: fn() -> T)
     where
-        T: Registerable,
+        T: RegisterableSingleton,
     {
-        let getter = Box::new(
-            move |_this: &Self, cell: &SingletonCell| -> Option<RefAny> {
-                let rc = cell.get_or_init(|| Ref::new(ctor()));
-                Some(Ref::clone(rc))
-            },
-        );
-        self.objects.write().insert(
-            TypeId::of::<T>(),
-            Object::Singleton(getter, OnceCell::new()),
-        );
-        self.validation
-            .write()
-            .insert(TypeId::of::<T>(), Box::new(|_| true));
+        use crate::object_builder::SingletonGetterNoDeps;
+
+        let singleton =
+            Object::Singleton(Box::new(SingletonGetterNoDeps::new(ctor)));
+
+        {
+            let mut lock = self.objects.write();
+            lock.insert(TypeId::of::<T>(), singleton);
+        }
+
+        let validator: Validator = Box::new(|_| true);
+        {
+            let mut lock = self.validation.write();
+            lock.insert(TypeId::of::<T>(), validator);
+        }
+    }
+
+    /// Register a new singleton object, without dependencies.
+    ///
+    /// To register a type with dependencies, use the builder returned from
+    /// [`Registry::with_deps`].
+    ///
+    /// # Parameters
+    ///   * `ctor`: A constructor function returning the newly constructed `T`.
+    ///     This constructor will be called once, lazily, when the first
+    ///     instance of `T` is requested.
+    #[cfg(feature = "tokio")]
+    pub async fn singleton<T>(
+        &self,
+        ctor: fn() -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = T> + Send>,
+        >,
+    ) where
+        T: RegisterableSingleton + Clone,
+    {
+        use crate::object_builder::AsyncSingletonNoDeps;
+
+        let singleton =
+            Object::AsyncSingleton(Box::new(AsyncSingletonNoDeps::new(ctor)));
+
+        {
+            let mut lock = self.objects.write().await;
+            lock.insert(TypeId::of::<T>(), singleton);
+        }
+
+        let validator: Validator = Box::new(|_| true);
+        {
+            let mut lock = self.validation.write();
+            lock.insert(TypeId::of::<T>(), validator);
+        }
     }
 
     /// Retrieves a newly constructed `T` from this registry.
     ///
     /// Returns `None` if `T` wasn't registered or failed to construct.
+    #[cfg(not(feature = "tokio"))]
+    #[must_use]
     pub fn get_transient<T>(&self) -> Option<T>
     where
         T: Registerable,
     {
-        if let Some(Object::Transient(ctor)) =
-            self.objects.read().get(&TypeId::of::<T>())
+        let lock = self.objects.read();
+        if let Some(Object::Transient(transient)) = lock.get(&TypeId::of::<T>())
         {
-            let boxed = (ctor)(self)?;
+            let resolved = transient.make_transient(self)?;
+            drop(lock);
+            if let Ok(obj) = resolved.downcast::<T>() {
+                return Some(*obj);
+            }
+        }
+
+        None
+    }
+
+    /// Retrieves a newly constructed `T` from this registry.
+    ///
+    /// Returns `None` if `T` wasn't registered or failed to construct.
+    #[cfg(feature = "tokio")]
+    #[must_use]
+    pub async fn get_transient<T>(&self) -> Option<T>
+    where
+        T: Registerable,
+    {
+        let lock = self.objects.read().await;
+        if let Some(Object::AsyncTransient(ctor)) = lock.get(&TypeId::of::<T>())
+        {
+            let boxed = ctor.make_transient(self).await?;
+            drop(lock);
             if let Ok(obj) = boxed.downcast::<T>() {
                 return Some(*obj);
             }
@@ -132,15 +271,42 @@ impl Registry {
     ///
     /// Returns `None` if `T` wasn't registered or failed to construct. The
     /// singleton is a ref-counted pointer object (either `Arc` or `Rc`).
+    #[cfg(not(feature = "tokio"))]
+    #[must_use]
     pub fn get_singleton<T>(&self) -> Option<Ref<T>>
     where
-        T: Registerable,
+        T: RegisterableSingleton,
     {
-        if let Some(Object::Singleton(getter, cell)) =
-            self.objects.read().get(&TypeId::of::<T>())
+        let lock = self.objects.read();
+        if let Some(Object::Singleton(singleton)) = lock.get(&TypeId::of::<T>())
         {
-            let singleton = (getter)(self, cell)?;
-            if let Ok(obj) = singleton.downcast::<T>() {
+            let resolved = singleton.get_singleton(self)?;
+            drop(lock);
+            if let Ok(obj) = resolved.downcast::<T>() {
+                return Some(obj);
+            }
+        }
+
+        None
+    }
+
+    /// Retrieves the singleton `T` from this registry.
+    ///
+    /// Returns `None` if `T` wasn't registered or failed to construct. The
+    /// singleton is a ref-counted pointer object (either `Arc` or `Rc`).
+    #[cfg(feature = "tokio")]
+    #[must_use]
+    pub async fn get_singleton<T>(&self) -> Option<Ref<T>>
+    where
+        T: RegisterableSingleton,
+    {
+        let lock = self.objects.read().await;
+        if let Some(Object::AsyncSingleton(singleton)) =
+            lock.get(&TypeId::of::<T>())
+        {
+            let resolved = singleton.get_singleton(self).await?;
+            drop(lock);
+            if let Ok(obj) = resolved.downcast::<T>() {
                 return Some(obj);
             }
         }
@@ -192,7 +358,7 @@ impl Registry {
     ///
     /// This registry contains the types that are marked for auto-registration
     /// via the derive macro.
-    #[cfg(feature = "multithread")]
+    #[cfg(all(feature = "multithread", not(feature = "tokio")))]
     pub fn global() -> &'static Self {
         DEFAULT_REGISTRY.get_or_init(Self::autoregistered)
     }
@@ -201,7 +367,7 @@ impl Registry {
     ///
     /// This registry contains the types that are marked for auto-registration
     /// via the derive macro.
-    #[cfg(not(feature = "multithread"))]
+    #[cfg(all(not(feature = "tokio"), not(feature = "multithread")))]
     pub fn global() -> std::rc::Rc<Self> {
         DEFAULT_REGISTRY.with(|val| {
             let ret =
@@ -210,12 +376,22 @@ impl Registry {
         })
     }
 
+    /// Access the global registry.
+    ///
+    /// This registry contains the types that are marked for auto-registration
+    /// via the derive macro.
+    #[cfg(feature = "tokio")]
+    pub async fn global() -> &'static Self {
+        DEFAULT_REGISTRY.get_or_init(Self::autoregistered).await
+    }
+
     /// Reset the global registry, removing all previously registered types, and
     /// re-running the auto-registration routines.
     ///
     /// # Safety
     /// Ensure that no other thread is currently using [`Registry::global()`].
     #[allow(unsafe_code)]
+    #[cfg(not(feature = "tokio"))]
     pub unsafe fn reset_global() {
         let registry = Self::global();
         {
@@ -231,6 +407,25 @@ impl Registry {
             (register.0)(registry);
         }
     }
+
+    /// Reset the global registry, removing all previously registered types, and
+    /// re-running the auto-registration routines.
+    ///
+    /// # Safety
+    /// Ensure that no other thread is currently using [`Registry::global()`].
+    #[allow(unsafe_code)]
+    #[cfg(feature = "tokio")]
+    pub async unsafe fn reset_global() {
+        let registry = Self::global().await;
+        {
+            let mut lock = registry.objects.write().await;
+            lock.clear();
+        }
+
+        for register in inventory::iter::<RegistrationFunc> {
+            (register.0)(registry).await;
+        }
+    }
 }
 
 impl std::fmt::Debug for Registry {
@@ -242,15 +437,18 @@ impl std::fmt::Debug for Registry {
 /// A builder for objects with dependencies. This can be created by using
 /// [`Registry::with_deps`].
 #[allow(clippy::single_char_lifetime_names)]
-pub struct Builder<'a, T, Deps> {
-    registry: &'a Registry,
+pub struct Builder<'reg, T, Deps> {
+    registry: &'reg Registry,
     _marker: PhantomData<T>,
     _marker1: PhantomData<Deps>,
 }
 
-impl<T, Deps> Builder<'_, T, Deps>
+impl<
+        T,
+        #[cfg(not(feature = "tokio"))] Deps: DepBuilder<T> + 'static,
+        #[cfg(feature = "tokio")] Deps: DepBuilder<T> + Sync + 'static,
+    > Builder<'_, T, Deps>
 where
-    Deps: DepBuilder<T> + 'static,
     T: Registerable,
 {
     /// Register a new transient object, with dependencies specified in
@@ -279,38 +477,92 @@ where
     ///
     /// For single dependencies, the destructured tuple needs to end with a
     /// comma: `(dep,)`.
+    #[cfg(not(feature = "tokio"))]
     pub fn transient(&self, ctor: fn(Deps) -> T) {
-        self.registry.objects.write().insert(
-            TypeId::of::<T>(),
-            Object::Transient(Box::new(move |this| -> Option<BoxedAny> {
-                #[allow(clippy::option_if_let_else)]
-                match Deps::build(
-                    this,
-                    ctor,
-                    dependency_builder::private::SealToken,
-                ) {
-                    Some(obj) => Some(Box::new(obj)),
-                    None => None,
-                }
-            })),
-        );
-        self.registry.validation.write().insert(
-            TypeId::of::<T>(),
-            Box::new(|registry: &Registry| {
-                let type_ids =
-                    Deps::as_typeids(dependency_builder::private::SealToken);
-                type_ids.iter().all(|el| {
-                    if let Some(validator) = registry.validation.read().get(el)
-                    {
-                        return (validator)(registry);
-                    }
+        use crate::object_builder::TransientBuilderImplWithDeps;
 
-                    false
-                })
-            }),
-        );
+        let transient = Object::Transient(Box::new(
+            TransientBuilderImplWithDeps::new(ctor),
+        ));
+        {
+            let mut lock = self.registry.objects.write();
+            lock.insert(TypeId::of::<T>(), transient);
+        }
+
+        let validator: Validator = Box::new(|registry: &Registry| {
+            let type_ids =
+                Deps::as_typeids(dependency_builder::private::SealToken);
+            type_ids.iter().all(|el| {
+                if let Some(validator) = registry.validation.read().get(el) {
+                    return (validator)(registry);
+                }
+
+                false
+            })
+        });
+
+        {
+            let mut lock = self.registry.validation.write();
+            lock.insert(TypeId::of::<T>(), validator);
+        }
     }
 
+    /// Register a new transient object, with dependencies specified in
+    /// `.with_deps`.
+    ///
+    /// The `ctor` parameter is a constructor function returning the newly
+    /// constructed `T`. The constructor accepts a single argument `Deps` (a
+    /// tuple implementing [`crate::dependency_builder::DepBuilder`]). It's
+    /// best to destructure the tuple to accept each dependency separately.
+    /// This constructor will be called for every `T` that is requested.
+    ///
+    /// The `ctor` must return a boxed `dyn Future`.
+    #[cfg(feature = "tokio")]
+    pub async fn transient(
+        &self,
+        ctor: fn(
+            Deps,
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = T> + Send>,
+        >,
+    ) {
+        use crate::object_builder::AsyncTransientBuilderImplWithDeps;
+
+        let transient = Object::AsyncTransient(Box::new(
+            AsyncTransientBuilderImplWithDeps::new(ctor),
+        ));
+        {
+            let mut lock = self.registry.objects.write().await;
+            lock.insert(TypeId::of::<T>(), transient);
+        }
+
+        let validator: Validator = Box::new(|registry: &Registry| {
+            let type_ids =
+                Deps::as_typeids(dependency_builder::private::SealToken);
+            type_ids.iter().all(|el| {
+                if let Some(validator) = registry.validation.read().get(el) {
+                    return (validator)(registry);
+                }
+
+                false
+            })
+        });
+
+        {
+            let mut lock = self.registry.validation.write();
+            lock.insert(TypeId::of::<T>(), validator);
+        }
+    }
+}
+
+impl<
+        T,
+        #[cfg(not(feature = "tokio"))] Deps: DepBuilder<T> + 'static,
+        #[cfg(feature = "tokio")] Deps: DepBuilder<T> + Sync + 'static,
+    > Builder<'_, T, Deps>
+where
+    T: RegisterableSingleton,
+{
     /// Register a new singleton object, with dependencies specified in
     /// `.with_deps`.
     ///
@@ -338,42 +590,78 @@ where
     ///
     /// For single dependencies, the destructured tuple needs to end with a
     /// comma: `(dep,)`.
+    #[cfg(not(feature = "tokio"))]
     pub fn singleton(&self, ctor: fn(Deps) -> T) {
-        let getter = Box::new(
-            move |this: &Registry, cell: &SingletonCell| -> Option<RefAny> {
-                #[allow(clippy::option_if_let_else)]
-                match Deps::build(
-                    this,
-                    ctor,
-                    dependency_builder::private::SealToken,
-                ) {
-                    Some(obj) => {
-                        let rc = cell.get_or_init(|| Ref::new(obj));
-                        Some(Ref::clone(rc))
-                    }
-                    None => None,
-                }
-            },
-        );
-        self.registry.objects.write().insert(
-            TypeId::of::<T>(),
-            Object::Singleton(getter, OnceCell::new()),
-        );
-        self.registry.validation.write().insert(
-            TypeId::of::<T>(),
-            Box::new(|registry: &Registry| {
-                let type_ids =
-                    Deps::as_typeids(dependency_builder::private::SealToken);
-                type_ids.iter().all(|el| {
-                    if let Some(validator) = registry.validation.read().get(el)
-                    {
-                        return (validator)(registry);
-                    }
+        use crate::object_builder::SingletonGetterWithDeps;
 
-                    false
-                })
-            }),
-        );
+        let singleton =
+            Object::Singleton(Box::new(SingletonGetterWithDeps::new(ctor)));
+        {
+            let mut lock = self.registry.objects.write();
+            lock.insert(TypeId::of::<T>(), singleton);
+        }
+
+        let validator: Validator = Box::new(|registry: &Registry| {
+            let type_ids =
+                Deps::as_typeids(dependency_builder::private::SealToken);
+            type_ids.iter().all(|el| {
+                if let Some(validator) = registry.validation.read().get(el) {
+                    return (validator)(registry);
+                }
+
+                false
+            })
+        });
+        {
+            let mut lock = self.registry.validation.write();
+            lock.insert(TypeId::of::<T>(), validator);
+        }
+    }
+
+    /// Register a new singleton object, with dependencies specified in
+    /// `.with_deps`.
+    ///
+    /// The `ctor` parameter is a constructor function returning the newly
+    /// constructed `T`. The constructor accepts a single argument `Deps` (a
+    /// tuple implementing [`crate::dependency_builder::DepBuilder`]). It's
+    /// best to destructure the tuple to accept each dependency separately.
+    /// This constructor will be called once, lazily, when the first
+    /// instance of `T` is requested.
+    ///
+    /// The `ctor` must return a boxed `dyn Future`.
+    #[cfg(feature = "tokio")]
+    pub async fn singleton(
+        &self,
+        ctor: fn(
+            Deps,
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = T> + Send>,
+        >,
+    ) {
+        use crate::object_builder::AsyncSingletonWithDeps;
+
+        let singleton =
+            Object::AsyncSingleton(Box::new(AsyncSingletonWithDeps::new(ctor)));
+        {
+            let mut lock = self.registry.objects.write().await;
+            lock.insert(TypeId::of::<T>(), singleton);
+        }
+
+        let validator: Validator = Box::new(|registry: &Registry| {
+            let type_ids =
+                Deps::as_typeids(dependency_builder::private::SealToken);
+            type_ids.iter().all(|el| {
+                if let Some(validator) = registry.validation.read().get(el) {
+                    return (validator)(registry);
+                }
+
+                false
+            })
+        });
+        {
+            let mut lock = self.registry.validation.write();
+            lock.insert(TypeId::of::<T>(), validator);
+        }
     }
 }
 

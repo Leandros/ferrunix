@@ -1,6 +1,6 @@
 [package]
 name = "ferrunix"
-version = "0.2.0"
+version = "0.3.0"
 description = "A lightweight run-time dependency injection framework for Rust"
 readme = "README.md"
 # Inherited.
@@ -17,13 +17,24 @@ categories.workspace = true
 workspace = true
 
 [features]
-default = ["multithread", "derive"]
+default = ["derive"]
 multithread = ["ferrunix-core/multithread"]
 derive = ["dep:ferrunix-macros"]
+tokio = ["ferrunix-core/tokio", "ferrunix-macros?/tokio"]
 
 [dependencies]
-ferrunix-core = { path = "../ferrunix-core", default-features = false, version = "=0.2.0" }
+ferrunix-core = { path = "../ferrunix-core", default-features = false, version = "=0.3.0" }
 ferrunix-macros = { path = "../ferrunix-macros", optional = true, version = "=0.2.0" }
 
 [dev-dependencies]
 thiserror = "1"
+tokio = { version = "=1.24.2", features = ["full"] }
+async-trait = "0.1"
+skeptic = { git = "https://github.com/Leandros/rust-skeptic.git", rev = "45d69d27c3ee1f0cf66072053bb6f88c1be0e07b" }
+
+[build-dependencies]
+skeptic = { git = "https://github.com/Leandros/rust-skeptic.git", rev = "45d69d27c3ee1f0cf66072053bb6f88c1be0e07b" }
+
+# Docs about this available here <https://docs.rs/about/metadata>
+[package.metadata."docs.rs"]
+features = ["derive", "multithread"]

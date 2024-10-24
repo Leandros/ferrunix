@@ -1,4 +1,7 @@
 #![allow(clippy::no_effect)]
+// use std::cell::RefCell;
+// use std::ffi::c_void;
+
 use ferrunix::registry::Builder;
 use ferrunix::{Registry, Singleton, Transient};
 
@@ -11,6 +14,30 @@ fn all_public_types_are_debug() {
     IsDebug::<Registry>(None);
     IsDebug::<Builder<'static, u32, ()>>(None);
 }
+
+// #[test]
+// #[cfg(feature = "multithread")]
+// fn multithread_requires_no_send_types() {
+// // struct NotSync {
+// //     s: RefCell<String>,
+// // }
+
+// // struct NotSyncNotSend {
+// //     s: *mut c_void,
+// // }
+
+//     // fn is_send<T: Send>() {}
+//     // fn is_sync<T: Sync>() {}
+//     // fn is_send_sync<T: Send + Sync>() {}
+
+//     let registry = Registry::empty();
+
+//     registry.transient(|| NotSync {
+//         s: RefCell::new("Hello".to_owned()),
+//     });
+
+//     let _notsync = registry.get_transient::<NotSync>().unwrap();
+// }
 
 // #[test]
 // fn is_send_sync() {

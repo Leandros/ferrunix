@@ -4,27 +4,6 @@ use ferrunix::{Registry, Transient};
 
 use crate::common::*;
 
-pub trait BillingService: Send + Sync {
-    fn charge_order(
-        &self,
-        order: PizzaOrder,
-        creditcard: &CreditCard,
-    ) -> Result<Receipt, ExampleError>;
-}
-
-pub trait CreditCardProcessor: Send + Sync {
-    fn charge(
-        &self,
-        creditcard: &CreditCard,
-        amount: i32,
-    ) -> Result<i32, ExampleError>;
-}
-
-pub trait TransactionLog: Send + Sync {
-    fn log_charge(&self, amount: i32);
-    fn log_error(&self, err: &ExampleError);
-}
-
 #[derive(Debug, Default)]
 pub struct PaypalCreditCardProcessor {}
 

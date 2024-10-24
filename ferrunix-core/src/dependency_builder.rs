@@ -37,11 +37,39 @@ pub trait DepBuilder<R> {
     /// An implementation for tuples is provided by `DepBuilderImpl!`.
     ///
     /// We advise against *manually* implementing `build`.
+    #[cfg(not(feature = "tokio"))]
     fn build(
         registry: &Registry,
         ctor: fn(Self) -> R,
         _: private::SealToken,
     ) -> Option<R>
+    where
+        R: Sized;
+
+    /// When implemented, this should validate that all dependencies which are
+    /// part of `Self` exist to construct the type `R`. If the dependencies
+    /// cannot be fulfilled, `None` must be returned.
+    ///
+    /// If the dependencies can be fulfilled, they must be constructed as an
+    /// N-ary tuple (same length and types as `Self`) and passed as the
+    /// argument to `ctor`. `ctor` is a user provided constructor for the
+    /// type `R`.
+    ///
+    /// An implementation for tuples is provided by `DepBuilderImpl!`.
+    ///
+    /// We advise against *manually* implementing `build`.
+    #[cfg(feature = "tokio")]
+    fn build(
+        registry: &Registry,
+        ctor: fn(
+            Self,
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = R> + Send>,
+        >,
+        _: private::SealToken,
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Option<R>> + Send + '_>,
+    >
     where
         R: Sized;
 
@@ -58,12 +86,28 @@ impl<R> DepBuilder<R> for ()
 where
     R: Registerable,
 {
+    #[cfg(not(feature = "tokio"))]
     fn build(
         _registry: &Registry,
         ctor: fn(Self) -> R,
         _: private::SealToken,
     ) -> Option<R> {
         Some(ctor(()))
+    }
+
+    #[cfg(feature = "tokio")]
+    fn build(
+        _registry: &Registry,
+        ctor: fn(
+            Self,
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = R> + Send>,
+        >,
+        _: private::SealToken,
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Option<R>> + Send + '_>,
+    > {
+        Box::pin(async move { Some(ctor(()).await) })
     }
 
     fn as_typeids(_: private::SealToken) -> Vec<TypeId> {
@@ -79,6 +123,7 @@ macro_rules! DepBuilderImpl {
             R: $crate::types::Registerable,
             $($ts: $crate::dependencies::Dep,)*
         {
+            #[cfg(not(feature = "tokio"))]
             fn build(registry: &$crate::registry::Registry, ctor: fn(Self) -> R, _: private::SealToken) -> Option<R> {
                 if !registry.validate::<R>() {
                     return None;
@@ -91,6 +136,33 @@ macro_rules! DepBuilderImpl {
                 );
 
                 Some(ctor(deps))
+            }
+
+            #[cfg(feature = "tokio")]
+            fn build(
+                registry: &Registry,
+                ctor: fn(
+                    Self,
+                ) -> std::pin::Pin<
+                    Box<dyn std::future::Future<Output = R> + Send>,
+                >,
+                _: private::SealToken,
+            ) -> std::pin::Pin<
+                Box<dyn std::future::Future<Output = Option<R>> + Send + '_>,
+            > {
+                if !registry.validate::<R>() {
+                    return Box::pin(async move { None });
+                }
+
+                Box::pin(async move {
+                    let deps = (
+                        $(
+                            <$ts>::new(registry).await,
+                        )*
+                    );
+
+                    Some(ctor(deps).await)
+                })
             }
 
             fn as_typeids(_: private::SealToken) -> ::std::vec::Vec<::std::any::TypeId> {
