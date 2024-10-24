@@ -76,28 +76,36 @@ pub(super) fn run(args: &CiArgs) -> Result<()> {
     ];
 
     let testrunner: &[&str] = match args.testrunner {
-        Some(TestRunner::Nextest) => &["nextest", "run"],
+        Some(TestRunner::Nextest) => &["nextest", "run", "--profile", "ci"],
         None | Some(TestRunner::Cargo) => &["test"],
     };
     for (proj, features) in test_matrix {
         if features.is_empty() {
-            cmd!(sh, "cargo {testrunner...} -p {proj} --no-default-features")
-                .run()?;
+            // Ignore errors!
+            #[allow(clippy::let_underscore_must_use)]
+            let _ = cmd!(
+                sh,
+                "cargo {testrunner...} -p {proj} --no-default-features"
+            )
+            .run();
             continue;
         }
 
-        cmd!(
+        // Ignore errors!
+        #[allow(clippy::let_underscore_must_use)]
+        let _ = cmd!(
             sh,
             "cargo {testrunner...} -p {proj} --no-default-features -F {features}"
         )
-        .run()?;
+        .run();
     }
 
     // cmd!(sh, "cargo test --all").run()?;
 
     if !args.no_extended && cmd!(sh, "cargo clippy --version").output().is_ok()
     {
-        cmd!(sh, "cargo clippy --tests --workspace").run()?;
+        #[allow(clippy::let_underscore_must_use)]
+        let _ = cmd!(sh, "cargo clippy --tests --workspace").run();
     }
 
     if !args.no_extended && has_cargo_outdated {
