@@ -43,6 +43,7 @@ impl Registry {
     /// with [`Registry::global`].
     #[cfg(not(feature = "tokio"))]
     #[must_use]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn autoregistered() -> Self {
         let registry = Self::empty();
         for register in inventory::iter::<RegistrationFunc> {
@@ -61,6 +62,7 @@ impl Registry {
     /// If any of the constructors panic.
     #[cfg(feature = "tokio")]
     #[must_use]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn autoregistered() -> Self {
         use std::sync::Arc;
 
@@ -102,6 +104,7 @@ impl Registry {
     ///   * `ctor`: A constructor function returning the newly constructed `T`.
     ///     This constructor will be called for every `T` that is requested.
     #[cfg(not(feature = "tokio"))]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn transient<T>(&self, ctor: fn() -> T)
     where
         T: Registerable,
@@ -131,6 +134,7 @@ impl Registry {
     ///   * `ctor`: A constructor function returning the newly constructed `T`.
     ///     This constructor will be called for every `T` that is requested.
     #[cfg(feature = "tokio")]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn transient<T>(
         &self,
         ctor: fn() -> std::pin::Pin<
@@ -167,6 +171,7 @@ impl Registry {
     ///     This constructor will be called once, lazily, when the first
     ///     instance of `T` is requested.
     #[cfg(not(feature = "tokio"))]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn singleton<T>(&self, ctor: fn() -> T)
     where
         T: RegisterableSingleton,
@@ -198,6 +203,7 @@ impl Registry {
     ///     This constructor will be called once, lazily, when the first
     ///     instance of `T` is requested.
     #[cfg(feature = "tokio")]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn singleton<T>(
         &self,
         ctor: fn() -> std::pin::Pin<
@@ -228,6 +234,7 @@ impl Registry {
     /// Returns `None` if `T` wasn't registered or failed to construct.
     #[cfg(not(feature = "tokio"))]
     #[must_use]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn get_transient<T>(&self) -> Option<T>
     where
         T: Registerable,
@@ -250,6 +257,7 @@ impl Registry {
     /// Returns `None` if `T` wasn't registered or failed to construct.
     #[cfg(feature = "tokio")]
     #[must_use]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn get_transient<T>(&self) -> Option<T>
     where
         T: Registerable,
@@ -273,6 +281,7 @@ impl Registry {
     /// singleton is a ref-counted pointer object (either `Arc` or `Rc`).
     #[cfg(not(feature = "tokio"))]
     #[must_use]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn get_singleton<T>(&self) -> Option<Ref<T>>
     where
         T: RegisterableSingleton,
@@ -296,6 +305,7 @@ impl Registry {
     /// singleton is a ref-counted pointer object (either `Arc` or `Rc`).
     #[cfg(feature = "tokio")]
     #[must_use]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn get_singleton<T>(&self) -> Option<Ref<T>>
     where
         T: RegisterableSingleton,
@@ -315,6 +325,7 @@ impl Registry {
     }
 
     /// Register a new transient or singleton with dependencies.
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn with_deps<T, Deps>(&self) -> Builder<'_, T, Deps>
     where
         Deps: DepBuilder<T>,
@@ -335,6 +346,7 @@ impl Registry {
     /// entire dependency tree for each registered type.
     ///
     /// Nontheless, it's recommended to call this before using the [`Registry`].
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn validate_all(&self) -> bool {
         let lock = self.validation.read();
         lock.iter().all(|(_, validator)| (validator)(self))
@@ -345,6 +357,7 @@ impl Registry {
     ///
     /// Returns true if the type and it's dependencies can be constructed, false
     /// otherwise.
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn validate<T>(&self) -> bool
     where
         T: Registerable,
@@ -359,6 +372,7 @@ impl Registry {
     /// This registry contains the types that are marked for auto-registration
     /// via the derive macro.
     #[cfg(all(feature = "multithread", not(feature = "tokio")))]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn global() -> &'static Self {
         DEFAULT_REGISTRY.get_or_init(Self::autoregistered)
     }
@@ -368,6 +382,7 @@ impl Registry {
     /// This registry contains the types that are marked for auto-registration
     /// via the derive macro.
     #[cfg(all(not(feature = "tokio"), not(feature = "multithread")))]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn global() -> std::rc::Rc<Self> {
         DEFAULT_REGISTRY.with(|val| {
             let ret =
@@ -381,6 +396,7 @@ impl Registry {
     /// This registry contains the types that are marked for auto-registration
     /// via the derive macro.
     #[cfg(feature = "tokio")]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn global() -> &'static Self {
         DEFAULT_REGISTRY.get_or_init(Self::autoregistered).await
     }
@@ -392,6 +408,7 @@ impl Registry {
     /// Ensure that no other thread is currently using [`Registry::global()`].
     #[allow(unsafe_code)]
     #[cfg(not(feature = "tokio"))]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub unsafe fn reset_global() {
         let registry = Self::global();
         {
@@ -415,6 +432,7 @@ impl Registry {
     /// Ensure that no other thread is currently using [`Registry::global()`].
     #[allow(unsafe_code)]
     #[cfg(feature = "tokio")]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async unsafe fn reset_global() {
         let registry = Self::global().await;
         {
@@ -478,6 +496,7 @@ where
     /// For single dependencies, the destructured tuple needs to end with a
     /// comma: `(dep,)`.
     #[cfg(not(feature = "tokio"))]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn transient(&self, ctor: fn(Deps) -> T) {
         use crate::object_builder::TransientBuilderImplWithDeps;
 
@@ -518,6 +537,7 @@ where
     ///
     /// The `ctor` must return a boxed `dyn Future`.
     #[cfg(feature = "tokio")]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn transient(
         &self,
         ctor: fn(
@@ -591,6 +611,7 @@ where
     /// For single dependencies, the destructured tuple needs to end with a
     /// comma: `(dep,)`.
     #[cfg(not(feature = "tokio"))]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn singleton(&self, ctor: fn(Deps) -> T) {
         use crate::object_builder::SingletonGetterWithDeps;
 
@@ -630,6 +651,7 @@ where
     ///
     /// The `ctor` must return a boxed `dyn Future`.
     #[cfg(feature = "tokio")]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn singleton(
         &self,
         ctor: fn(

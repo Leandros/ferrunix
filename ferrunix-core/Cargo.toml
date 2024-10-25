@@ -20,6 +20,7 @@ workspace = true
 default = []
 multithread = ["once_cell/parking_lot"]
 tokio = ["dep:tokio", "dep:async-trait"]
+tracing = ["dep:tracing"]
 
 [dependencies]
 once_cell = { version = "1.11" }
@@ -28,6 +29,7 @@ thiserror = "1"
 inventory = "0.3.1"
 tokio = { version = "=1.24.2", default-features = false, features = ["rt", "sync", "parking_lot"], optional = true }
 async-trait = { version = "0.1", optional = true }
+tracing = { version = "0.1", optional = true }
 
 # Docs about this available here <https://docs.rs/about/metadata>
 [package.metadata."docs.rs"]

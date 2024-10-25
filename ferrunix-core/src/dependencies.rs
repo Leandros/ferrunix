@@ -105,6 +105,7 @@ impl<T: Registerable> std::ops::DerefMut for Transient<T> {
 impl<T: Registerable> Transient<T> {
     /// Access the inner `T`.
     #[must_use]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self)))]
     pub fn get(self) -> T {
         self.inner
     }
@@ -189,6 +190,7 @@ impl<T: RegisterableSingleton> std::ops::DerefMut for Singleton<T> {
 impl<T: RegisterableSingleton> Singleton<T> {
     /// Access the inner dependency, returns a ref-counted object.
     #[must_use]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self)))]
     pub fn get(self) -> Ref<T> {
         self.inner
     }

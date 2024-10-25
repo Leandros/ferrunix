@@ -35,6 +35,7 @@
 //! you can enable this as follows:
 //!
 //! ```toml
+//! [dependencies]
 //! ferrunix = { version = "0.3", features = ["multithread"] }
 //! ```
 //!
@@ -48,12 +49,16 @@
 //! - `derive` (`*`): Enables support for the `#[derive(Inject)]` macro.
 //! - `tokio`: Enables support for `async` constructors. Bumps the MSRV up to
 //!     `1.75.0` because some of the internal traits require [RPITIT].
+//! - `tracing`: Enables support for [tracing] and annotates all public functions with
+//!     [`tracing::instrument`].
 //!
 //! [dependency injection]: https://en.wikipedia.org/wiki/Dependency_injection
 //! [docs.rs]: https://docs.rs/ferrunix
 //! [user guide]: https://leandros.github.io/ferrunix/user-guide/first-steps.html
 //! [RPITIT]: https://blog.rust-lang.org/2023/12/21/async-fn-rpit-in-traits.html#whats-stabilizing
 //! [features]: https://doc.rust-lang.org/cargo/reference/manifest.html#the-features-section
+//! [tracing]: https://docs.rs/tracing/latest/tracing/index.html
+//! [`tracing::instrument`]: https://docs.rs/tracing/latest/tracing/attr.instrument.html
 
 pub use ferrunix_core::dependencies;
 pub use ferrunix_core::dependency_builder;
