@@ -1,6 +1,9 @@
 //! Abstraction layer to build transient and singleton dependencies.
 use crate::dependency_builder::DepBuilder;
-use crate::types::{BoxedAny, OnceCell, Ref, RefAny, Registerable, RegisterableSingleton};
+use crate::types::{
+    BoxedAny, OnceCell, Ref, RefAny, Registerable, RegisterableSingleton,
+    RwLock, SingletonCtor, SingletonCtorDeps,
+};
 use crate::Registry;
 
 /// Trait to build a new object with transient lifetime.
@@ -114,7 +117,7 @@ where
 /// SingletonGetter`.
 pub(crate) struct SingletonGetterNoDeps<T> {
     /// Constructor, returns a new `T`.
-    ctor: fn() -> T,
+    ctor: RwLock<Option<Box<dyn SingletonCtor<T>>>>,
     /// Cell containing the constructed `T`.
     cell: OnceCell<Ref<T>>,
 }
@@ -124,9 +127,12 @@ impl<T> SingletonGetterNoDeps<T> {
     /// Objects are stored internally in `cell`.
     ///
     /// `ctor` may contain side-effects. It's guaranteed to be only called once (for each thread).
-    pub(crate) fn new(ctor: fn() -> T) -> Self {
+    pub(crate) fn new<F>(ctor: F) -> Self
+    where
+        F: SingletonCtor<T>,
+    {
         Self {
-            ctor,
+            ctor: RwLock::new(Some(Box::new(ctor))),
             cell: OnceCell::new(),
         }
     }
@@ -137,7 +143,13 @@ where
     T: RegisterableSingleton,
 {
     fn get_singleton(&self, _registry: &Registry) -> Option<RefAny> {
-        let rc = self.cell.get_or_init(|| Ref::new((self.ctor)()));
+        let rc = self.cell.get_or_init(|| {
+            let ctor = {
+                let mut lock = self.ctor.write();
+                lock.take().expect("to be called only once")
+            };
+            Ref::new((ctor)())
+        });
         let rc = Ref::clone(rc) as RefAny;
         Some(rc)
     }
@@ -153,7 +165,7 @@ where
 /// The dependency tuple `Deps` must implement [`DepBuilder<T>`].
 pub(crate) struct SingletonGetterWithDeps<T, Deps> {
     /// Constructor, returns a new `T`.
-    ctor: fn(Deps) -> T,
+    ctor: RwLock<Option<Box<dyn SingletonCtorDeps<T, Deps>>>>,
     /// Cell containing the constructed `T`.
     cell: OnceCell<Ref<T>>,
 }
@@ -163,9 +175,12 @@ impl<T, Deps> SingletonGetterWithDeps<T, Deps> {
     /// Objects are stored internally in `cell`.
     ///
     /// `ctor` may contain side-effects. It's guaranteed to be only called once (for each thread).
-    pub(crate) fn new(ctor: fn(Deps) -> T) -> Self {
+    pub(crate) fn new<F>(ctor: F) -> Self
+    where
+        F: SingletonCtorDeps<T, Deps>,
+    {
         Self {
-            ctor,
+            ctor: RwLock::new(Some(Box::new(ctor))),
             cell: OnceCell::new(),
         }
     }

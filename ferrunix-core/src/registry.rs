@@ -7,7 +7,8 @@ use std::marker::PhantomData;
 use crate::dependency_builder::{self, DepBuilder};
 use crate::object_builder::Object;
 use crate::types::{
-    NonAsyncRwLock, Registerable, RegisterableSingleton, Validator,
+    NonAsyncRwLock, Registerable, RegisterableSingleton, SingletonCtor,
+    SingletonCtorDeps, Validator,
 };
 use crate::{
     registration::RegistrationFunc, registration::DEFAULT_REGISTRY,
@@ -172,9 +173,10 @@ impl Registry {
     ///     instance of `T` is requested.
     #[cfg(not(feature = "tokio"))]
     #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub fn singleton<T>(&self, ctor: fn() -> T)
+    pub fn singleton<T, F>(&self, ctor: F)
     where
         T: RegisterableSingleton,
+        F: SingletonCtor<T>,
     {
         use crate::object_builder::SingletonGetterNoDeps;
 
@@ -612,7 +614,10 @@ where
     /// comma: `(dep,)`.
     #[cfg(not(feature = "tokio"))]
     #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub fn singleton(&self, ctor: fn(Deps) -> T) {
+    pub fn singleton<F>(&self, ctor: F)
+    where
+        F: SingletonCtorDeps<T, Deps>,
+    {
         use crate::object_builder::SingletonGetterWithDeps;
 
         let singleton =

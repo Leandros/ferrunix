@@ -41,6 +41,32 @@ mod sync {
     pub(crate) type BoxedSingletonGetter =
         Box<dyn SingletonGetter + Send + Sync + 'static>;
 
+    // TODO: Seal trait.
+    pub trait SingletonCtor<T>: FnOnce() -> T + Send + Sync + 'static {}
+    impl<T, F> SingletonCtor<T> for F where F: FnOnce() -> T + Send + Sync + 'static {}
+
+    // TODO: Seal trait.
+    pub trait SingletonCtorDeps<T, Deps>:
+        FnOnce(Deps) -> T + Send + Sync + 'static
+    {
+    }
+
+    #[cfg(not(feature = "tokio"))]
+    impl<T, F, Deps> SingletonCtorDeps<T, Deps> for F
+    where
+        F: FnOnce(Deps) -> T + Send + Sync + 'static,
+        Deps: crate::dependency_builder::DepBuilder<T> + 'static,
+    {
+    }
+
+    #[cfg(feature = "tokio")]
+    impl<T, F, Deps> SingletonCtorDeps<T, Deps> for F
+    where
+        F: FnOnce(Deps) -> T + Send + Sync + 'static,
+        Deps: crate::dependency_builder::DepBuilder<T> + Sync + 'static,
+    {
+    }
+
     /// A generic reference type that's used as the default type for types with
     /// the singleton lifetime.
     ///
@@ -123,6 +149,10 @@ mod unsync {
     pub(crate) type BoxedTransientBuilder = Box<dyn TransientBuilder>;
     pub(crate) type BoxedSingletonGetter = Box<dyn SingletonGetter>;
 
+    // TODO: Seal trait.
+    pub trait SingletonCtor<T>: FnOnce() -> T + 'static {}
+    impl<T, F> SingletonCtor<T> for F where F: FnOnce() -> T + 'static {}
+
     /// A generic reference type that's used as the default type for types with
     /// the singleton lifetime.
     ///
@@ -160,7 +190,8 @@ mod tokio_ext {
     // Alias types used in [`Registry`].
     pub(crate) type BoxedAny = Box<dyn Any + Send>;
     pub(crate) type RefAny = Ref<dyn Any + Send + Sync + 'static>;
-    pub(crate) type Validator = Box<dyn Fn(&Registry) -> bool + Send + Sync + 'static>;
+    pub(crate) type Validator =
+        Box<dyn Fn(&Registry) -> bool + Send + Sync + 'static>;
 
     // `RwLock` types.
     pub(crate) type NonAsyncRwLock<T> = parking_lot::RwLock<T>;
