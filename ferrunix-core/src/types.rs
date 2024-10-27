@@ -91,17 +91,6 @@ mod sync {
         }
     }
 
-    #[cfg(feature = "tokio")]
-    impl<T, F, Deps> SingletonCtorDeps<T, Deps> for F
-    where
-        F: FnOnce(Deps) -> T + Send + Sync + 'static,
-        Deps: crate::dependency_builder::DepBuilder<T> + Sync + 'static,
-    {
-        fn call(self, deps: Deps, _: super::private::SealToken) -> T {
-            (self)(deps)
-        }
-    }
-
     /// A generic reference type that's used as the default type for types with
     /// the singleton lifetime.
     ///
@@ -275,6 +264,87 @@ mod tokio_ext {
     pub(crate) type OnceCell<T> = ::tokio::sync::OnceCell<T>;
     pub(crate) type SingletonCell = ::tokio::sync::OnceCell<RefAny>;
 
+    /// A generic constructor for singletons.
+    ///
+    /// This is a marker trait to identify all valid constructors usable by singletons.
+    /// It's not implementable by other crates.
+    ///
+    /// A blanket implementation for `FnOnce() -> T` is provided.
+    pub trait SingletonCtor<T>:
+        FnOnce()
+            -> std::pin::Pin<Box<dyn std::future::Future<Output = T> + Send>>
+        + Send
+        + Sync
+        + 'static
+    {
+        /// Calls the construcor.
+        fn call(
+            self,
+            _: super::private::SealToken,
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = T> + Send>>;
+    }
+
+    impl<T, F> SingletonCtor<T> for F
+    where
+        F: FnOnce() -> std::pin::Pin<
+                Box<dyn std::future::Future<Output = T> + Send>,
+            > + Send
+            + Sync
+            + 'static,
+    {
+        fn call(
+            self,
+            _: super::private::SealToken,
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = T> + Send>>
+        {
+            (self)()
+        }
+    }
+
+    /// A generic constructor for singletons with dependencies.
+    ///
+    /// This is a marker trait to identify all valid constructors usable by singletons.
+    /// It's not implementable by other crates.
+    ///
+    /// A blanket implementation for `FnOnce(Deps) -> T` is provided.
+    pub trait SingletonCtorDeps<T, Deps>:
+        FnOnce(
+            Deps,
+        )
+            -> std::pin::Pin<Box<dyn std::future::Future<Output = T> + Send>>
+        + Send
+        + Sync
+        + 'static
+    {
+        /// Calls the construcor.
+        fn call(
+            self,
+            deps: Deps,
+            _: super::private::SealToken,
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = T> + Send>>;
+    }
+
+    impl<T, F, Deps> SingletonCtorDeps<T, Deps> for F
+    where
+        F: FnOnce(
+                Deps,
+            ) -> std::pin::Pin<
+                Box<dyn std::future::Future<Output = T> + Send>,
+            > + Send
+            + Sync
+            + 'static,
+        Deps: crate::dependency_builder::DepBuilder<T> + Sync + 'static,
+    {
+        fn call(
+            self,
+            deps: Deps,
+            _: super::private::SealToken,
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = T> + Send>>
+        {
+            (self)(deps)
+        }
+    }
+
     /// A generic reference type that's used as the default type for types with
     /// the singleton lifetime.
     ///
@@ -290,9 +360,9 @@ mod tokio_ext {
     ///
     /// It's automatically implemented for all types that are valid. Generally,
     /// those are all types with a `'static` lifetime, that are also `Send`.
-    pub trait Registerable: Send + 'static {}
+    pub trait Registerable: Send + Sync + 'static {}
 
-    impl<T> Registerable for T where T: Send + 'static {}
+    impl<T> Registerable for T where T: Send + Sync + 'static {}
 
     /// A marker trait for all types that can be registered with [`Registry::singleton`].
     ///

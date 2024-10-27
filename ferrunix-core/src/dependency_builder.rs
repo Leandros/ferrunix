@@ -89,6 +89,24 @@ pub trait DepBuilder<R> {
     where
         R: Sized;
 
+    /// Similar to [`DepBuilder::build`], except that it takes a boxed `dyn FnOnce` closure.
+    /// This constructor is used for singletons.
+    ///
+    /// Similarly to `build`, this is also implemented by `DepBuilderImpl!`.
+    ///
+    /// It's advised to avoid *manually* implementing `build`.
+    #[cfg(feature = "tokio")]
+    fn build_once(
+        registry: &Registry,
+        ctor: Box<dyn SingletonCtorDeps<R, Self>>,
+        _: private::SealToken,
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Option<R>> + Send + '_>,
+    >
+    where
+        R: Sized,
+        Self: Sized;
+
     /// Constructs a [`Vec`] of [`std::any::TypeId`]s from the types in `Self`.
     /// The resulting vector must have the same length as `Self`.
     ///
@@ -136,6 +154,18 @@ where
     ) -> std::pin::Pin<
         Box<dyn std::future::Future<Output = Option<R>> + Send + '_>,
     > {
+        Box::pin(async move { Some(ctor(()).await) })
+    }
+
+    #[cfg(feature = "tokio")]
+    fn build_once(
+        _registry: &Registry,
+        ctor: Box<dyn SingletonCtorDeps<R, Self>>,
+        _: private::SealToken,
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Option<R>> + Send + '_>,
+    >
+    {
         Box::pin(async move { Some(ctor(()).await) })
     }
 
@@ -203,6 +233,30 @@ macro_rules! DepBuilderImpl {
             ) -> std::pin::Pin<
                 Box<dyn std::future::Future<Output = Option<R>> + Send + '_>,
             > {
+                if !registry.validate::<R>() {
+                    return Box::pin(async move { None });
+                }
+
+                Box::pin(async move {
+                    let deps = (
+                        $(
+                            <$ts>::new(registry).await,
+                        )*
+                    );
+
+                    Some(ctor(deps).await)
+                })
+            }
+
+            #[cfg(feature = "tokio")]
+            fn build_once(
+                registry: &Registry,
+                ctor: Box<dyn SingletonCtorDeps<R, Self>>,
+                _: private::SealToken,
+                ) -> std::pin::Pin<
+                Box<dyn std::future::Future<Output = Option<R>> + Send + '_>,
+                >
+            {
                 if !registry.validate::<R>() {
                     return Box::pin(async move { None });
                 }

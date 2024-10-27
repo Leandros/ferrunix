@@ -205,14 +205,11 @@ impl Registry {
     ///     This constructor will be called once, lazily, when the first
     ///     instance of `T` is requested.
     #[cfg(feature = "tokio")]
-    #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub async fn singleton<T>(
-        &self,
-        ctor: fn() -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = T> + Send>,
-        >,
-    ) where
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
+    pub async fn singleton<T, F>(&self, ctor: F)
+    where
         T: RegisterableSingleton + Clone,
+        F: SingletonCtor<T>,
     {
         use crate::object_builder::AsyncSingletonNoDeps;
 
@@ -434,8 +431,9 @@ impl Registry {
     /// Ensure that no other thread is currently using [`Registry::global()`].
     #[allow(unsafe_code)]
     #[cfg(feature = "tokio")]
-    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async unsafe fn reset_global() {
+        // Purposefully not annotated with `tracing::instrument` because it mangles the order of
+        // `async` and `unsafe`, resulting in a compiler error.
         let registry = Self::global().await;
         {
             let mut lock = registry.objects.write().await;
@@ -656,15 +654,11 @@ where
     ///
     /// The `ctor` must return a boxed `dyn Future`.
     #[cfg(feature = "tokio")]
-    #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub async fn singleton(
-        &self,
-        ctor: fn(
-            Deps,
-        ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = T> + Send>,
-        >,
-    ) {
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
+    pub async fn singleton<F>(&self, ctor: F)
+    where
+        F: SingletonCtorDeps<T, Deps>,
+    {
         use crate::object_builder::AsyncSingletonWithDeps;
 
         let singleton =

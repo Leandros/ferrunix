@@ -1,6 +1,9 @@
 //! Abstraction layer to build transient and singleton dependencies, asynchronously.
 use crate::dependency_builder::DepBuilder;
-use crate::types::{BoxedAny, Ref, RefAny, Registerable, RegisterableSingleton};
+use crate::types::{
+    BoxedAny, Ref, RefAny, Registerable, RegisterableSingleton, RwLock,
+    SingletonCtor, SingletonCtorDeps,
+};
 use crate::Registry;
 
 /// Trait to build a new object with transient lifetime.
@@ -139,8 +142,7 @@ where
 /// AsyncSingleton`.
 pub(crate) struct AsyncSingletonNoDeps<T> {
     /// Constructor, returns a boxed future to `T`.
-    ctor:
-        fn() -> std::pin::Pin<Box<dyn std::future::Future<Output = T> + Send>>,
+    ctor: RwLock<Option<Box<dyn SingletonCtor<T>>>>,
     /// Cell containing the constructed `T`.
     cell: ::tokio::sync::OnceCell<Ref<T>>,
 }
@@ -150,13 +152,12 @@ impl<T> AsyncSingletonNoDeps<T> {
     /// Objects are stored internally in `cell`.
     ///
     /// `ctor` may contain side-effects. It's guaranteed to be only called once (for each thread).
-    pub(crate) fn new(
-        ctor: fn() -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = T> + Send>,
-        >,
-    ) -> Self {
+    pub(crate) fn new<F>(ctor: F) -> Self
+    where
+        F: SingletonCtor<T>,
+    {
         Self {
-            ctor,
+            ctor: RwLock::new(Some(Box::new(ctor))),
             cell: ::tokio::sync::OnceCell::new(),
         }
     }
@@ -172,7 +173,11 @@ where
         let rc = self
             .cell
             .get_or_init(move || async move {
-                let obj = (self.ctor)().await;
+                let ctor = {
+                    let mut lock = self.ctor.write().await;
+                    lock.take().expect("to be called only once")
+                };
+                let obj = (ctor)().await;
                 Ref::new(obj)
             })
             .await;
@@ -191,10 +196,7 @@ where
 /// The dependency tuple `Deps` must implement [`DepBuilder<T>`].
 pub(crate) struct AsyncSingletonWithDeps<T, Deps> {
     /// Constructor, returns a boxed future to `T`.
-    ctor: fn(
-        Deps,
-    )
-        -> std::pin::Pin<Box<dyn std::future::Future<Output = T> + Send>>,
+    ctor: RwLock<Option<Box<dyn SingletonCtorDeps<T, Deps>>>>,
     /// Cell containing the constructed `T`.
     cell: ::tokio::sync::OnceCell<Ref<T>>,
 }
@@ -204,15 +206,12 @@ impl<T, Deps> AsyncSingletonWithDeps<T, Deps> {
     /// Objects are stored internally in `cell`.
     ///
     /// `ctor` may contain side-effects. It's guaranteed to be only called once (for each thread).
-    pub(crate) fn new(
-        ctor: fn(
-            Deps,
-        ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = T> + Send>,
-        >,
-    ) -> Self {
+    pub(crate) fn new<F>(ctor: F) -> Self
+    where
+        F: SingletonCtorDeps<T, Deps>,
+    {
         Self {
-            ctor,
+            ctor: RwLock::new(Some(Box::new(ctor))),
             cell: ::tokio::sync::OnceCell::new(),
         }
     }
@@ -226,10 +225,15 @@ where
     T: RegisterableSingleton,
 {
     async fn get_singleton(&self, registry: &Registry) -> Option<RefAny> {
+        let ctor = {
+            let mut lock = self.ctor.write().await;
+            lock.take().expect("to be called only once")
+        };
+
         #[allow(clippy::option_if_let_else)]
-        match Deps::build(
+        match Deps::build_once(
             registry,
-            self.ctor,
+            ctor,
             crate::dependency_builder::private::SealToken,
         )
         .await
