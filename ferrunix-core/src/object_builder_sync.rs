@@ -192,10 +192,15 @@ where
     T: RegisterableSingleton,
 {
     fn get_singleton(&self, registry: &Registry) -> Option<RefAny> {
+        let ctor = {
+            let mut lock = self.ctor.write();
+            lock.take().expect("to be called only once")
+        };
+
         #[allow(clippy::option_if_let_else)]
-        match Deps::build(
+        match Deps::build_once(
             registry,
-            self.ctor,
+            ctor,
             crate::dependency_builder::private::SealToken,
         ) {
             Some(obj) => {

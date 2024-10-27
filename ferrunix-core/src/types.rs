@@ -5,6 +5,12 @@
     dead_code
 )]
 
+mod private {
+    /// This is used for sealing the traits [`SingletonCtor`] and [`SingletonCtorDeps`].
+    #[derive(Debug, Clone, Copy)]
+    pub struct SealToken;
+}
+
 /// Types that are enabled when the `multithread` feature is set.
 #[cfg(all(feature = "multithread", not(feature = "tokio")))]
 mod sync {
@@ -41,14 +47,37 @@ mod sync {
     pub(crate) type BoxedSingletonGetter =
         Box<dyn SingletonGetter + Send + Sync + 'static>;
 
-    // TODO: Seal trait.
-    pub trait SingletonCtor<T>: FnOnce() -> T + Send + Sync + 'static {}
-    impl<T, F> SingletonCtor<T> for F where F: FnOnce() -> T + Send + Sync + 'static {}
+    /// A generic constructor for singletons.
+    ///
+    /// This is a marker trait to identify all valid constructors usable by singletons.
+    /// It's not implementable by other crates.
+    ///
+    /// A blanket implementation for `FnOnce() -> T` is provided.
+    pub trait SingletonCtor<T>: FnOnce() -> T + Send + Sync + 'static {
+        /// Calls the construcor.
+        fn call(self, _: super::private::SealToken) -> T;
+    }
 
-    // TODO: Seal trait.
+    impl<T, F> SingletonCtor<T> for F
+    where
+        F: FnOnce() -> T + Send + Sync + 'static,
+    {
+        fn call(self, _: super::private::SealToken) -> T {
+            (self)()
+        }
+    }
+
+    /// A generic constructor for singletons with dependencies.
+    ///
+    /// This is a marker trait to identify all valid constructors usable by singletons.
+    /// It's not implementable by other crates.
+    ///
+    /// A blanket implementation for `FnOnce(Deps) -> T` is provided.
     pub trait SingletonCtorDeps<T, Deps>:
         FnOnce(Deps) -> T + Send + Sync + 'static
     {
+        /// Calls the construcor.
+        fn call(self, deps: Deps, _: super::private::SealToken) -> T;
     }
 
     #[cfg(not(feature = "tokio"))]
@@ -57,6 +86,9 @@ mod sync {
         F: FnOnce(Deps) -> T + Send + Sync + 'static,
         Deps: crate::dependency_builder::DepBuilder<T> + 'static,
     {
+        fn call(self, deps: Deps, _: super::private::SealToken) -> T {
+            (self)(deps)
+        }
     }
 
     #[cfg(feature = "tokio")]
@@ -65,6 +97,9 @@ mod sync {
         F: FnOnce(Deps) -> T + Send + Sync + 'static,
         Deps: crate::dependency_builder::DepBuilder<T> + Sync + 'static,
     {
+        fn call(self, deps: Deps, _: super::private::SealToken) -> T {
+            (self)(deps)
+        }
     }
 
     /// A generic reference type that's used as the default type for types with
@@ -149,9 +184,45 @@ mod unsync {
     pub(crate) type BoxedTransientBuilder = Box<dyn TransientBuilder>;
     pub(crate) type BoxedSingletonGetter = Box<dyn SingletonGetter>;
 
-    // TODO: Seal trait.
-    pub trait SingletonCtor<T>: FnOnce() -> T + 'static {}
-    impl<T, F> SingletonCtor<T> for F where F: FnOnce() -> T + 'static {}
+    /// A generic constructor for singletons.
+    ///
+    /// This is a marker trait to identify all valid constructors usable by singletons.
+    /// It's not implementable by other crates.
+    ///
+    /// A blanket implementation for `FnOnce() -> T` is provided.
+    pub trait SingletonCtor<T>: FnOnce() -> T + 'static {
+        /// Calls the construcor.
+        fn call(self, _: super::private::SealToken) -> T;
+    }
+    impl<T, F> SingletonCtor<T> for F
+    where
+        F: FnOnce() -> T + 'static,
+    {
+        fn call(self, _: super::private::SealToken) -> T {
+            (self)()
+        }
+    }
+
+    /// A generic constructor for singletons with dependencies.
+    ///
+    /// This is a marker trait to identify all valid constructors usable by singletons.
+    /// It's not implementable by other crates.
+    ///
+    /// A blanket implementation for `FnOnce(Deps) -> T` is provided.
+    pub trait SingletonCtorDeps<T, Deps>: FnOnce(Deps) -> T + 'static {
+        /// Calls the construcor.
+        fn call(self, deps: Deps, _: super::private::SealToken) -> T;
+    }
+
+    impl<T, F, Deps> SingletonCtorDeps<T, Deps> for F
+    where
+        F: FnOnce(Deps) -> T + 'static,
+        Deps: crate::dependency_builder::DepBuilder<T> + 'static,
+    {
+        fn call(self, deps: Deps, _: super::private::SealToken) -> T {
+            (self)(deps)
+        }
+    }
 
     /// A generic reference type that's used as the default type for types with
     /// the singleton lifetime.

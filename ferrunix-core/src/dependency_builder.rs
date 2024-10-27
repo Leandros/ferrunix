@@ -3,7 +3,7 @@
 
 use std::any::TypeId;
 
-use crate::types::Registerable;
+use crate::types::{Registerable, SingletonCtorDeps};
 use crate::Registry;
 
 /// Required for sealing the trait. *Must not be public*.
@@ -36,7 +36,7 @@ pub trait DepBuilder<R> {
     ///
     /// An implementation for tuples is provided by `DepBuilderImpl!`.
     ///
-    /// We advise against *manually* implementing `build`.
+    /// It's advised to avoid *manually* implementing `build`.
     #[cfg(not(feature = "tokio"))]
     fn build(
         registry: &Registry,
@@ -45,6 +45,22 @@ pub trait DepBuilder<R> {
     ) -> Option<R>
     where
         R: Sized;
+
+    /// Similar to [`DepBuilder::build`], except that it takes a boxed `dyn FnOnce` closure.
+    /// This constructor is used for singletons.
+    ///
+    /// Similarly to `build`, this is also implemented by `DepBuilderImpl!`.
+    ///
+    /// It's advised to avoid *manually* implementing `build`.
+    #[cfg(not(feature = "tokio"))]
+    fn build_once(
+        registry: &Registry,
+        ctor: Box<dyn SingletonCtorDeps<R, Self>>,
+        _: private::SealToken,
+    ) -> Option<R>
+    where
+        R: Sized,
+        Self: Sized;
 
     /// When implemented, this should validate that all dependencies which are
     /// part of `Self` exist to construct the type `R`. If the dependencies
@@ -95,6 +111,19 @@ where
         Some(ctor(()))
     }
 
+    #[cfg(not(feature = "tokio"))]
+    fn build_once(
+        _registry: &Registry,
+        ctor: Box<dyn SingletonCtorDeps<R, Self>>,
+        _: private::SealToken,
+    ) -> Option<R>
+    where
+        R: Sized,
+        Self: Sized
+    {
+        Some(ctor(()))
+    }
+
     #[cfg(feature = "tokio")]
     fn build(
         _registry: &Registry,
@@ -137,6 +166,30 @@ macro_rules! DepBuilderImpl {
 
                 Some(ctor(deps))
             }
+
+            #[cfg(not(feature = "tokio"))]
+            fn build_once(
+                registry: &Registry,
+                ctor: Box<dyn SingletonCtorDeps<R, Self>>,
+                _: private::SealToken,
+                ) -> Option<R>
+                where
+                    R: Sized,
+                    Self: Sized
+                {
+                    if !registry.validate::<R>() {
+                        return None;
+                    }
+
+                    let deps = (
+                        $(
+                            <$ts>::new(registry),
+                            )*
+                    );
+
+                    Some(ctor(deps))
+                }
+
 
             #[cfg(feature = "tokio")]
             fn build(
