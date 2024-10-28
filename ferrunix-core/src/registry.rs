@@ -4,11 +4,12 @@
 use std::any::TypeId;
 use std::marker::PhantomData;
 
-use crate::dependency_builder::{self, DepBuilder};
+use crate::cycle_detection::DependencyValidator;
+use crate::dependency_builder::DepBuilder;
 use crate::object_builder::Object;
 use crate::types::{
-    NonAsyncRwLock, Registerable, RegisterableSingleton, SingletonCtor,
-    SingletonCtorDeps, Validator,
+    Registerable, RegisterableSingleton, SingletonCtor, SingletonCtorDeps,
+    Validator,
 };
 use crate::{
     registration::RegistrationFunc, registration::DEFAULT_REGISTRY,
@@ -18,7 +19,7 @@ use crate::{
 /// Registry for all types that can be constructed or otherwise injected.
 pub struct Registry {
     objects: RwLock<HashMap<TypeId, Object>>,
-    validation: NonAsyncRwLock<HashMap<TypeId, Validator>>,
+    validator: DependencyValidator,
 }
 
 impl Registry {
@@ -34,7 +35,7 @@ impl Registry {
     pub fn empty() -> Self {
         Self {
             objects: RwLock::new(HashMap::new()),
-            validation: NonAsyncRwLock::new(HashMap::new()),
+            validator: DependencyValidator::new(),
         }
     }
 
@@ -119,11 +120,13 @@ impl Registry {
             lock.insert(TypeId::of::<T>(), transient);
         }
 
-        let validator: Validator = Box::new(|_| true);
-        {
-            let mut lock = self.validation.write();
-            lock.insert(TypeId::of::<T>(), validator);
-        }
+        eprintln!(
+            "register (no deps): {} -> {:?}",
+            std::any::type_name::<T>(),
+            TypeId::of::<T>()
+        );
+
+        self.validator.add_transient_no_deps::<T>();
     }
 
     /// Register a new transient object, without dependencies.
@@ -186,12 +189,6 @@ impl Registry {
         {
             let mut lock = self.objects.write();
             lock.insert(TypeId::of::<T>(), singleton);
-        }
-
-        let validator: Validator = Box::new(|_| true);
-        {
-            let mut lock = self.validation.write();
-            lock.insert(TypeId::of::<T>(), validator);
         }
     }
 
@@ -347,8 +344,9 @@ impl Registry {
     /// Nontheless, it's recommended to call this before using the [`Registry`].
     #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn validate_all(&self) -> bool {
-        let lock = self.validation.read();
-        lock.iter().all(|(_, validator)| (validator)(self))
+        todo!()
+        // let lock = self.validation.read();
+        // lock.iter().all(|(_, validator)| (validator)(self))
     }
 
     /// Check whether the type `T` is registered in this registry, and all
@@ -357,13 +355,26 @@ impl Registry {
     /// Returns true if the type and it's dependencies can be constructed, false
     /// otherwise.
     #[cfg_attr(feature = "tracing", tracing::instrument)]
+    #[allow(clippy::option_if_let_else)]
     pub fn validate<T>(&self) -> bool
     where
         T: Registerable,
     {
-        let lock = self.validation.read();
-        lock.get(&TypeId::of::<T>())
-            .map_or(false, |validator| (validator)(self))
+        self.validator.validate()
+        // let lock = self.validation.read();
+        // if let Some(validator) = lock.get(&TypeId::of::<T>()) {
+        //     let mut graph =
+        //         petgraph::Graph::<TypeId, (), petgraph::Directed>::new();
+        //     let mut cache = HashMap::new();
+        //     let index = (validator)(self, &mut graph, &mut cache);
+
+        //     let mut space = petgraph::algo::DfsSpace::new(&graph);
+        //     let result = petgraph::algo::toposort(&graph, Some(&mut space));
+        //     println!("result: {result:#?}");
+        //     result.is_ok()
+        // } else {
+        //     false
+        // }
     }
 
     /// Access the global registry.
@@ -444,6 +455,38 @@ impl Registry {
             (register.0)(registry).await;
         }
     }
+
+    // fn insert_node<T>(&self) -> petgraph::graph::NodeIndex
+    // where
+    //     T: Registerable,
+    // {
+    //     // {
+    //     //     let lock = self.graphindices.read();
+    //     //     if let Some(index) = lock.get(&TypeId::of::<T>()) {
+    //     //         return *index;
+    //     //     }
+    //     // }
+
+    //     let nodeindex = {
+    //         let mut lock = self.depgraph.write();
+    //         lock.add_node(TypeId::of::<T>())
+    //     };
+    //     {
+    //         let mut lock = self.graphindices.write();
+    //         lock.insert(TypeId::of::<T>(), nodeindex);
+    //     }
+
+    //     nodeindex
+    // }
+
+    pub fn cycle(&self) -> bool {
+        todo!()
+        // let graph = self.depgraph.read();
+        // let mut space = petgraph::algo::DfsSpace::new(&*graph);
+        // let result = petgraph::algo::toposort(&*graph, Some(&mut space));
+
+        // result.is_err()
+    }
 }
 
 impl std::fmt::Debug for Registry {
@@ -508,22 +551,13 @@ where
             lock.insert(TypeId::of::<T>(), transient);
         }
 
-        let validator: Validator = Box::new(|registry: &Registry| {
-            let type_ids =
-                Deps::as_typeids(dependency_builder::private::SealToken);
-            type_ids.iter().all(|el| {
-                if let Some(validator) = registry.validation.read().get(el) {
-                    return (validator)(registry);
-                }
+        eprintln!(
+            "register (with deps): {} -> {:?}",
+            std::any::type_name::<T>(),
+            TypeId::of::<T>()
+        );
 
-                false
-            })
-        });
-
-        {
-            let mut lock = self.registry.validation.write();
-            lock.insert(TypeId::of::<T>(), validator);
-        }
+        self.registry.validator.add_transient_deps::<T, Deps>();
     }
 
     /// Register a new transient object, with dependencies specified in
@@ -623,22 +657,6 @@ where
         {
             let mut lock = self.registry.objects.write();
             lock.insert(TypeId::of::<T>(), singleton);
-        }
-
-        let validator: Validator = Box::new(|registry: &Registry| {
-            let type_ids =
-                Deps::as_typeids(dependency_builder::private::SealToken);
-            type_ids.iter().all(|el| {
-                if let Some(validator) = registry.validation.read().get(el) {
-                    return (validator)(registry);
-                }
-
-                false
-            })
-        });
-        {
-            let mut lock = self.registry.validation.write();
-            lock.insert(TypeId::of::<T>(), validator);
         }
     }
 

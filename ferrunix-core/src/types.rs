@@ -125,6 +125,7 @@ mod sync {
 mod unsync {
     use std::any::Any;
 
+    use crate::cycle_detection::DependencyValidator;
     use crate::object_builder::{SingletonGetter, TransientBuilder};
     use crate::Registry;
 
@@ -169,7 +170,8 @@ mod unsync {
     pub(crate) type BoxedAny = Box<dyn Any>;
     pub(crate) type RefAny = Ref<dyn Any>;
     pub(crate) type SingletonCell = OnceCell<RefAny>;
-    pub(crate) type Validator = Box<dyn Fn(&Registry) -> bool>;
+    pub(crate) type Validator =
+        Box<dyn Fn(&DependencyValidator) -> petgraph::graph::NodeIndex>;
     pub(crate) type BoxedTransientBuilder = Box<dyn TransientBuilder>;
     pub(crate) type BoxedSingletonGetter = Box<dyn SingletonGetter>;
 

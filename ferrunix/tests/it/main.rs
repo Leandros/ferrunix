@@ -1,6 +1,7 @@
 //! Entrypoint for all integration tests.
 
 mod common;
+mod cycle_test;
 mod validate_traits;
 
 #[cfg(all(feature = "derive", feature = "tokio"))]

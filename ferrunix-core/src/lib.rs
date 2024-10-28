@@ -14,6 +14,7 @@
 //!
 //! [`ferrunix`]: https://crates.io/crates/ferrunix
 
+pub mod cycle_detection;
 pub mod dependencies;
 pub mod dependency_builder;
 pub mod error;

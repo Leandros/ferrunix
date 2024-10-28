@@ -31,6 +31,9 @@ tokio = { version = "=1.24.2", default-features = false, features = ["rt", "sync
 async-trait = { version = "0.1", optional = true }
 tracing = { version = "0.1", optional = true }
 
+petgraph = { version = "0.6" }
+fixedbitset = { version = "=0.4.2" } # used/required by `petgraph`
+
 # Docs about this available here <https://docs.rs/about/metadata>
 [package.metadata."docs.rs"]
 features = ["multithread"]
