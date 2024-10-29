@@ -1,4 +1,4 @@
-#![cfg(feature = "multithread")]
+#![cfg(all(feature = "multithread", not(feature = "tokio")))]
 use std::sync::Arc;
 
 use ferrunix::Registry;
