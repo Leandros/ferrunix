@@ -105,7 +105,7 @@ impl Registry {
     ///   * `ctor`: A constructor function returning the newly constructed `T`.
     ///     This constructor will be called for every `T` that is requested.
     #[cfg(not(feature = "tokio"))]
-    #[cfg_attr(feature = "tracing", tracing::instrument)]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
     pub fn transient<T>(&self, ctor: fn() -> T)
     where
         T: Registerable,
@@ -137,7 +137,7 @@ impl Registry {
     ///   * `ctor`: A constructor function returning the newly constructed `T`.
     ///     This constructor will be called for every `T` that is requested.
     #[cfg(feature = "tokio")]
-    #[cfg_attr(feature = "tracing", tracing::instrument)]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
     pub async fn transient<T>(
         &self,
         ctor: fn() -> std::pin::Pin<
@@ -176,7 +176,7 @@ impl Registry {
     ///     This constructor will be called once, lazily, when the first
     ///     instance of `T` is requested.
     #[cfg(not(feature = "tokio"))]
-    #[cfg_attr(feature = "tracing", tracing::instrument)]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
     pub fn singleton<T, F>(&self, ctor: F)
     where
         T: RegisterableSingleton,
@@ -511,7 +511,7 @@ where
     /// For single dependencies, the destructured tuple needs to end with a
     /// comma: `(dep,)`.
     #[cfg(not(feature = "tokio"))]
-    #[cfg_attr(feature = "tracing", tracing::instrument)]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
     pub fn transient(&self, ctor: fn(Deps) -> T) {
         use crate::object_builder::TransientBuilderImplWithDeps;
 
@@ -543,7 +543,7 @@ where
     ///
     /// The `ctor` must return a boxed `dyn Future`.
     #[cfg(feature = "tokio")]
-    #[cfg_attr(feature = "tracing", tracing::instrument)]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
     pub async fn transient(
         &self,
         ctor: fn(
@@ -608,7 +608,7 @@ where
     /// For single dependencies, the destructured tuple needs to end with a
     /// comma: `(dep,)`.
     #[cfg(not(feature = "tokio"))]
-    #[cfg_attr(feature = "tracing", tracing::instrument)]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
     pub fn singleton<F>(&self, ctor: F)
     where
         F: SingletonCtorDeps<T, Deps>,
