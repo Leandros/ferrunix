@@ -98,7 +98,7 @@ async fn test_more_complex() {
             })
         })
         .await;
-    assert!(registry.validate_all());
+    registry.validate_all().unwrap();
 
     registry
         .with_deps::<Box<dyn AsyncBillingService>, (
@@ -115,7 +115,7 @@ async fn test_more_complex() {
         })
         .await;
 
-    assert!(registry.validate_all());
+    registry.validate_all().unwrap();
 
     let billing_service = registry
         .get_transient::<Box<dyn AsyncBillingService>>()

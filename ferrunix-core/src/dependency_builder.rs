@@ -113,7 +113,7 @@ pub trait DepBuilder<R> {
     /// An implementation for tuples is provided by `DepBuilderImpl!`.
     ///
     /// We advise against *manually* implementing `as_typeids`.
-    fn as_typeids(_: private::SealToken) -> Vec<TypeId>;
+    fn as_typeids(_: private::SealToken) -> Vec<(TypeId, &'static str)>;
 }
 
 impl<R> DepBuilder<R> for ()
@@ -169,7 +169,7 @@ where
         Box::pin(async move { Some(ctor(()).await) })
     }
 
-    fn as_typeids(_: private::SealToken) -> Vec<TypeId> {
+    fn as_typeids(_: private::SealToken) -> Vec<(TypeId, &'static str)> {
         Vec::new()
     }
 }
@@ -184,7 +184,7 @@ macro_rules! DepBuilderImpl {
         {
             #[cfg(not(feature = "tokio"))]
             fn build(registry: &$crate::registry::Registry, ctor: fn(Self) -> R, _: private::SealToken) -> Option<R> {
-                if !registry.validate::<R>() {
+                if registry.validate::<R>().is_err() {
                     return None;
                 }
 
@@ -207,7 +207,7 @@ macro_rules! DepBuilderImpl {
                     R: Sized,
                     Self: Sized
                 {
-                    if !registry.validate::<R>() {
+                    if registry.validate::<R>().is_err() {
                         return None;
                     }
 
@@ -233,7 +233,7 @@ macro_rules! DepBuilderImpl {
             ) -> std::pin::Pin<
                 Box<dyn std::future::Future<Output = Option<R>> + Send + '_>,
             > {
-                if !registry.validate::<R>() {
+                if registry.validate::<R>().is_err() {
                     return Box::pin(async move { None });
                 }
 
@@ -257,7 +257,7 @@ macro_rules! DepBuilderImpl {
                 Box<dyn std::future::Future<Output = Option<R>> + Send + '_>,
                 >
             {
-                if !registry.validate::<R>() {
+                if registry.validate::<R>().is_err() {
                     return Box::pin(async move { None });
                 }
 
@@ -272,8 +272,8 @@ macro_rules! DepBuilderImpl {
                 })
             }
 
-            fn as_typeids(_: private::SealToken) -> ::std::vec::Vec<::std::any::TypeId> {
-                ::std::vec![ $(<$ts>::type_id(),)* ]
+            fn as_typeids(_: private::SealToken) -> ::std::vec::Vec<(::std::any::TypeId, &'static str)> {
+                ::std::vec![ $((<$ts>::type_id(), ::std::any::type_name::<$ts>()),)* ]
             }
         }
     };

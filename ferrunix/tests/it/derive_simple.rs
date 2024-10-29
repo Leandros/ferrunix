@@ -59,7 +59,7 @@ struct TemplateMaker {
 #[test]
 fn inject_stringtemplate() {
     let registry = Registry::autoregistered();
-    assert!(registry.validate_all());
+    registry.validate_all().unwrap();
 
     let logger = registry
         .get_singleton::<ferrunix::Ref<dyn ColorLogger>>()

@@ -4,12 +4,11 @@
 use std::any::TypeId;
 use std::marker::PhantomData;
 
-use crate::cycle_detection::DependencyValidator;
+use crate::cycle_detection::{DependencyValidator, ValidationError};
 use crate::dependency_builder::DepBuilder;
 use crate::object_builder::Object;
 use crate::types::{
     Registerable, RegisterableSingleton, SingletonCtor, SingletonCtorDeps,
-    Validator,
 };
 use crate::{
     registration::RegistrationFunc, registration::DEFAULT_REGISTRY,
@@ -113,18 +112,18 @@ impl Registry {
     {
         use crate::object_builder::TransientBuilderImplNoDeps;
 
+        #[cfg(feature = "tracing")]
+        tracing::info!(
+            "registering transient ({})",
+            std::any::type_name::<T>()
+        );
+
         let transient =
             Object::Transient(Box::new(TransientBuilderImplNoDeps::new(ctor)));
         {
             let mut lock = self.objects.write();
             lock.insert(TypeId::of::<T>(), transient);
         }
-
-        eprintln!(
-            "register (no deps): {} -> {:?}",
-            std::any::type_name::<T>(),
-            TypeId::of::<T>()
-        );
 
         self.validator.add_transient_no_deps::<T>();
     }
@@ -149,6 +148,12 @@ impl Registry {
     {
         use crate::object_builder::AsyncTransientBuilderImplNoDeps;
 
+        #[cfg(feature = "tracing")]
+        tracing::info!(
+            "registering transient ({})",
+            std::any::type_name::<T>()
+        );
+
         let transient = Object::AsyncTransient(Box::new(
             AsyncTransientBuilderImplNoDeps::new(ctor),
         ));
@@ -158,11 +163,7 @@ impl Registry {
             lock.insert(TypeId::of::<T>(), transient);
         }
 
-        let validator: Validator = Box::new(|_| true);
-        {
-            let mut lock = self.validation.write();
-            lock.insert(TypeId::of::<T>(), validator);
-        }
+        self.validator.add_transient_no_deps::<T>();
     }
 
     /// Register a new singleton object, without dependencies.
@@ -183,6 +184,12 @@ impl Registry {
     {
         use crate::object_builder::SingletonGetterNoDeps;
 
+        #[cfg(feature = "tracing")]
+        tracing::info!(
+            "registering singleton ({})",
+            std::any::type_name::<T>()
+        );
+
         let singleton =
             Object::Singleton(Box::new(SingletonGetterNoDeps::new(ctor)));
 
@@ -190,6 +197,8 @@ impl Registry {
             let mut lock = self.objects.write();
             lock.insert(TypeId::of::<T>(), singleton);
         }
+
+        self.validator.add_singleton_no_deps::<T>();
     }
 
     /// Register a new singleton object, without dependencies.
@@ -210,6 +219,12 @@ impl Registry {
     {
         use crate::object_builder::AsyncSingletonNoDeps;
 
+        #[cfg(feature = "tracing")]
+        tracing::info!(
+            "registering singleton ({})",
+            std::any::type_name::<T>()
+        );
+
         let singleton =
             Object::AsyncSingleton(Box::new(AsyncSingletonNoDeps::new(ctor)));
 
@@ -218,11 +233,7 @@ impl Registry {
             lock.insert(TypeId::of::<T>(), singleton);
         }
 
-        let validator: Validator = Box::new(|_| true);
-        {
-            let mut lock = self.validation.write();
-            lock.insert(TypeId::of::<T>(), validator);
-        }
+        self.validator.add_singleton_no_deps::<T>();
     }
 
     /// Retrieves a newly constructed `T` from this registry.
@@ -335,46 +346,39 @@ impl Registry {
 
     /// Check whether all registered types have the required dependencies.
     ///
-    /// Returns true if for all registered types all of it's dependencies can be
-    /// constructed, false otherwise.
-    ///
     /// This is a potentially expensive call since it needs to go through the
     /// entire dependency tree for each registered type.
     ///
     /// Nontheless, it's recommended to call this before using the [`Registry`].
+    ///
+    /// # Errors
+    /// Returns a [`ValidationError`] when the dependency graph is missing dependencies or has cycles.
     #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub fn validate_all(&self) -> bool {
-        todo!()
-        // let lock = self.validation.read();
-        // lock.iter().all(|(_, validator)| (validator)(self))
+    pub fn validate_all(&self) -> Result<(), ValidationError> {
+        self.validator.validate_all()
     }
 
     /// Check whether the type `T` is registered in this registry, and all
     /// dependencies of the type `T` are also registered.
     ///
-    /// Returns true if the type and it's dependencies can be constructed, false
-    /// otherwise.
+    /// # Errors
+    /// Returns a [`ValidationError`] when the dependency graph is missing dependencies or has cycles.
     #[cfg_attr(feature = "tracing", tracing::instrument)]
     #[allow(clippy::option_if_let_else)]
-    pub fn validate<T>(&self) -> bool
+    pub fn validate<T>(&self) -> Result<(), ValidationError>
     where
         T: Registerable,
     {
-        self.validator.validate()
-        // let lock = self.validation.read();
-        // if let Some(validator) = lock.get(&TypeId::of::<T>()) {
-        //     let mut graph =
-        //         petgraph::Graph::<TypeId, (), petgraph::Directed>::new();
-        //     let mut cache = HashMap::new();
-        //     let index = (validator)(self, &mut graph, &mut cache);
+        self.validator.validate::<T>()
+    }
 
-        //     let mut space = petgraph::algo::DfsSpace::new(&graph);
-        //     let result = petgraph::algo::toposort(&graph, Some(&mut space));
-        //     println!("result: {result:#?}");
-        //     result.is_ok()
-        // } else {
-        //     false
-        // }
+    /// Return a string of the dependency graph visualized using graphviz's `dot` language.
+    ///
+    /// # Errors
+    /// Returns a [`ValidationError`] when the dependency graph is missing dependencies or has cycles.
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
+    pub fn dotgraph(&self) -> Result<String, ValidationError> {
+        self.validator.dotgraph()
     }
 
     /// Access the global registry.
@@ -455,38 +459,6 @@ impl Registry {
             (register.0)(registry).await;
         }
     }
-
-    // fn insert_node<T>(&self) -> petgraph::graph::NodeIndex
-    // where
-    //     T: Registerable,
-    // {
-    //     // {
-    //     //     let lock = self.graphindices.read();
-    //     //     if let Some(index) = lock.get(&TypeId::of::<T>()) {
-    //     //         return *index;
-    //     //     }
-    //     // }
-
-    //     let nodeindex = {
-    //         let mut lock = self.depgraph.write();
-    //         lock.add_node(TypeId::of::<T>())
-    //     };
-    //     {
-    //         let mut lock = self.graphindices.write();
-    //         lock.insert(TypeId::of::<T>(), nodeindex);
-    //     }
-
-    //     nodeindex
-    // }
-
-    pub fn cycle(&self) -> bool {
-        todo!()
-        // let graph = self.depgraph.read();
-        // let mut space = petgraph::algo::DfsSpace::new(&*graph);
-        // let result = petgraph::algo::toposort(&*graph, Some(&mut space));
-
-        // result.is_err()
-    }
 }
 
 impl std::fmt::Debug for Registry {
@@ -543,6 +515,12 @@ where
     pub fn transient(&self, ctor: fn(Deps) -> T) {
         use crate::object_builder::TransientBuilderImplWithDeps;
 
+        #[cfg(feature = "tracing")]
+        tracing::info!(
+            "registering transient (with dependencies) ({})",
+            std::any::type_name::<T>()
+        );
+
         let transient = Object::Transient(Box::new(
             TransientBuilderImplWithDeps::new(ctor),
         ));
@@ -550,12 +528,6 @@ where
             let mut lock = self.registry.objects.write();
             lock.insert(TypeId::of::<T>(), transient);
         }
-
-        eprintln!(
-            "register (with deps): {} -> {:?}",
-            std::any::type_name::<T>(),
-            TypeId::of::<T>()
-        );
 
         self.registry.validator.add_transient_deps::<T, Deps>();
     }
@@ -582,6 +554,12 @@ where
     ) {
         use crate::object_builder::AsyncTransientBuilderImplWithDeps;
 
+        #[cfg(feature = "tracing")]
+        tracing::info!(
+            "registering transient (with dependencies) ({})",
+            std::any::type_name::<T>()
+        );
+
         let transient = Object::AsyncTransient(Box::new(
             AsyncTransientBuilderImplWithDeps::new(ctor),
         ));
@@ -590,22 +568,7 @@ where
             lock.insert(TypeId::of::<T>(), transient);
         }
 
-        let validator: Validator = Box::new(|registry: &Registry| {
-            let type_ids =
-                Deps::as_typeids(dependency_builder::private::SealToken);
-            type_ids.iter().all(|el| {
-                if let Some(validator) = registry.validation.read().get(el) {
-                    return (validator)(registry);
-                }
-
-                false
-            })
-        });
-
-        {
-            let mut lock = self.registry.validation.write();
-            lock.insert(TypeId::of::<T>(), validator);
-        }
+        self.registry.validator.add_transient_deps::<T, Deps>();
     }
 }
 
@@ -652,12 +615,20 @@ where
     {
         use crate::object_builder::SingletonGetterWithDeps;
 
+        #[cfg(feature = "tracing")]
+        tracing::info!(
+            "registering singleton (with dependencies) ({})",
+            std::any::type_name::<T>()
+        );
+
         let singleton =
             Object::Singleton(Box::new(SingletonGetterWithDeps::new(ctor)));
         {
             let mut lock = self.registry.objects.write();
             lock.insert(TypeId::of::<T>(), singleton);
         }
+
+        self.registry.validator.add_singleton_deps::<T, Deps>();
     }
 
     /// Register a new singleton object, with dependencies specified in
@@ -679,6 +650,12 @@ where
     {
         use crate::object_builder::AsyncSingletonWithDeps;
 
+        #[cfg(feature = "tracing")]
+        tracing::info!(
+            "registering singleton (with dependencies) ({})",
+            std::any::type_name::<T>()
+        );
+
         let singleton =
             Object::AsyncSingleton(Box::new(AsyncSingletonWithDeps::new(ctor)));
         {
@@ -686,21 +663,7 @@ where
             lock.insert(TypeId::of::<T>(), singleton);
         }
 
-        let validator: Validator = Box::new(|registry: &Registry| {
-            let type_ids =
-                Deps::as_typeids(dependency_builder::private::SealToken);
-            type_ids.iter().all(|el| {
-                if let Some(validator) = registry.validation.read().get(el) {
-                    return (validator)(registry);
-                }
-
-                false
-            })
-        });
-        {
-            let mut lock = self.registry.validation.write();
-            lock.insert(TypeId::of::<T>(), validator);
-        }
+        self.registry.validator.add_singleton_deps::<T, Deps>();
     }
 }
 

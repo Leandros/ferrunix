@@ -1,3 +1,4 @@
+#![cfg(not(feature = "tokio"))]
 #![allow(unused)]
 
 use ferrunix::{Registry, Transient};
@@ -71,7 +72,8 @@ fn detect_cycle() {
             dep0: Box::new(dep0.get()),
         });
 
-    assert!(!registry.validate::<TypeZero>());
+    assert!(registry.validate::<TypeZero>().is_err());
+    assert!(registry.validate_all().is_err());
 }
 
 #[test]
@@ -103,7 +105,8 @@ fn detect_missing() {
             dep_missing: Box::new(dep_missing.get()),
         });
 
-    assert!(!registry.validate::<TypeZero>());
+    assert!(registry.validate::<TypeZero>().is_err());
+    assert!(registry.validate_all().is_err());
 }
 
 #[test]
@@ -131,5 +134,6 @@ fn all_fine() {
 
     registry.transient(|| Dep2 {});
 
-    assert!(registry.validate::<TypeZero>());
+    registry.validate::<TypeZero>().unwrap();
+    registry.validate_all().unwrap();
 }

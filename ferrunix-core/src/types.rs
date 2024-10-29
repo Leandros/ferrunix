@@ -16,8 +16,8 @@ mod private {
 mod sync {
     use std::any::Any;
 
+    use crate::cycle_detection::DependencyValidator;
     use crate::object_builder::{SingletonGetter, TransientBuilder};
-    use crate::Registry;
 
     pub(crate) type OnceCell<T> = once_cell::sync::OnceCell<T>;
 
@@ -40,12 +40,14 @@ mod sync {
     pub(crate) type BoxedAny = Box<dyn Any>;
     pub(crate) type RefAny = Ref<dyn Any + Send + Sync + 'static>;
     pub(crate) type SingletonCell = OnceCell<RefAny>;
-    pub(crate) type Validator =
-        Box<dyn Fn(&Registry) -> bool + Send + Sync + 'static>;
     pub(crate) type BoxedTransientBuilder =
         Box<dyn TransientBuilder + Send + Sync + 'static>;
     pub(crate) type BoxedSingletonGetter =
         Box<dyn SingletonGetter + Send + Sync + 'static>;
+
+    // Alias types used in [`DependencyValidator`].
+    pub(crate) type Visitor =
+        fn(&DependencyValidator) -> petgraph::graph::NodeIndex;
 
     /// A generic constructor for singletons.
     ///
@@ -127,7 +129,6 @@ mod unsync {
 
     use crate::cycle_detection::DependencyValidator;
     use crate::object_builder::{SingletonGetter, TransientBuilder};
-    use crate::Registry;
 
     pub(crate) type OnceCell<T> = once_cell::unsync::OnceCell<T>;
 
@@ -170,10 +171,12 @@ mod unsync {
     pub(crate) type BoxedAny = Box<dyn Any>;
     pub(crate) type RefAny = Ref<dyn Any>;
     pub(crate) type SingletonCell = OnceCell<RefAny>;
-    pub(crate) type Validator =
-        Box<dyn Fn(&DependencyValidator) -> petgraph::graph::NodeIndex>;
     pub(crate) type BoxedTransientBuilder = Box<dyn TransientBuilder>;
     pub(crate) type BoxedSingletonGetter = Box<dyn SingletonGetter>;
+
+    // Alias types used in [`DependencyValidator`].
+    pub(crate) type Visitor =
+        fn(&DependencyValidator) -> petgraph::graph::NodeIndex;
 
     /// A generic constructor for singletons.
     ///
@@ -247,13 +250,15 @@ mod unsync {
 mod tokio_ext {
     use std::any::Any;
 
-    use crate::Registry;
+    use crate::cycle_detection::DependencyValidator;
 
     // Alias types used in [`Registry`].
     pub(crate) type BoxedAny = Box<dyn Any + Send>;
     pub(crate) type RefAny = Ref<dyn Any + Send + Sync + 'static>;
-    pub(crate) type Validator =
-        Box<dyn Fn(&Registry) -> bool + Send + Sync + 'static>;
+
+    // Alias types used in [`DependencyValidator`].
+    pub(crate) type Visitor =
+        fn(&DependencyValidator) -> petgraph::graph::NodeIndex;
 
     // `RwLock` types.
     pub(crate) type NonAsyncRwLock<T> = parking_lot::RwLock<T>;

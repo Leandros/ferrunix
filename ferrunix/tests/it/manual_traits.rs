@@ -64,7 +64,7 @@ fn registry_dyn_traits() {
     registry.transient::<Box<dyn TransactionLog>>(|| {
         Box::new(RealTransactionLog::default())
     });
-    assert!(registry.validate_all());
+    registry.validate_all().unwrap();
 
     registry
         .with_deps::<Box<dyn BillingService>, (
@@ -78,7 +78,7 @@ fn registry_dyn_traits() {
             })
         });
 
-    assert!(registry.validate_all());
+    registry.validate_all().unwrap();
 
     let billing_service =
         registry.get_transient::<Box<dyn BillingService>>().unwrap();
