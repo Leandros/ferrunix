@@ -4,6 +4,7 @@ members = [
     "ferrunix",
     "ferrunix-*",
     "examples/*",
+    "doc-tests",
     "xtask",
 ]
 # Only check / build main crates by default (check all with `--workspace`)

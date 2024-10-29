@@ -31,11 +31,7 @@ ferrunix-macros = { path = "../ferrunix-macros", optional = true, version = "=0.
 thiserror = "1"
 tokio = { version = "=1.24.2", features = ["full"] }
 async-trait = "0.1"
-skeptic = { git = "https://github.com/Leandros/rust-skeptic.git", rev = "45d69d27c3ee1f0cf66072053bb6f88c1be0e07b" }
 paste = "1.0"
-
-[build-dependencies]
-skeptic = { git = "https://github.com/Leandros/rust-skeptic.git", rev = "45d69d27c3ee1f0cf66072053bb6f88c1be0e07b" }
 
 # Docs about this available here <https://docs.rs/about/metadata>
 [package.metadata."docs.rs"]
