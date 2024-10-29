@@ -2,6 +2,7 @@
 
 mod common;
 mod cycle_test;
+mod stress;
 mod validate_traits;
 
 #[cfg(all(feature = "derive", feature = "tokio"))]

@@ -118,7 +118,7 @@ impl DependencyValidator {
     where
         T: Registerable,
     {
-        let visitor: Visitor = |this| {
+        let visitor = Visitor(|this, _visitors| {
             if let Some(index) = this.visited.read().get(&TypeId::of::<T>()) {
                 return *index;
             }
@@ -134,7 +134,7 @@ impl DependencyValidator {
             }
 
             index
-        };
+        });
 
         // TODO: Make this lock free!
         {
@@ -160,7 +160,7 @@ impl DependencyValidator {
     >(
         &self,
     ) {
-        let visitor: Visitor = |this| {
+        let visitor = Visitor(|this, visitors| {
             // We already visited this type.
             if let Some(index) = this.visited.read().get(&TypeId::of::<T>()) {
                 return *index;
@@ -188,8 +188,8 @@ impl DependencyValidator {
                 }
 
                 // Never seen the type before, visit it.
-                if let Some(visitor) = this.visitor.read().get(type_id) {
-                    let index = (visitor)(this);
+                if let Some(visitor) = visitors.get(type_id) {
+                    let index = (visitor.0)(this, visitors);
                     this.graph.write().add_edge(current, index, ());
                     continue;
                 }
@@ -220,7 +220,7 @@ impl DependencyValidator {
             }
 
             current
-        };
+        });
 
         // TODO: Make this lock free!
         {
@@ -246,7 +246,6 @@ impl DependencyValidator {
     pub(crate) fn validate_all(&self) -> Result<(), ValidationError> {
         // This **must** be a separate `if`, otherwise the lock is held also in the `else`.
         if let Some(cache) = &*self.validation_cache.read() {
-            eprintln!("use cache",);
             // Validation is cached.
             {
                 let missing = self.missing.read();
@@ -267,18 +266,18 @@ impl DependencyValidator {
         }
 
         // Validation is **not** cached.
-        eprintln!("calculate validation",);
 
         if self
             .visitor_visited
             .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
             .is_ok()
         {
-            eprintln!("VISIT!");
             // Make sure we have all types registered.
             let visitor = self.visitor.read();
             for (_type_id, cb) in visitor.iter() {
-                (cb)(self);
+                // To avoid a dead lock due to other visitors needing to be called, we pass in the
+                // visitors hashmap.
+                (cb.0)(self, &visitor);
             }
         }
 
@@ -304,7 +303,6 @@ impl DependencyValidator {
         // Cache the result.
         {
             let mut cache = self.validation_cache.write();
-            eprintln!("write to cache");
             *cache = Some(result);
         }
 

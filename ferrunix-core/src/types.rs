@@ -14,7 +14,7 @@ mod private {
 /// Types that are enabled when the `multithread` feature is set.
 #[cfg(all(feature = "multithread", not(feature = "tokio")))]
 mod sync {
-    use std::any::Any;
+    use std::any::{Any, TypeId};
 
     use crate::cycle_detection::DependencyValidator;
     use crate::object_builder::{SingletonGetter, TransientBuilder};
@@ -46,8 +46,12 @@ mod sync {
         Box<dyn SingletonGetter + Send + Sync + 'static>;
 
     // Alias types used in [`DependencyValidator`].
-    pub(crate) type Visitor =
-        fn(&DependencyValidator) -> petgraph::graph::NodeIndex;
+    pub(crate) struct Visitor(
+        pub(crate)  fn(
+            &DependencyValidator,
+            &HashMap<TypeId, Visitor>,
+        ) -> petgraph::graph::NodeIndex,
+    );
 
     /// A generic constructor for singletons.
     ///
@@ -125,7 +129,7 @@ mod sync {
 /// Types that are enabled when the `multithread` feature is **NOT** set.
 #[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
 mod unsync {
-    use std::any::Any;
+    use std::any::{Any, TypeId};
 
     use crate::cycle_detection::DependencyValidator;
     use crate::object_builder::{SingletonGetter, TransientBuilder};
@@ -175,8 +179,12 @@ mod unsync {
     pub(crate) type BoxedSingletonGetter = Box<dyn SingletonGetter>;
 
     // Alias types used in [`DependencyValidator`].
-    pub(crate) type Visitor =
-        fn(&DependencyValidator) -> petgraph::graph::NodeIndex;
+    pub(crate) struct Visitor(
+        pub(crate)  fn(
+            &DependencyValidator,
+            &HashMap<TypeId, Visitor>,
+        ) -> petgraph::graph::NodeIndex,
+    );
 
     /// A generic constructor for singletons.
     ///
@@ -248,7 +256,7 @@ mod unsync {
 
 #[cfg(feature = "tokio")]
 mod tokio_ext {
-    use std::any::Any;
+    use std::any::{Any, TypeId};
 
     use crate::cycle_detection::DependencyValidator;
 
@@ -257,8 +265,12 @@ mod tokio_ext {
     pub(crate) type RefAny = Ref<dyn Any + Send + Sync + 'static>;
 
     // Alias types used in [`DependencyValidator`].
-    pub(crate) type Visitor =
-        fn(&DependencyValidator) -> petgraph::graph::NodeIndex;
+    pub(crate) struct Visitor(
+        pub(crate)  fn(
+            &DependencyValidator,
+            &HashMap<TypeId, Visitor>,
+        ) -> petgraph::graph::NodeIndex,
+    );
 
     // `RwLock` types.
     pub(crate) type NonAsyncRwLock<T> = parking_lot::RwLock<T>;
