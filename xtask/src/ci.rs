@@ -27,7 +27,9 @@ pub(super) struct CiArgs {
 }
 
 /// Run all tests, similar to the GitHub Actions in `ci.yml`.
+#[allow(clippy::too_many_lines)]
 pub(super) fn run(args: &CiArgs) -> Result<()> {
+    let mut had_errors = false;
     let sh = Shell::new()?;
     // sh.set_var("RUSTFLAGS", "-Dwarnings");
     // sh.set_var("CARGO_INCREMENTAL", "0");
@@ -64,15 +66,20 @@ pub(super) fn run(args: &CiArgs) -> Result<()> {
         ("ferrunix", "derive"),
         ("ferrunix", "multithread"),
         ("ferrunix", "tokio"),
-        ("ferrunix", "derive,multithread"),
-        ("ferrunix", "derive,tokio"),
+        ("ferrunix", "tracing"),
+        ("ferrunix", "multithread,tracing"),
+        ("ferrunix", "tokio,tracing"),
+        ("ferrunix", "multithread,tokio,tracing"),
+        ("ferrunix", "derive,multithread,tokio,tracing"),
         ("ferrunix-core", ""),
         ("ferrunix-core", "multithread"),
         ("ferrunix-core", "tokio"),
+        ("ferrunix-core", "tracing"),
         ("ferrunix-macros", ""),
         ("ferrunix-macros", "multithread"),
         ("ferrunix-macros", "development"),
         ("ferrunix-macros", "development,multithread"),
+        ("doc-tests", ""),
     ];
 
     let testrunner: &[&str] = match args.testrunner {
@@ -81,41 +88,51 @@ pub(super) fn run(args: &CiArgs) -> Result<()> {
     };
     for (proj, features) in test_matrix {
         if features.is_empty() {
-            // Ignore errors!
-            #[allow(clippy::let_underscore_must_use)]
-            let _ = cmd!(
+            let res = cmd!(
                 sh,
                 "cargo {testrunner...} -p {proj} --no-default-features"
             )
             .run();
+            if res.is_err() {
+                had_errors = true;
+            }
             continue;
         }
 
-        // Ignore errors!
-        #[allow(clippy::let_underscore_must_use)]
-        let _ = cmd!(
+        let res = cmd!(
             sh,
             "cargo {testrunner...} -p {proj} --no-default-features -F {features}"
         )
         .run();
+        if res.is_err() {
+            had_errors = true;
+        }
     }
-
-    // cmd!(sh, "cargo test --all").run()?;
 
     if !args.no_extended && cmd!(sh, "cargo clippy --version").output().is_ok()
     {
-        #[allow(clippy::let_underscore_must_use)]
-        let _ = cmd!(sh, "cargo clippy --tests --workspace").run();
+        let res = cmd!(sh, "cargo clippy --tests --workspace").run();
+        if res.is_err() {
+            had_errors = true;
+        }
     }
 
     if !args.no_extended && has_cargo_outdated {
-        #[allow(clippy::let_underscore_must_use)]
-        let _ = cmd!(sh, "cargo outdated --workspace --exit-code 1").run();
+        let res = cmd!(sh, "cargo outdated --workspace --exit-code 1").run();
+        if res.is_err() {
+            had_errors = true;
+        }
     }
 
     if !args.no_extended && has_cargo_semver {
-        #[allow(clippy::let_underscore_must_use)]
-        let _ = cmd!(sh, "cargo semver-checks").run();
+        let res = cmd!(sh, "cargo semver-checks").run();
+        if res.is_err() {
+            had_errors = true;
+        }
+    }
+
+    if had_errors {
+        return Err(anyhow::anyhow!("not all checks passed"));
     }
 
     Ok(())
