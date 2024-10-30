@@ -80,24 +80,10 @@ pub(crate) struct DependencyValidator {
     /// The visitor callbacks. Those are necessary because we only want to register each type once
     /// we have collected them all.
     visitor: NonAsyncRwLock<HashMap<TypeId, Visitor>>,
-    /// Dependency graph.
-    graph:
-        NonAsyncRwLock<petgraph::Graph<&'static str, (), petgraph::Directed>>,
-    /// Cache of all previously visited types. To avoid infinite recursion and as an optimization.
-    visited: NonAsyncRwLock<HashMap<TypeId, petgraph::graph::NodeIndex>>,
-    /// All missing dependencies.
-    missing: NonAsyncRwLock<HashMap<TypeId, MissingDependencies>>,
     /// Whether we have already visited all visitors.
     visitor_visited: AtomicBool,
-    /// Cached validation result.
-    validation_cache: NonAsyncRwLock<
-        Option<
-            Result<
-                Vec<petgraph::graph::NodeIndex>,
-                petgraph::algo::Cycle<petgraph::graph::NodeIndex>,
-            >,
-        >,
-    >,
+    /// Context for visitors.
+    context: NonAsyncRwLock<VisitorContext>,
 }
 
 impl DependencyValidator {
@@ -105,11 +91,8 @@ impl DependencyValidator {
     pub(crate) fn new() -> Self {
         Self {
             visitor: NonAsyncRwLock::new(HashMap::new()),
-            graph: NonAsyncRwLock::new(petgraph::Graph::new()),
-            visited: NonAsyncRwLock::new(HashMap::new()),
-            missing: NonAsyncRwLock::new(HashMap::new()),
             visitor_visited: AtomicBool::new(false),
-            validation_cache: NonAsyncRwLock::new(None),
+            context: NonAsyncRwLock::new(VisitorContext::new()),
         }
     }
 
@@ -118,28 +101,18 @@ impl DependencyValidator {
     where
         T: Registerable,
     {
-        let visitor = Visitor(|this, _visitors| {
-            if let Some(index) = this.visited.read().get(&TypeId::of::<T>()) {
+        let visitor = Visitor(|_this, _visitors, context| {
+            if let Some(index) = context.visited.get(&TypeId::of::<T>()) {
                 return *index;
             }
 
-            let index = {
-                let mut graph = this.graph.write();
-                graph.add_node(std::any::type_name::<T>())
-            };
+            let index = context.graph.add_node(std::any::type_name::<T>());
 
-            {
-                let mut visited = this.visited.write();
-                visited.insert(TypeId::of::<T>(), index);
-            }
+            context.visited.insert(TypeId::of::<T>(), index);
 
             index
         });
 
-        // TODO: Make this lock free!
-        {
-            let _ = self.validation_cache.write().take();
-        }
         self.visitor_visited.store(false, Ordering::Release);
         self.visitor.write().insert(TypeId::of::<T>(), visitor);
     }
@@ -160,21 +133,17 @@ impl DependencyValidator {
     >(
         &self,
     ) {
-        let visitor = Visitor(|this, visitors| {
+        let visitor = Visitor(|this, visitors, context| {
             // We already visited this type.
-            if let Some(index) = this.visited.read().get(&TypeId::of::<T>()) {
+            if let Some(index) = context.visited.get(&TypeId::of::<T>()) {
                 return *index;
             }
 
-            let current = {
-                let mut graph = this.graph.write();
-                graph.add_node(std::any::type_name::<T>())
-            };
+            let current = context.graph.add_node(std::any::type_name::<T>());
 
             // We visited this type. This must be added before we visit dependencies.
             {
-                let mut visited = this.visited.write();
-                visited.insert(TypeId::of::<T>(), current);
+                context.visited.insert(TypeId::of::<T>(), current);
             }
 
             let type_ids =
@@ -182,24 +151,25 @@ impl DependencyValidator {
 
             for (type_id, type_name) in &type_ids {
                 // We have been to the dependency type before, we don't need to do it again.
-                if let Some(index) = this.visited.read().get(type_id) {
-                    this.graph.write().add_edge(current, *index, ());
+                if let Some(index) = context.visited.get(type_id) {
+                    context.graph.add_edge(current, *index, ());
                     continue;
                 }
 
                 // Never seen the type before, visit it.
                 if let Some(visitor) = visitors.get(type_id) {
-                    let index = (visitor.0)(this, visitors);
-                    this.graph.write().add_edge(current, index, ());
+                    let index = (visitor.0)(this, visitors, context);
+                    context.graph.add_edge(current, index, ());
                     continue;
                 }
 
                 {
-                    let mut missing = this.missing.write();
-                    if let Some(ty) = missing.get_mut(&TypeId::of::<T>()) {
+                    if let Some(ty) =
+                        context.missing.get_mut(&TypeId::of::<T>())
+                    {
                         ty.deps.push((*type_id, type_name));
                     } else {
-                        missing.insert(
+                        context.missing.insert(
                             TypeId::of::<T>(),
                             MissingDependencies {
                                 ty: (
@@ -222,10 +192,6 @@ impl DependencyValidator {
             current
         });
 
-        // TODO: Make this lock free!
-        {
-            let _ = self.validation_cache.write().take();
-        }
         self.visitor_visited.store(false, Ordering::Release);
         self.visitor.write().insert(TypeId::of::<T>(), visitor);
     }
@@ -245,66 +211,62 @@ impl DependencyValidator {
     /// are fulfillable and there are no cycles in the graph.
     pub(crate) fn validate_all(&self) -> Result<(), ValidationError> {
         // This **must** be a separate `if`, otherwise the lock is held also in the `else`.
-        if let Some(cache) = &*self.validation_cache.read() {
-            // Validation is cached.
-            {
-                let missing = self.missing.read();
-                if missing.len() > 0 {
-                    let mut vec = Vec::with_capacity(missing.len());
-                    for (_, ty) in missing.iter() {
-                        vec.push(ty.clone());
-                    }
-                    return Err(ValidationError::Missing(vec));
-                }
-            }
+        // if let Some(cache) = &*self.validation_cache.read() {
+        //     // Validation is cached.
+        //     {
+        //         let missing = self.missing_cache.read();
+        //         if missing.len() > 0 {
+        //             let mut vec = Vec::with_capacity(missing.len());
+        //             for (_, ty) in missing.iter() {
+        //                 vec.push(ty.clone());
+        //             }
+        //             return Err(ValidationError::Missing(vec));
+        //         }
+        //     }
 
-            // EARLY RETURN ABSOLUTELY REQUIRED!
-            return match cache {
-                Ok(_) => Ok(()),
-                Err(_err) => Err(ValidationError::Cycle),
-            };
-        }
+        //     // EARLY RETURN ABSOLUTELY REQUIRED!
+        //     return match cache {
+        //         Ok(_) => Ok(()),
+        //         Err(_err) => Err(ValidationError::Cycle),
+        //     };
+        // }
 
         // Validation is **not** cached.
 
-        if self
-            .visitor_visited
-            .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
-            .is_ok()
+        // if self
+        //     .visitor_visited
+        //     .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
+        //     .is_ok()
+        // {
+        let mut context = self.context.write();
+
+        // Make sure we have all types registered.
         {
-            // Make sure we have all types registered.
             let visitor = self.visitor.read();
             for (_type_id, cb) in visitor.iter() {
                 // To avoid a dead lock due to other visitors needing to be called, we pass in the
                 // visitors hashmap.
-                (cb.0)(self, &visitor);
+                (cb.0)(self, &visitor, &mut context);
             }
         }
 
-        {
-            let missing = self.missing.read();
-            if missing.len() > 0 {
-                let mut vec = Vec::with_capacity(missing.len());
-                for (_, ty) in missing.iter() {
-                    vec.push(ty.clone());
-                }
-                return Err(ValidationError::Missing(vec));
+        if !context.missing.is_empty() {
+            let mut vec = Vec::with_capacity(context.missing.len());
+            for (_, ty) in &context.missing {
+                vec.push(ty.clone());
             }
+            return Err(ValidationError::Missing(vec));
         }
 
-        let graph = self.graph.read();
-        let mut space = petgraph::algo::DfsSpace::new(&*graph);
-        let result = petgraph::algo::toposort(&*graph, Some(&mut space));
-        let ret = match result {
-            Ok(_) => Ok(()),
-            Err(_) => Err(ValidationError::Cycle),
+        let mut space = petgraph::algo::DfsSpace::new(&context.graph);
+        context.validation_cache =
+            Some(petgraph::algo::toposort(&context.graph, Some(&mut space)));
+
+        let ret = match context.validation_cache {
+            Some(Ok(_)) => Ok(()),
+            Some(Err(_)) => Err(ValidationError::Cycle),
+            _ => unreachable!("it's written above"),
         };
-
-        // Cache the result.
-        {
-            let mut cache = self.validation_cache.write();
-            *cache = Some(result);
-        }
 
         ret
     }
@@ -322,12 +284,49 @@ impl DependencyValidator {
     pub(crate) fn dotgraph(&self) -> Result<String, ValidationError> {
         self.validate_all()?;
 
-        let graph = self.graph.read();
+        let context = self.context.read();
         let dot = petgraph::dot::Dot::with_config(
-            &*graph,
+            &context.graph,
             &[petgraph::dot::Config::EdgeNoLabel],
         );
 
         Ok(format!("{dot:?}"))
+    }
+}
+
+/// Context that's passed into every `visitor`.
+pub(crate) struct VisitorContext {
+    /// Dependency graph.
+    graph: petgraph::Graph<&'static str, (), petgraph::Directed>,
+    /// All missing dependencies.
+    missing: HashMap<TypeId, MissingDependencies>,
+    /// Cache of all previously visited types. To avoid infinite recursion and as an optimization.
+    visited: HashMap<TypeId, petgraph::graph::NodeIndex>,
+    /// Cached validation result.
+    validation_cache: Option<
+        Result<
+            Vec<petgraph::graph::NodeIndex>,
+            petgraph::algo::Cycle<petgraph::graph::NodeIndex>,
+        >,
+    >,
+}
+
+impl VisitorContext {
+    /// Create a new default context.
+    pub fn new() -> Self {
+        Self {
+            graph: petgraph::Graph::new(),
+            missing: HashMap::new(),
+            visited: HashMap::new(),
+            validation_cache: None,
+        }
+    }
+
+    /// Reset the context.
+    pub fn reset(&mut self) {
+        self.graph.clear();
+        self.missing.clear();
+        self.visited.clear();
+        self.validation_cache = None;
     }
 }

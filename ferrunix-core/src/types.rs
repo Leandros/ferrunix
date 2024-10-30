@@ -11,12 +11,24 @@ mod private {
     pub struct SealToken;
 }
 
+use std::any::TypeId;
+
+use crate::cycle_detection::{DependencyValidator, VisitorContext};
+
+// Alias types used in [`DependencyValidator`].
+pub(crate) struct Visitor(
+    pub(crate)  fn(
+        &DependencyValidator,
+        &HashMap<TypeId, Visitor>,
+        &mut VisitorContext,
+    ) -> petgraph::graph::NodeIndex,
+);
+
 /// Types that are enabled when the `multithread` feature is set.
 #[cfg(all(feature = "multithread", not(feature = "tokio")))]
 mod sync {
-    use std::any::{Any, TypeId};
+    use std::any::Any;
 
-    use crate::cycle_detection::DependencyValidator;
     use crate::object_builder::{SingletonGetter, TransientBuilder};
 
     pub(crate) type OnceCell<T> = once_cell::sync::OnceCell<T>;
@@ -44,14 +56,6 @@ mod sync {
         Box<dyn TransientBuilder + Send + Sync + 'static>;
     pub(crate) type BoxedSingletonGetter =
         Box<dyn SingletonGetter + Send + Sync + 'static>;
-
-    // Alias types used in [`DependencyValidator`].
-    pub(crate) struct Visitor(
-        pub(crate)  fn(
-            &DependencyValidator,
-            &HashMap<TypeId, Visitor>,
-        ) -> petgraph::graph::NodeIndex,
-    );
 
     /// A generic constructor for singletons.
     ///
@@ -129,9 +133,8 @@ mod sync {
 /// Types that are enabled when the `multithread` feature is **NOT** set.
 #[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
 mod unsync {
-    use std::any::{Any, TypeId};
+    use std::any::Any;
 
-    use crate::cycle_detection::DependencyValidator;
     use crate::object_builder::{SingletonGetter, TransientBuilder};
 
     pub(crate) type OnceCell<T> = once_cell::unsync::OnceCell<T>;
@@ -177,14 +180,6 @@ mod unsync {
     pub(crate) type SingletonCell = OnceCell<RefAny>;
     pub(crate) type BoxedTransientBuilder = Box<dyn TransientBuilder>;
     pub(crate) type BoxedSingletonGetter = Box<dyn SingletonGetter>;
-
-    // Alias types used in [`DependencyValidator`].
-    pub(crate) struct Visitor(
-        pub(crate)  fn(
-            &DependencyValidator,
-            &HashMap<TypeId, Visitor>,
-        ) -> petgraph::graph::NodeIndex,
-    );
 
     /// A generic constructor for singletons.
     ///
@@ -256,21 +251,11 @@ mod unsync {
 
 #[cfg(feature = "tokio")]
 mod tokio_ext {
-    use std::any::{Any, TypeId};
-
-    use crate::cycle_detection::DependencyValidator;
+    use std::any::Any;
 
     // Alias types used in [`Registry`].
     pub(crate) type BoxedAny = Box<dyn Any + Send>;
     pub(crate) type RefAny = Ref<dyn Any + Send + Sync + 'static>;
-
-    // Alias types used in [`DependencyValidator`].
-    pub(crate) struct Visitor(
-        pub(crate)  fn(
-            &DependencyValidator,
-            &HashMap<TypeId, Visitor>,
-        ) -> petgraph::graph::NodeIndex,
-    );
 
     // `RwLock` types.
     pub(crate) type NonAsyncRwLock<T> = parking_lot::RwLock<T>;
