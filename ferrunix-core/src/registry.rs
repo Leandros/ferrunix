@@ -4,7 +4,7 @@
 use std::any::TypeId;
 use std::marker::PhantomData;
 
-use crate::cycle_detection::{DependencyValidator, ValidationError};
+use crate::cycle_detection::{DependencyValidator, FullValidationError, ValidationError};
 use crate::dependency_builder::DepBuilder;
 use crate::object_builder::Object;
 use crate::types::{
@@ -352,10 +352,25 @@ impl Registry {
     /// Nontheless, it's recommended to call this before using the [`Registry`].
     ///
     /// # Errors
-    /// Returns a [`ValidationError`] when the dependency graph is missing dependencies or has cycles.
+    /// Returns a [`ValidationError`] when the dependency graph is missing dependencies or
+    /// has cycles.
     #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn validate_all(&self) -> Result<(), ValidationError> {
         self.validator.validate_all()
+    }
+
+    /// Check whether all registered types have the required dependencies and returns a
+    /// detailed error about what's missing or where a cycle was detected.
+    ///
+    /// This is a potentially expensive call since it needs to go through the
+    /// entire dependency tree for each registered type.
+    ///
+    /// # Errors
+    /// Returns a [`ValidationError`] when the dependency graph is missing dependencies or
+    /// has cycles.
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
+    pub fn validate_all_full(&self) -> Result<(), FullValidationError> {
+        self.validator.validate_all_full()
     }
 
     /// Check whether the type `T` is registered in this registry, and all

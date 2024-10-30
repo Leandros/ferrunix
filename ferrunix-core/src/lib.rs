@@ -18,7 +18,6 @@ pub mod cycle_detection;
 pub mod dependencies;
 pub mod dependency_builder;
 pub mod error;
-pub mod lazy_locked_cache;
 pub mod object_builder;
 pub mod registration;
 pub mod registry;

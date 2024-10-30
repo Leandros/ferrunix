@@ -1,7 +1,6 @@
 //! Implementation of a cycle detection algorithm for our dependency resolution algorithm.
 
 use std::any::TypeId;
-use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::dependency_builder::{self, DepBuilder};
 use crate::types::{
@@ -15,16 +14,45 @@ pub enum ValidationError {
     /// A cycle between dependencies has been detected.
     Cycle,
     /// Dependencies are missing.
-    Missing(Vec<MissingDependencies>),
+    Missing,
 }
 
 impl std::fmt::Display for ValidationError {
     #[allow(clippy::use_debug)]
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Cycle => write!(fmt, "cycle detected:"),
+            Self::Cycle => write!(fmt, "cycle detected!"),
+            Self::Missing => write!(fmt, "dependencies missing!"),
+        }
+    }
+}
+
+impl std::error::Error for ValidationError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        None
+    }
+}
+
+/// Detailed validation errors.
+#[derive(Debug, Clone, PartialEq, Hash)]
+#[non_exhaustive]
+pub enum FullValidationError {
+    /// A cycle between dependencies has been detected.
+    Cycle(Option<String>),
+    /// Dependencies are missing.
+    Missing(Vec<MissingDependencies>),
+}
+
+impl std::fmt::Display for FullValidationError {
+    #[allow(clippy::use_debug)]
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Cycle(ref node) => match node {
+                Some(node) => write!(fmt, "cycle detected at {node}"),
+                None => write!(fmt, "cycle detected!"),
+            },
             Self::Missing(ref all_missing) => {
-                writeln!(fmt, "dependencies missing!")?;
+                writeln!(fmt, "dependencies missing:")?;
 
                 for missing in all_missing {
                     writeln!(
@@ -44,7 +72,7 @@ impl std::fmt::Display for ValidationError {
     }
 }
 
-impl std::error::Error for ValidationError {
+impl std::error::Error for FullValidationError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         None
     }
@@ -80,8 +108,6 @@ pub(crate) struct DependencyValidator {
     /// The visitor callbacks. Those are necessary because we only want to register each type once
     /// we have collected them all.
     visitor: NonAsyncRwLock<HashMap<TypeId, Visitor>>,
-    /// Whether we have already visited all visitors.
-    visitor_visited: AtomicBool,
     /// Context for visitors.
     context: NonAsyncRwLock<VisitorContext>,
 }
@@ -91,7 +117,6 @@ impl DependencyValidator {
     pub(crate) fn new() -> Self {
         Self {
             visitor: NonAsyncRwLock::new(HashMap::new()),
-            visitor_visited: AtomicBool::new(false),
             context: NonAsyncRwLock::new(VisitorContext::new()),
         }
     }
@@ -113,8 +138,16 @@ impl DependencyValidator {
             index
         });
 
-        self.visitor_visited.store(false, Ordering::Release);
-        self.visitor.write().insert(TypeId::of::<T>(), visitor);
+        {
+            let mut visitors = self.visitor.write();
+            visitors.insert(TypeId::of::<T>(), visitor);
+            drop(visitors);
+        }
+        {
+            let mut context = self.context.write();
+            context.reset();
+            drop(context);
+        }
     }
 
     /// Register a new singleton, without any dependencies.
@@ -192,8 +225,16 @@ impl DependencyValidator {
             current
         });
 
-        self.visitor_visited.store(false, Ordering::Release);
-        self.visitor.write().insert(TypeId::of::<T>(), visitor);
+        {
+            let mut visitors = self.visitor.write();
+            visitors.insert(TypeId::of::<T>(), visitor);
+            drop(visitors);
+        }
+        {
+            let mut context = self.context.write();
+            context.reset();
+            drop(context);
+        }
     }
 
     /// Register a new singleton, with dependencies specified via `Deps`.
@@ -210,65 +251,104 @@ impl DependencyValidator {
     /// Walk the dependency graph and validate that all types can be constructed, all dependencies
     /// are fulfillable and there are no cycles in the graph.
     pub(crate) fn validate_all(&self) -> Result<(), ValidationError> {
-        // This **must** be a separate `if`, otherwise the lock is held also in the `else`.
-        // if let Some(cache) = &*self.validation_cache.read() {
-        //     // Validation is cached.
-        //     {
-        //         let missing = self.missing_cache.read();
-        //         if missing.len() > 0 {
-        //             let mut vec = Vec::with_capacity(missing.len());
-        //             for (_, ty) in missing.iter() {
-        //                 vec.push(ty.clone());
-        //             }
-        //             return Err(ValidationError::Missing(vec));
-        //         }
-        //     }
+        let read_context = self.context.read();
+        if Self::validate_context(&read_context)? {
+            // Validation result is still cached.
+            return Ok(());
+        }
 
-        //     // EARLY RETURN ABSOLUTELY REQUIRED!
-        //     return match cache {
-        //         Ok(_) => Ok(()),
-        //         Err(_err) => Err(ValidationError::Cycle),
-        //     };
-        // }
+        // No validation result is cached, drop the read lock and acquire an exclusive lock to
+        // update the cached validation result.
+        drop(read_context);
+        let mut write_context = self.context.write();
+        if Self::validate_context(&write_context)? {
+            // Context was updated by another thread while we waited for the exclusive write lock
+            // to be acquired.
+            return Ok(());
+        }
 
-        // Validation is **not** cached.
+        // Validation did not run, we need to run it.
+        self.calculate_validation(&mut write_context);
 
-        // if self
-        //     .visitor_visited
-        //     .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
-        //     .is_ok()
-        // {
-        let mut context = self.context.write();
+        // Throws an error if our dependency graph is invalid.
+        Self::validate_context(&write_context)?;
 
-        // Make sure we have all types registered.
+        Ok(())
+    }
+
+    /// Walk the dependency graph and validate that all types can be constructed, all dependencies
+    /// are fulfillable and there are no cycles in the graph.
+    pub(crate) fn validate_all_full(&self) -> Result<(), FullValidationError> {
+        let mut context = VisitorContext::new();
+        self.calculate_validation(&mut context);
+
+        // Evaluate whether we want to make this available via an option? It takes ages to
+        // calculate!
+        // let tarjan = petgraph::algo::tarjan_scc(&context.graph);
+        // dbg!(&tarjan);
+
+        if !context.missing.is_empty() {
+            let mut vec = Vec::with_capacity(context.missing.len());
+            context.missing.iter().for_each(|(_, ty)| {
+                vec.push(ty.clone());
+            });
+            return Err(FullValidationError::Missing(vec));
+        }
+
+        if let Some(cached) = &context.validation_cache {
+            return match cached {
+                Ok(_) => Ok(()),
+                Err(err) => {
+                    let index = err.node_id();
+                    let node_name = context.graph.node_weight(index);
+                    return Err(FullValidationError::Cycle(
+                        node_name.map(|el| (*el).to_owned()),
+                    ));
+                }
+            };
+        }
+
+        unreachable!("this is a bug")
+    }
+
+    /// Inspect `context`, and return a [`ValidationError`] if there are errors in the dependency
+    /// graph.
+    ///
+    /// Returns `Ok(true)` if the validation result is cached.
+    /// Returns `Ok(false)` if the validation result is outdated and needs to be recalculated.
+    fn validate_context(
+        context: &VisitorContext,
+    ) -> Result<bool, ValidationError> {
+        if !context.missing.is_empty() {
+            return Err(ValidationError::Missing);
+        }
+
+        if let Some(cached) = &context.validation_cache {
+            return match cached {
+                Ok(_) => Ok(true),
+                Err(_) => Err(ValidationError::Cycle),
+            };
+        }
+
+        Ok(false)
+    }
+
+    /// Visit all visitors in `self.visitor`, and create the new dependency graph.
+    fn calculate_validation(&self, context: &mut VisitorContext) {
         {
+            // Keep the lock as short as possible.
             let visitor = self.visitor.read();
             for (_type_id, cb) in visitor.iter() {
                 // To avoid a dead lock due to other visitors needing to be called, we pass in the
                 // visitors hashmap.
-                (cb.0)(self, &visitor, &mut context);
+                (cb.0)(self, &visitor, context);
             }
         }
 
-        if !context.missing.is_empty() {
-            let mut vec = Vec::with_capacity(context.missing.len());
-            for (_, ty) in &context.missing {
-                vec.push(ty.clone());
-            }
-            return Err(ValidationError::Missing(vec));
-        }
-
+        // We only calculate whether we have
         let mut space = petgraph::algo::DfsSpace::new(&context.graph);
         context.validation_cache =
             Some(petgraph::algo::toposort(&context.graph, Some(&mut space)));
-
-        let ret = match context.validation_cache {
-            Some(Ok(_)) => Ok(()),
-            Some(Err(_)) => Err(ValidationError::Cycle),
-            _ => unreachable!("it's written above"),
-        };
-
-        ret
     }
 
     /// Validate whether the type `T` is constructible.

@@ -25,7 +25,7 @@ macro_rules! make_type {
             #[derive(Debug, Default)]
             pub(super) struct $base {
                 $(
-                    pub(super) [<_ $deps>]: $deps,
+                    pub(super) [<_ $deps>]: Box<$deps>,
                 )*
             }
 
@@ -39,7 +39,7 @@ macro_rules! make_type {
                         .transient(|($(
                             [<_ $deps>],
                         )*)| $base {$(
-                            [<_ $deps>]: [<_ $deps>].get(),
+                            [<_ $deps>]: Box::new([<_ $deps>].get()),
                         )*});
                 }
             }
@@ -56,9 +56,14 @@ macro_rules! make_many_types {
             make_type!(TypeZero, Dep0);
             make_type!(Dep0, Dep1);
             make_type!(Dep1, Dep2);
-            make_type!(Dep2, Dep3);
+            make_type!(Dep2, Dep3, TypeNoDeps0, TypeNoDeps1);
             make_type!(Dep3, Dep4);
-            make_type!(Dep4);
+            make_type!(Dep4, Dep5, Config);
+            make_type!(Dep5, Dep6, Config);
+            make_type!(Dep6, Dep7);
+            make_type!(Dep7, Dep8);
+            make_type!(Dep8, Dep9);
+            make_type!(Dep9);
 
             make_type!(TypeNoDeps0);
             make_type!(TypeNoDeps1);
@@ -115,6 +120,11 @@ macro_rules! register_all_types {
         $modname::Dep2::register(&$reg);
         $modname::Dep3::register(&$reg);
         $modname::Dep4::register(&$reg);
+        $modname::Dep5::register(&$reg);
+        $modname::Dep6::register(&$reg);
+        $modname::Dep7::register(&$reg);
+        $modname::Dep8::register(&$reg);
+        $modname::Dep9::register(&$reg);
 
         $modname::TypeNoDeps0::register(&$reg);
         $modname::TypeNoDeps1::register(&$reg);
@@ -143,7 +153,10 @@ macro_rules! register_all_types {
         $modname::TypeSingleDep9::register(&$reg);
         $modname::TypeSingleDep10::register(&$reg);
 
-        $reg.validate_all().unwrap();
+        // Error ignored, because it might fail when some other thread is in
+        // between adding types.
+        #[allow(clippy::let_underscore_must_use)]
+        let _ = $reg.validate_all();
     };
 }
 
@@ -154,6 +167,9 @@ make_many_types!(manytypes3);
 make_many_types!(manytypes4);
 make_many_types!(manytypes5);
 make_many_types!(manytypes6);
+make_many_types!(manytypes7);
+make_many_types!(manytypes8);
+make_many_types!(manytypes9);
 
 #[test]
 fn stress_registration() {
@@ -163,42 +179,30 @@ fn stress_registration() {
         let registry = Arc::clone(&registry);
         std::thread::spawn(move || {
             register_all_types!(manytypes0, registry);
+            register_all_types!(manytypes1, registry);
+            register_all_types!(manytypes2, registry);
         })
     };
     let handle1 = {
         let registry = Arc::clone(&registry);
         std::thread::spawn(move || {
-            register_all_types!(manytypes1, registry);
+            register_all_types!(manytypes3, registry);
+            register_all_types!(manytypes4, registry);
+            register_all_types!(manytypes5, registry);
         })
     };
     let handle2 = {
         let registry = Arc::clone(&registry);
         std::thread::spawn(move || {
-            register_all_types!(manytypes2, registry);
+            register_all_types!(manytypes6, registry);
+            register_all_types!(manytypes7, registry);
+            register_all_types!(manytypes8, registry);
         })
     };
     let handle3 = {
         let registry = Arc::clone(&registry);
         std::thread::spawn(move || {
-            register_all_types!(manytypes3, registry);
-        })
-    };
-    let handle4 = {
-        let registry = Arc::clone(&registry);
-        std::thread::spawn(move || {
-            register_all_types!(manytypes4, registry);
-        })
-    };
-    let handle5 = {
-        let registry = Arc::clone(&registry);
-        std::thread::spawn(move || {
-            register_all_types!(manytypes5, registry);
-        })
-    };
-    let handle6 = {
-        let registry = Arc::clone(&registry);
-        std::thread::spawn(move || {
-            register_all_types!(manytypes6, registry);
+            register_all_types!(manytypes9, registry);
         })
     };
 
@@ -206,10 +210,8 @@ fn stress_registration() {
     handle1.join().unwrap();
     handle2.join().unwrap();
     handle3.join().unwrap();
-    handle4.join().unwrap();
-    handle5.join().unwrap();
-    handle6.join().unwrap();
 
+    registry.validate_all_full().unwrap();
     registry.validate_all().unwrap();
     // println!("{}", registry.dotgraph().unwrap());
 }

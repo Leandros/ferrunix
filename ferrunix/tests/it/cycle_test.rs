@@ -74,6 +74,7 @@ fn detect_cycle() {
 
     assert!(registry.validate::<TypeZero>().is_err());
     assert!(registry.validate_all().is_err());
+    assert!(registry.validate_all_full().is_err());
 }
 
 #[test]
@@ -107,6 +108,7 @@ fn detect_missing() {
 
     assert!(registry.validate::<TypeZero>().is_err());
     assert!(registry.validate_all().is_err());
+    assert!(registry.validate_all_full().is_err());
 }
 
 #[test]
@@ -136,4 +138,5 @@ fn all_fine() {
 
     registry.validate::<TypeZero>().unwrap();
     registry.validate_all().unwrap();
+    registry.validate_all_full().unwrap();
 }
