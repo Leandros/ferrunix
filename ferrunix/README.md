@@ -19,7 +19,7 @@
 ferrunix = "0.3"
 ```
 
-*Compiler support: requires rustc 1.64+*
+*Compiler support: requires rustc 1.67.1+*
 
 **Check out the [User Guide](https://leandros.github.io/ferrunix/book).**
 

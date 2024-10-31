@@ -67,7 +67,7 @@ fn singletons_with_deps() {
     registry
         .with_deps::<_, (Transient<u8>, Singleton<i8>)>()
         .singleton(|(i, j)| {
-            let i: u8 = i.get();
+            let i = i.get();
             let j = j.get();
             i32::from(i) + i32::from(*j)
         });
