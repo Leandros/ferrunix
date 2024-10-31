@@ -340,7 +340,7 @@ impl DependencyValidator {
         context: &mut VisitorContext,
     ) {
         {
-            for (_type_id, cb) in visitors.iter() {
+            for cb in visitors.values() {
                 // To avoid a dead lock due to other visitors needing to be called, we pass in the
                 // visitors hashmap.
                 (cb.0)(self, visitors, context);
