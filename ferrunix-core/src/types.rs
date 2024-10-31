@@ -112,7 +112,7 @@ mod sync {
     /// simplifies enabling `multithread` when required.
     pub type Ref<T> = std::sync::Arc<T>;
 
-    /// A marker trait for all types that can be registered with [`Registry::transient`].
+    /// A marker trait for all types that can be registered with `Registry::transient`.
     ///
     /// It's automatically implemented for all types that are valid. Generally,
     /// those are all types with a `'static` lifetime.
@@ -120,7 +120,7 @@ mod sync {
 
     impl<T> Registerable for T where T: 'static {}
 
-    /// A marker trait for all types that can be registered with [`Registry::singleton`].
+    /// A marker trait for all types that can be registered with `Registry::singleton`.
     ///
     /// It's automatically implemented for all types that are valid. Generally,
     /// those are all types with a `'static` lifetime, that are also `Send`
@@ -232,7 +232,7 @@ mod unsync {
     /// simplifies enabling `multithread` when required.
     pub type Ref<T> = std::rc::Rc<T>;
 
-    /// A marker trait for all types that can be registered with [`Registry::transient`].
+    /// A marker trait for all types that can be registered with `Registry::transient`.
     ///
     /// It's automatically implemented for all types that are valid. Generally,
     /// those are all types with a `'static` lifetime.
@@ -240,7 +240,7 @@ mod unsync {
 
     impl<T> Registerable for T where T: 'static {}
 
-    /// A marker trait for all types that can be registered with [`Registry::singleton`].
+    /// A marker trait for all types that can be registered with `Registry::singleton`.
     ///
     /// It's automatically implemented for all types that are valid. Generally,
     /// those are all types with a `'static` lifetime.
@@ -360,7 +360,7 @@ mod tokio_ext {
     /// simplifies enabling `multithread` when required.
     pub type Ref<T> = std::sync::Arc<T>;
 
-    /// A marker trait for all types that can be registered with [`Registry::transient`].
+    /// A marker trait for all types that can be registered with `Registry::transient`.
     ///
     /// It's automatically implemented for all types that are valid. Generally,
     /// those are all types with a `'static` lifetime, that are also `Send`.
@@ -368,7 +368,7 @@ mod tokio_ext {
 
     impl<T> Registerable for T where T: Send + Sync + 'static {}
 
-    /// A marker trait for all types that can be registered with [`Registry::singleton`].
+    /// A marker trait for all types that can be registered with `Registry::singleton`.
     ///
     /// It's automatically implemented for all types that are valid. Generally,
     /// those are all types with a `'static` lifetime, that are also `Send`
