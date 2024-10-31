@@ -139,14 +139,12 @@ impl DependencyValidator {
         });
 
         {
-            let mut visitors = self.visitor.write();
-            visitors.insert(TypeId::of::<T>(), visitor);
-            drop(visitors);
-        }
-        {
             let mut context = self.context.write();
             context.reset();
-            drop(context);
+            {
+                let mut visitors = self.visitor.write();
+                visitors.insert(TypeId::of::<T>(), visitor);
+            }
         }
     }
 
@@ -226,14 +224,12 @@ impl DependencyValidator {
         });
 
         {
-            let mut visitors = self.visitor.write();
-            visitors.insert(TypeId::of::<T>(), visitor);
-            drop(visitors);
-        }
-        {
             let mut context = self.context.write();
             context.reset();
-            drop(context);
+            {
+                let mut visitors = self.visitor.write();
+                visitors.insert(TypeId::of::<T>(), visitor);
+            }
         }
     }
 
