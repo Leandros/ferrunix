@@ -139,11 +139,11 @@ impl DependencyValidator {
         });
 
         {
-            let mut context = self.context.write();
-            context.reset();
+            let mut visitors = self.visitor.write();
+            visitors.insert(TypeId::of::<T>(), visitor);
             {
-                let mut visitors = self.visitor.write();
-                visitors.insert(TypeId::of::<T>(), visitor);
+                let mut context = self.context.write();
+                context.reset();
             }
         }
     }
@@ -224,11 +224,11 @@ impl DependencyValidator {
         });
 
         {
-            let mut context = self.context.write();
-            context.reset();
+            let mut visitors = self.visitor.write();
+            visitors.insert(TypeId::of::<T>(), visitor);
             {
-                let mut visitors = self.visitor.write();
-                visitors.insert(TypeId::of::<T>(), visitor);
+                let mut context = self.context.write();
+                context.reset();
             }
         }
     }
@@ -256,6 +256,7 @@ impl DependencyValidator {
         // No validation result is cached, drop the read lock and acquire an exclusive lock to
         // update the cached validation result.
         drop(read_context);
+        let visitors = self.visitor.read();
         let mut write_context = self.context.write();
         if Self::validate_context(&write_context)? {
             // Context was updated by another thread while we waited for the exclusive write lock
@@ -264,7 +265,7 @@ impl DependencyValidator {
         }
 
         // Validation did not run, we need to run it.
-        self.calculate_validation(&mut write_context);
+        self.calculate_validation(&visitors, &mut write_context);
 
         // Throws an error if our dependency graph is invalid.
         Self::validate_context(&write_context)?;
@@ -276,7 +277,10 @@ impl DependencyValidator {
     /// are fulfillable and there are no cycles in the graph.
     pub(crate) fn validate_all_full(&self) -> Result<(), FullValidationError> {
         let mut context = VisitorContext::new();
-        self.calculate_validation(&mut context);
+        {
+            let visitors = self.visitor.read();
+            self.calculate_validation(&visitors, &mut context);
+        }
 
         // Evaluate whether we want to make this available via an option? It takes ages to
         // calculate!
@@ -330,14 +334,16 @@ impl DependencyValidator {
     }
 
     /// Visit all visitors in `self.visitor`, and create the new dependency graph.
-    fn calculate_validation(&self, context: &mut VisitorContext) {
+    fn calculate_validation(
+        &self,
+        visitors: &HashMap<TypeId, Visitor>,
+        context: &mut VisitorContext,
+    ) {
         {
-            // Keep the lock as short as possible.
-            let visitor = self.visitor.read();
-            for (_type_id, cb) in visitor.iter() {
+            for (_type_id, cb) in visitors.iter() {
                 // To avoid a dead lock due to other visitors needing to be called, we pass in the
                 // visitors hashmap.
-                (cb.0)(self, &visitor, context);
+                (cb.0)(self, visitors, context);
             }
         }
 
