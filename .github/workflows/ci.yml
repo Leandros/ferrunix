@@ -43,6 +43,9 @@ jobs:
         run: echo RUSTFLAGS=${RUSTFLAGS}\ --cfg=thiserror_nightly_testing >> $GITHUB_ENV
         if: matrix.rust == 'nightly'
       - run: cargo xtask ci --no-extended
+        if: matrix.rust != '1.64.0'
+      - run: cargo xtask ci --no-extended -f tokio
+        if: matrix.rust == '1.64.0'
       - uses: actions/upload-artifact@v4
         if: matrix.rust == 'nightly' && always()
         with:

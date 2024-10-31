@@ -1,3 +1,4 @@
+//! Build documentation.
 use xshell::{cmd, Shell};
 
 /// All arguments for the `xtask docs` command.

@@ -1,7 +1,10 @@
 #![allow(clippy::exit)]
 //! Xtask CI "emulation".
 
+use std::iter;
+
 use anyhow::Result;
+use itertools::Itertools;
 use xshell::{cmd, Shell};
 
 /// How tests are run.
@@ -19,6 +22,10 @@ pub(super) struct CiArgs {
     /// Which test runner to use
     #[arg(short, long)]
     testrunner: Option<TestRunner>,
+
+    /// Which features to **not** test.
+    #[arg(short, long)]
+    filter: Option<Vec<String>>,
 
     /// Whether to skip extended tests, e.g., `clippy`, `cargo outdated`, and
     /// `cargo-semver-checks`. Useful in CI, when these run as a separate task.
@@ -61,26 +68,31 @@ pub(super) fn run(args: &CiArgs) -> Result<()> {
         true
     };
 
-    let test_matrix = [
-        ("ferrunix", ""),
-        ("ferrunix", "derive"),
-        ("ferrunix", "multithread"),
-        ("ferrunix", "tokio"),
-        ("ferrunix", "tracing"),
-        ("ferrunix", "multithread,tracing"),
-        ("ferrunix", "tokio,tracing"),
-        ("ferrunix", "multithread,tokio,tracing"),
-        ("ferrunix", "derive,multithread,tokio,tracing"),
-        ("ferrunix-core", ""),
-        ("ferrunix-core", "multithread"),
-        ("ferrunix-core", "tokio"),
-        ("ferrunix-core", "tracing"),
-        ("ferrunix-macros", ""),
-        ("ferrunix-macros", "multithread"),
-        ("ferrunix-macros", "development"),
-        ("ferrunix-macros", "development,multithread"),
-        ("doc-tests", ""),
-    ];
+    let combinations_ferrunix =
+        feature_combinations(&["derive", "multithread", "tokio", "tracing"]);
+    let combinations_ferrunix_core =
+        feature_combinations(&["multithread", "tokio", "tracing"]);
+    let combinations_ferrunix_macros =
+        feature_combinations(&["multithread", "development"]);
+    let test_matrix = {
+        let ferrunix = iter::repeat("ferrunix").zip(combinations_ferrunix);
+        let ferrunix_core =
+            iter::repeat("ferrunix-core").zip(combinations_ferrunix_core);
+        let ferrunix_macros =
+            iter::repeat("ferrunix-macros").zip(combinations_ferrunix_macros);
+
+        let filter = args.filter.clone().unwrap_or_default();
+        ferrunix
+            .chain(ferrunix_core)
+            .chain(ferrunix_macros)
+            .chain(iter::once(("doc-tests", String::new())))
+            .filter(|(_, features)| {
+                filter
+                    .iter()
+                    .any(|filtered_feature| !features.contains(filtered_feature))
+            })
+            .collect_vec()
+    };
 
     let testrunner: &[&str] = match args.testrunner {
         Some(TestRunner::Nextest) => &["nextest", "run", "--profile", "ci"],
@@ -136,4 +148,38 @@ pub(super) fn run(args: &CiArgs) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Generate all possible combinations of `features`.
+fn feature_combinations(features: &[&str]) -> Vec<String> {
+    let len = features.len();
+    let base_iter = features.iter().combinations(len);
+
+    let mut chains: Vec<Box<dyn Iterator<Item = Vec<&&str>>>> =
+        Vec::with_capacity(len);
+    for num_combinations in (1..len).rev() {
+        let iter = base_iter
+            .clone()
+            .chain(features.iter().combinations(num_combinations));
+        chains.push(Box::new(iter));
+    }
+
+    let mut ret = chains
+        .into_iter()
+        .map(Itertools::collect_vec)
+        .flat_map(|outer| {
+            outer
+                .into_iter()
+                .map(|el| {
+                    let x = el.iter().join(",");
+                    x
+                })
+                .collect_vec()
+        })
+        .unique()
+        .collect::<Vec<_>>();
+
+    ret.push(String::new());
+
+    ret
 }

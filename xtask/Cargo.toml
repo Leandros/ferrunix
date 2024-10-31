@@ -15,3 +15,4 @@ workspace = true
 xshell = "0.2"
 anyhow = "1"
 clap = { version = "=4.1.14", features = ["derive"] }
+itertools = "0.13"
