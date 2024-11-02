@@ -23,6 +23,7 @@ pub struct Registry {
     validator: DependencyValidator,
 }
 
+#[allow(clippy::multiple_inherent_impl)]
 impl Registry {
     /// Create a new, empty, registry. This registry contains no pre-registered
     /// types.
@@ -38,287 +39,6 @@ impl Registry {
             objects: RwLock::new(HashMap::new()),
             validator: DependencyValidator::new(),
         }
-    }
-
-    /// Create an empty registry, and add all autoregistered types into it.
-    ///
-    /// This is the constructor for the global registry that can be acquired
-    /// with [`Registry::global`].
-    #[cfg(not(feature = "tokio"))]
-    #[must_use]
-    #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub fn autoregistered() -> Self {
-        let registry = Self::empty();
-        for register in inventory::iter::<RegistrationFunc> {
-            (register.0)(&registry);
-        }
-
-        registry
-    }
-
-    /// Create an empty registry, and add all autoregistered types into it.
-    ///
-    /// This is the constructor for the global registry that can be acquired
-    /// with [`Registry::global`].
-    ///
-    /// # Panics
-    /// If any of the constructors panic.
-    #[cfg(feature = "tokio")]
-    #[must_use]
-    #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub async fn autoregistered() -> Self {
-        use std::sync::Arc;
-
-        let registry = Arc::new(Self::empty());
-
-        let mut set = tokio::task::JoinSet::new();
-        for register in inventory::iter::<RegistrationFunc> {
-            let registry = Arc::clone(&registry);
-            set.spawn(async move {
-                let inner_registry = registry;
-                (register.0)(&inner_registry).await;
-            });
-        }
-
-        #[allow(clippy::panic)]
-        while let Some(res) = set.join_next().await {
-            match res {
-                Ok(_) => continue,
-                Err(err) if err.is_panic() => {
-                    std::panic::resume_unwind(err.into_panic())
-                }
-                Err(err) => panic!("{err}"),
-            }
-        }
-
-        assert_eq!(
-            Arc::strong_count(&registry), 1,
-            "all of the tasks in the `JoinSet` should've joined, dropping their \
-            Arc's. some task is still holding an Arc");
-        Arc::try_unwrap(registry).expect("all tasks above are joined")
-    }
-
-    /// Register a new transient object, without dependencies.
-    ///
-    /// To register a type with dependencies, use the builder returned from
-    /// [`Registry::with_deps`].
-    ///
-    /// # Parameters
-    ///   * `ctor`: A constructor function returning the newly constructed `T`.
-    ///     This constructor will be called for every `T` that is requested.
-    ///
-    /// # Panics
-    /// When the type has been registered already.
-    #[cfg(not(feature = "tokio"))]
-    #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
-    pub fn transient<T>(&self, ctor: fn() -> T)
-    where
-        T: Registerable,
-    {
-        use crate::object_builder::TransientBuilderImplNoDeps;
-
-        #[cfg(feature = "tracing")]
-        tracing::info!(
-            "registering transient ({})",
-            std::any::type_name::<T>()
-        );
-
-        let transient =
-            Object::Transient(Box::new(TransientBuilderImplNoDeps::new(ctor)));
-
-        self.insert_or_panic::<T>(transient);
-        self.validator.add_transient_no_deps::<T>();
-    }
-
-    /// Register a new transient object, without dependencies.
-    ///
-    /// To register a type with dependencies, use the builder returned from
-    /// [`Registry::with_deps`].
-    ///
-    /// # Parameters
-    ///   * `ctor`: A constructor function returning the newly constructed `T`.
-    ///     This constructor will be called for every `T` that is requested.
-    #[cfg(feature = "tokio")]
-    #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
-    pub async fn transient<T>(
-        &self,
-        ctor: fn() -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = T> + Send>,
-        >,
-    ) where
-        T: Registerable,
-    {
-        use crate::object_builder::AsyncTransientBuilderImplNoDeps;
-
-        #[cfg(feature = "tracing")]
-        tracing::info!(
-            "registering transient ({})",
-            std::any::type_name::<T>()
-        );
-
-        let transient = Object::AsyncTransient(Box::new(
-            AsyncTransientBuilderImplNoDeps::new(ctor),
-        ));
-
-        self.insert_or_panic::<T>(transient).await;
-        self.validator.add_transient_no_deps::<T>();
-    }
-
-    /// Register a new singleton object, without dependencies.
-    ///
-    /// To register a type with dependencies, use the builder returned from
-    /// [`Registry::with_deps`].
-    ///
-    /// # Parameters
-    ///   * `ctor`: A constructor function returning the newly constructed `T`.
-    ///     This constructor will be called once, lazily, when the first
-    ///     instance of `T` is requested.
-    #[cfg(not(feature = "tokio"))]
-    #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
-    pub fn singleton<T, F>(&self, ctor: F)
-    where
-        T: RegisterableSingleton,
-        F: SingletonCtor<T>,
-    {
-        use crate::object_builder::SingletonGetterNoDeps;
-
-        #[cfg(feature = "tracing")]
-        tracing::info!(
-            "registering singleton ({})",
-            std::any::type_name::<T>()
-        );
-
-        let singleton =
-            Object::Singleton(Box::new(SingletonGetterNoDeps::new(ctor)));
-
-        self.insert_or_panic::<T>(singleton);
-        self.validator.add_singleton_no_deps::<T>();
-    }
-
-    /// Register a new singleton object, without dependencies.
-    ///
-    /// To register a type with dependencies, use the builder returned from
-    /// [`Registry::with_deps`].
-    ///
-    /// # Parameters
-    ///   * `ctor`: A constructor function returning the newly constructed `T`.
-    ///     This constructor will be called once, lazily, when the first
-    ///     instance of `T` is requested.
-    #[cfg(feature = "tokio")]
-    #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
-    pub async fn singleton<T, F>(&self, ctor: F)
-    where
-        T: RegisterableSingleton + Clone,
-        F: SingletonCtor<T>,
-    {
-        use crate::object_builder::AsyncSingletonNoDeps;
-
-        #[cfg(feature = "tracing")]
-        tracing::info!(
-            "registering singleton ({})",
-            std::any::type_name::<T>()
-        );
-
-        let singleton =
-            Object::AsyncSingleton(Box::new(AsyncSingletonNoDeps::new(ctor)));
-
-        self.insert_or_panic::<T>(singleton).await;
-        self.validator.add_singleton_no_deps::<T>();
-    }
-
-    /// Retrieves a newly constructed `T` from this registry.
-    ///
-    /// Returns `None` if `T` wasn't registered or failed to construct.
-    #[cfg(not(feature = "tokio"))]
-    #[must_use]
-    #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub fn get_transient<T>(&self) -> Option<T>
-    where
-        T: Registerable,
-    {
-        let lock = self.objects.read();
-        if let Some(Object::Transient(transient)) = lock.get(&TypeId::of::<T>())
-        {
-            let resolved = transient.make_transient(self)?;
-            drop(lock);
-            if let Ok(obj) = resolved.downcast::<T>() {
-                return Some(*obj);
-            }
-        }
-
-        None
-    }
-
-    /// Retrieves a newly constructed `T` from this registry.
-    ///
-    /// Returns `None` if `T` wasn't registered or failed to construct.
-    #[cfg(feature = "tokio")]
-    #[must_use]
-    #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub async fn get_transient<T>(&self) -> Option<T>
-    where
-        T: Registerable,
-    {
-        let lock = self.objects.read().await;
-        if let Some(Object::AsyncTransient(ctor)) = lock.get(&TypeId::of::<T>())
-        {
-            let boxed = ctor.make_transient(self).await?;
-            drop(lock);
-            if let Ok(obj) = boxed.downcast::<T>() {
-                return Some(*obj);
-            }
-        }
-
-        None
-    }
-
-    /// Retrieves the singleton `T` from this registry.
-    ///
-    /// Returns `None` if `T` wasn't registered or failed to construct. The
-    /// singleton is a ref-counted pointer object (either `Arc` or `Rc`).
-    #[cfg(not(feature = "tokio"))]
-    #[must_use]
-    #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub fn get_singleton<T>(&self) -> Option<Ref<T>>
-    where
-        T: RegisterableSingleton,
-    {
-        let lock = self.objects.read();
-        if let Some(Object::Singleton(singleton)) = lock.get(&TypeId::of::<T>())
-        {
-            let resolved = singleton.get_singleton(self)?;
-            drop(lock);
-            if let Ok(obj) = resolved.downcast::<T>() {
-                return Some(obj);
-            }
-        }
-
-        None
-    }
-
-    /// Retrieves the singleton `T` from this registry.
-    ///
-    /// Returns `None` if `T` wasn't registered or failed to construct. The
-    /// singleton is a ref-counted pointer object (either `Arc` or `Rc`).
-    #[cfg(feature = "tokio")]
-    #[must_use]
-    #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub async fn get_singleton<T>(&self) -> Option<Ref<T>>
-    where
-        T: RegisterableSingleton,
-    {
-        let lock = self.objects.read().await;
-        if let Some(Object::AsyncSingleton(singleton)) =
-            lock.get(&TypeId::of::<T>())
-        {
-            let resolved = singleton.get_singleton(self).await?;
-            drop(lock);
-            if let Ok(obj) = resolved.downcast::<T>() {
-                return Some(obj);
-            }
-        }
-
-        None
     }
 
     /// Register a new transient or singleton with dependencies.
@@ -369,7 +89,6 @@ impl Registry {
     /// # Errors
     /// Returns a [`ValidationError`] when the dependency graph is missing dependencies or has cycles.
     #[cfg_attr(feature = "tracing", tracing::instrument)]
-    #[allow(clippy::option_if_let_else)]
     pub fn validate<T>(&self) -> Result<(), ValidationError>
     where
         T: Registerable,
@@ -390,16 +109,6 @@ impl Registry {
     ///
     /// This registry contains the types that are marked for auto-registration
     /// via the derive macro.
-    #[cfg(all(feature = "multithread", not(feature = "tokio")))]
-    #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub fn global() -> &'static Self {
-        DEFAULT_REGISTRY.get_or_init(Self::autoregistered)
-    }
-
-    /// Access the global registry.
-    ///
-    /// This registry contains the types that are marked for auto-registration
-    /// via the derive macro.
     #[cfg(all(not(feature = "tokio"), not(feature = "multithread")))]
     #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn global() -> std::rc::Rc<Self> {
@@ -409,15 +118,129 @@ impl Registry {
             std::rc::Rc::clone(ret)
         })
     }
+}
 
+#[cfg(all(feature = "multithread", not(feature = "tokio")))]
+impl Registry {
     /// Access the global registry.
     ///
     /// This registry contains the types that are marked for auto-registration
     /// via the derive macro.
-    #[cfg(feature = "tokio")]
     #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub async fn global() -> &'static Self {
-        DEFAULT_REGISTRY.get_or_init(Self::autoregistered).await
+    pub fn global() -> &'static Self {
+        DEFAULT_REGISTRY.get_or_init(Self::autoregistered)
+    }
+}
+
+#[cfg(not(feature = "tokio"))]
+impl Registry {
+    /// Register a new transient object, without dependencies.
+    ///
+    /// To register a type with dependencies, use the builder returned from
+    /// [`Registry::with_deps`].
+    ///
+    /// # Parameters
+    ///   * `ctor`: A constructor function returning the newly constructed `T`.
+    ///     This constructor will be called for every `T` that is requested.
+    ///
+    /// # Panics
+    /// When the type has been registered already.
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
+    pub fn transient<T>(&self, ctor: fn() -> T)
+    where
+        T: Registerable,
+    {
+        use crate::object_builder::TransientBuilderImplNoDeps;
+
+        #[cfg(feature = "tracing")]
+        tracing::info!(
+            "registering transient ({})",
+            std::any::type_name::<T>()
+        );
+
+        let transient =
+            Object::Transient(Box::new(TransientBuilderImplNoDeps::new(ctor)));
+
+        self.insert_or_panic::<T>(transient);
+        self.validator.add_transient_no_deps::<T>();
+    }
+
+    /// Register a new singleton object, without dependencies.
+    ///
+    /// To register a type with dependencies, use the builder returned from
+    /// [`Registry::with_deps`].
+    ///
+    /// # Parameters
+    ///   * `ctor`: A constructor function returning the newly constructed `T`.
+    ///     This constructor will be called once, lazily, when the first
+    ///     instance of `T` is requested.
+    ///
+    /// # Panics
+    /// When the type has been registered already.
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
+    pub fn singleton<T, F>(&self, ctor: F)
+    where
+        T: RegisterableSingleton,
+        F: SingletonCtor<T>,
+    {
+        use crate::object_builder::SingletonGetterNoDeps;
+
+        #[cfg(feature = "tracing")]
+        tracing::info!(
+            "registering singleton ({})",
+            std::any::type_name::<T>()
+        );
+
+        let singleton =
+            Object::Singleton(Box::new(SingletonGetterNoDeps::new(ctor)));
+
+        self.insert_or_panic::<T>(singleton);
+        self.validator.add_singleton_no_deps::<T>();
+    }
+
+    /// Retrieves a newly constructed `T` from this registry.
+    ///
+    /// Returns `None` if `T` wasn't registered or failed to construct.
+    #[must_use]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
+    pub fn get_transient<T>(&self) -> Option<T>
+    where
+        T: Registerable,
+    {
+        let lock = self.objects.read();
+        if let Some(Object::Transient(transient)) = lock.get(&TypeId::of::<T>())
+        {
+            let resolved = transient.make_transient(self)?;
+            drop(lock);
+            if let Ok(obj) = resolved.downcast::<T>() {
+                return Some(*obj);
+            }
+        }
+
+        None
+    }
+
+    /// Retrieves the singleton `T` from this registry.
+    ///
+    /// Returns `None` if `T` wasn't registered or failed to construct. The
+    /// singleton is a ref-counted pointer object (either `Arc` or `Rc`).
+    #[must_use]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
+    pub fn get_singleton<T>(&self) -> Option<Ref<T>>
+    where
+        T: RegisterableSingleton,
+    {
+        let lock = self.objects.read();
+        if let Some(Object::Singleton(singleton)) = lock.get(&TypeId::of::<T>())
+        {
+            let resolved = singleton.get_singleton(self)?;
+            drop(lock);
+            if let Ok(obj) = resolved.downcast::<T>() {
+                return Some(obj);
+            }
+        }
+
+        None
     }
 
     /// Reset the global registry, removing all previously registered types, and
@@ -426,7 +249,6 @@ impl Registry {
     /// # Safety
     /// Ensure that no other thread is currently using [`Registry::global()`].
     #[allow(unsafe_code)]
-    #[cfg(not(feature = "tokio"))]
     #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub unsafe fn reset_global() {
         let registry = Self::global();
@@ -444,13 +266,218 @@ impl Registry {
         }
     }
 
+    /// Create an empty registry, and add all autoregistered types into it.
+    ///
+    /// This is the constructor for the global registry that can be acquired
+    /// with [`Registry::global`].
+    #[must_use]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
+    pub fn autoregistered() -> Self {
+        let registry = Self::empty();
+        for register in inventory::iter::<RegistrationFunc> {
+            (register.0)(&registry);
+        }
+
+        registry
+    }
+
+    /// Inserts a new object into the objecs hashtable.
+    ///
+    /// This acquires an exclusive lock on `self.objects`.
+    ///
+    /// # Panics
+    /// If the key already exists (=> the type was previously registered).
+    #[inline]
+    fn insert_or_panic<T: 'static>(&self, value: Object) {
+        let mut lock = self.objects.write();
+        let entry = lock.entry(TypeId::of::<T>());
+        match entry {
+            #[allow(clippy::panic)]
+            hashbrown::hash_map::Entry::Occupied(_) => panic!(
+                "Type '{}' ({:?}) is already registered",
+                std::any::type_name::<T>(),
+                TypeId::of::<T>()
+            ),
+            hashbrown::hash_map::Entry::Vacant(view) => {
+                view.insert(value);
+            }
+        }
+    }
+}
+
+#[cfg(feature = "tokio")]
+impl Registry {
+    /// Create an empty registry, and add all autoregistered types into it.
+    ///
+    /// This is the constructor for the global registry that can be acquired
+    /// with [`Registry::global`].
+    ///
+    /// # Panics
+    /// If any of the constructors panic.
+    #[must_use]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
+    pub async fn autoregistered() -> Self {
+        use std::sync::Arc;
+
+        let registry = Arc::new(Self::empty());
+
+        let mut set = tokio::task::JoinSet::new();
+        for register in inventory::iter::<RegistrationFunc> {
+            let registry = Arc::clone(&registry);
+            set.spawn(async move {
+                let inner_registry = registry;
+                (register.0)(&inner_registry).await;
+            });
+        }
+
+        #[allow(clippy::panic)]
+        while let Some(res) = set.join_next().await {
+            match res {
+                Ok(_) => continue,
+                Err(err) if err.is_panic() => {
+                    std::panic::resume_unwind(err.into_panic())
+                }
+                Err(err) => panic!("{err}"),
+            }
+        }
+
+        assert_eq!(
+            Arc::strong_count(&registry), 1,
+            "all of the tasks in the `JoinSet` should've joined, dropping their \
+            Arc's. some task is still holding an Arc");
+        Arc::try_unwrap(registry).expect("all tasks above are joined")
+    }
+
+    /// Register a new singleton object, without dependencies.
+    ///
+    /// To register a type with dependencies, use the builder returned from
+    /// [`Registry::with_deps`].
+    ///
+    /// # Parameters
+    ///   * `ctor`: A constructor function returning the newly constructed `T`.
+    ///     This constructor will be called once, lazily, when the first
+    ///     instance of `T` is requested.
+    ///
+    /// # Panics
+    /// When the type has been registered already.
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
+    pub async fn singleton<T, F>(&self, ctor: F)
+    where
+        T: RegisterableSingleton + Clone,
+        F: SingletonCtor<T>,
+    {
+        use crate::object_builder::AsyncSingletonNoDeps;
+
+        #[cfg(feature = "tracing")]
+        tracing::info!(
+            "registering singleton ({})",
+            std::any::type_name::<T>()
+        );
+
+        let singleton =
+            Object::AsyncSingleton(Box::new(AsyncSingletonNoDeps::new(ctor)));
+
+        self.insert_or_panic::<T>(singleton).await;
+        self.validator.add_singleton_no_deps::<T>();
+    }
+
+    /// Register a new transient object, without dependencies.
+    ///
+    /// To register a type with dependencies, use the builder returned from
+    /// [`Registry::with_deps`].
+    ///
+    /// # Parameters
+    ///   * `ctor`: A constructor function returning the newly constructed `T`.
+    ///     This constructor will be called for every `T` that is requested.
+    ///
+    /// # Panics
+    /// When the type has been registered already.
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
+    pub async fn transient<T>(
+        &self,
+        ctor: fn() -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = T> + Send>,
+        >,
+    ) where
+        T: Registerable,
+    {
+        use crate::object_builder::AsyncTransientBuilderImplNoDeps;
+
+        #[cfg(feature = "tracing")]
+        tracing::info!(
+            "registering transient ({})",
+            std::any::type_name::<T>()
+        );
+
+        let transient = Object::AsyncTransient(Box::new(
+            AsyncTransientBuilderImplNoDeps::new(ctor),
+        ));
+
+        self.insert_or_panic::<T>(transient).await;
+        self.validator.add_transient_no_deps::<T>();
+    }
+
+    /// Retrieves a newly constructed `T` from this registry.
+    ///
+    /// Returns `None` if `T` wasn't registered or failed to construct.
+    #[must_use]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
+    pub async fn get_transient<T>(&self) -> Option<T>
+    where
+        T: Registerable,
+    {
+        let lock = self.objects.read().await;
+        if let Some(Object::AsyncTransient(ctor)) = lock.get(&TypeId::of::<T>())
+        {
+            let boxed = ctor.make_transient(self).await?;
+            drop(lock);
+            if let Ok(obj) = boxed.downcast::<T>() {
+                return Some(*obj);
+            }
+        }
+
+        None
+    }
+
+    /// Retrieves the singleton `T` from this registry.
+    ///
+    /// Returns `None` if `T` wasn't registered or failed to construct. The
+    /// singleton is a ref-counted pointer object (either `Arc` or `Rc`).
+    #[must_use]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
+    pub async fn get_singleton<T>(&self) -> Option<Ref<T>>
+    where
+        T: RegisterableSingleton,
+    {
+        let lock = self.objects.read().await;
+        if let Some(Object::AsyncSingleton(singleton)) =
+            lock.get(&TypeId::of::<T>())
+        {
+            let resolved = singleton.get_singleton(self).await?;
+            drop(lock);
+            if let Ok(obj) = resolved.downcast::<T>() {
+                return Some(obj);
+            }
+        }
+
+        None
+    }
+
+    /// Access the global registry.
+    ///
+    /// This registry contains the types that are marked for auto-registration
+    /// via the derive macro.
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
+    pub async fn global() -> &'static Self {
+        DEFAULT_REGISTRY.get_or_init(Self::autoregistered).await
+    }
+
     /// Reset the global registry, removing all previously registered types, and
     /// re-running the auto-registration routines.
     ///
     /// # Safety
     /// Ensure that no other thread is currently using [`Registry::global()`].
     #[allow(unsafe_code)]
-    #[cfg(feature = "tokio")]
     pub async unsafe fn reset_global() {
         // Purposefully not annotated with `tracing::instrument` because it mangles the order of
         // `async` and `unsafe`, resulting in a compiler error.
@@ -472,31 +499,6 @@ impl Registry {
     /// # Panics
     /// If the key already exists (=> the type was previously registered).
     #[inline]
-    #[cfg(not(feature = "tokio"))]
-    fn insert_or_panic<T: 'static>(&self, value: Object) {
-        let mut lock = self.objects.write();
-        let entry = lock.entry(TypeId::of::<T>());
-        match entry {
-            #[allow(clippy::panic)]
-            hashbrown::hash_map::Entry::Occupied(_) => panic!(
-                "Type '{}' ({:?}) is already registered",
-                std::any::type_name::<T>(),
-                TypeId::of::<T>()
-            ),
-            hashbrown::hash_map::Entry::Vacant(view) => {
-                view.insert(value);
-            }
-        }
-    }
-
-    /// Inserts a new object into the objecs hashtable.
-    ///
-    /// This acquires an exclusive lock on `self.objects`.
-    ///
-    /// # Panics
-    /// If the key already exists (=> the type was previously registered).
-    #[inline]
-    #[cfg(feature = "tokio")]
     async fn insert_or_panic<T: 'static>(&self, value: Object) {
         let mut lock = self.objects.write().await;
         let entry = lock.entry(TypeId::of::<T>());
@@ -563,6 +565,9 @@ where
     ///
     /// For single dependencies, the destructured tuple needs to end with a
     /// comma: `(dep,)`.
+    ///
+    /// # Panics
+    /// When the type has been registered already.
     #[cfg(not(feature = "tokio"))]
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
     pub fn transient(&self, ctor: fn(Deps) -> T) {
@@ -592,6 +597,9 @@ where
     /// This constructor will be called for every `T` that is requested.
     ///
     /// The `ctor` must return a boxed `dyn Future`.
+    ///
+    /// # Panics
+    /// When the type has been registered already.
     #[cfg(feature = "tokio")]
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
     pub async fn transient(
