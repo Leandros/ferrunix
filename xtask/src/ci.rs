@@ -87,9 +87,13 @@ pub(super) fn run(args: &CiArgs) -> Result<()> {
             .chain(ferrunix_macros)
             .chain(iter::once(("doc-tests", String::new())))
             .filter(|(_, features)| {
-                filter
-                    .iter()
-                    .any(|filtered_feature| !features.contains(filtered_feature))
+                if filter.is_empty() {
+                    true
+                } else {
+                    filter.iter().any(|filtered_feature| {
+                        !features.contains(filtered_feature)
+                    })
+                }
             })
             .collect_vec()
     };
