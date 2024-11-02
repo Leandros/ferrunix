@@ -46,7 +46,7 @@ mod sync {
         parking_lot::RwLockWriteGuard<'a, T>;
 
     // Hashmap types.
-    pub(crate) type HashMap<K, V> = std::collections::HashMap<K, V>;
+    pub(crate) type HashMap<K, V> = hashbrown::HashMap<K, V>;
 
     // Alias types used in [`Registry`].
     pub(crate) type BoxedAny = Box<dyn Any>;
@@ -172,7 +172,7 @@ mod unsync {
     }
 
     // Hashmap types.
-    pub(crate) type HashMap<K, V> = std::collections::HashMap<K, V>;
+    pub(crate) type HashMap<K, V> = hashbrown::HashMap<K, V>;
 
     // Alias types used in [`Registry`].
     pub(crate) type BoxedAny = Box<dyn Any>;
@@ -262,7 +262,7 @@ mod tokio_ext {
     pub(crate) type RwLock<T> = ::tokio::sync::RwLock<T>;
 
     // Hashmap types.
-    pub(crate) type HashMap<K, V> = std::collections::HashMap<K, V>;
+    pub(crate) type HashMap<K, V> = hashbrown::HashMap<K, V>;
 
     // Cell types.
     pub(crate) type OnceCell<T> = ::tokio::sync::OnceCell<T>;

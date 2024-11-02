@@ -15,13 +15,13 @@ async fn test_simple() {
             })
         })
         .await;
-    registry.singleton(|| Box::pin(async move { 1_u64 })).await;
+    registry.singleton(|| Box::pin(async move { 1_i64 })).await;
     // registry.singleton(|| async_ctor!(async move { 1_u64 })).await;
 
     let val = registry.get_transient::<u32>().await.unwrap();
     assert_eq!(val, 1);
 
-    let val1 = registry.get_singleton::<u64>().await.unwrap();
+    let val1 = registry.get_singleton::<i64>().await.unwrap();
     assert_eq!(*val1, 1);
 }
 

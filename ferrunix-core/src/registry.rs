@@ -4,7 +4,9 @@
 use std::any::TypeId;
 use std::marker::PhantomData;
 
-use crate::cycle_detection::{DependencyValidator, FullValidationError, ValidationError};
+use crate::cycle_detection::{
+    DependencyValidator, FullValidationError, ValidationError,
+};
 use crate::dependency_builder::DepBuilder;
 use crate::object_builder::Object;
 use crate::types::{
@@ -104,6 +106,9 @@ impl Registry {
     /// # Parameters
     ///   * `ctor`: A constructor function returning the newly constructed `T`.
     ///     This constructor will be called for every `T` that is requested.
+    ///
+    /// # Panics
+    /// When the type has been registered already.
     #[cfg(not(feature = "tokio"))]
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
     pub fn transient<T>(&self, ctor: fn() -> T)
@@ -120,11 +125,8 @@ impl Registry {
 
         let transient =
             Object::Transient(Box::new(TransientBuilderImplNoDeps::new(ctor)));
-        {
-            let mut lock = self.objects.write();
-            lock.insert(TypeId::of::<T>(), transient);
-        }
 
+        self.insert_or_panic::<T>(transient);
         self.validator.add_transient_no_deps::<T>();
     }
 
@@ -158,11 +160,7 @@ impl Registry {
             AsyncTransientBuilderImplNoDeps::new(ctor),
         ));
 
-        {
-            let mut lock = self.objects.write().await;
-            lock.insert(TypeId::of::<T>(), transient);
-        }
-
+        self.insert_or_panic::<T>(transient).await;
         self.validator.add_transient_no_deps::<T>();
     }
 
@@ -193,11 +191,7 @@ impl Registry {
         let singleton =
             Object::Singleton(Box::new(SingletonGetterNoDeps::new(ctor)));
 
-        {
-            let mut lock = self.objects.write();
-            lock.insert(TypeId::of::<T>(), singleton);
-        }
-
+        self.insert_or_panic::<T>(singleton);
         self.validator.add_singleton_no_deps::<T>();
     }
 
@@ -228,11 +222,7 @@ impl Registry {
         let singleton =
             Object::AsyncSingleton(Box::new(AsyncSingletonNoDeps::new(ctor)));
 
-        {
-            let mut lock = self.objects.write().await;
-            lock.insert(TypeId::of::<T>(), singleton);
-        }
-
+        self.insert_or_panic::<T>(singleton).await;
         self.validator.add_singleton_no_deps::<T>();
     }
 
@@ -474,6 +464,54 @@ impl Registry {
             (register.0)(registry).await;
         }
     }
+
+    /// Inserts a new object into the objecs hashtable.
+    ///
+    /// This acquires an exclusive lock on `self.objects`.
+    ///
+    /// # Panics
+    /// If the key already exists (=> the type was previously registered).
+    #[inline]
+    #[cfg(not(feature = "tokio"))]
+    fn insert_or_panic<T: 'static>(&self, value: Object) {
+        let mut lock = self.objects.write();
+        let entry = lock.entry(TypeId::of::<T>());
+        match entry {
+            #[allow(clippy::panic)]
+            hashbrown::hash_map::Entry::Occupied(_) => panic!(
+                "Type '{}' ({:?}) is already registered",
+                std::any::type_name::<T>(),
+                TypeId::of::<T>()
+            ),
+            hashbrown::hash_map::Entry::Vacant(view) => {
+                view.insert(value);
+            }
+        }
+    }
+
+    /// Inserts a new object into the objecs hashtable.
+    ///
+    /// This acquires an exclusive lock on `self.objects`.
+    ///
+    /// # Panics
+    /// If the key already exists (=> the type was previously registered).
+    #[inline]
+    #[cfg(feature = "tokio")]
+    async fn insert_or_panic<T: 'static>(&self, value: Object) {
+        let mut lock = self.objects.write().await;
+        let entry = lock.entry(TypeId::of::<T>());
+        match entry {
+            #[allow(clippy::panic)]
+            hashbrown::hash_map::Entry::Occupied(_) => panic!(
+                "Type '{}' ({:?}) is already registered",
+                std::any::type_name::<T>(),
+                TypeId::of::<T>()
+            ),
+            hashbrown::hash_map::Entry::Vacant(view) => {
+                view.insert(value);
+            }
+        }
+    }
 }
 
 impl std::fmt::Debug for Registry {
@@ -539,11 +577,8 @@ where
         let transient = Object::Transient(Box::new(
             TransientBuilderImplWithDeps::new(ctor),
         ));
-        {
-            let mut lock = self.registry.objects.write();
-            lock.insert(TypeId::of::<T>(), transient);
-        }
 
+        self.registry.insert_or_panic::<T>(transient);
         self.registry.validator.add_transient_deps::<T, Deps>();
     }
 
@@ -578,11 +613,8 @@ where
         let transient = Object::AsyncTransient(Box::new(
             AsyncTransientBuilderImplWithDeps::new(ctor),
         ));
-        {
-            let mut lock = self.registry.objects.write().await;
-            lock.insert(TypeId::of::<T>(), transient);
-        }
 
+        self.registry.insert_or_panic::<T>(transient).await;
         self.registry.validator.add_transient_deps::<T, Deps>();
     }
 }
@@ -638,11 +670,8 @@ where
 
         let singleton =
             Object::Singleton(Box::new(SingletonGetterWithDeps::new(ctor)));
-        {
-            let mut lock = self.registry.objects.write();
-            lock.insert(TypeId::of::<T>(), singleton);
-        }
 
+        self.registry.insert_or_panic::<T>(singleton);
         self.registry.validator.add_singleton_deps::<T, Deps>();
     }
 
@@ -673,11 +702,8 @@ where
 
         let singleton =
             Object::AsyncSingleton(Box::new(AsyncSingletonWithDeps::new(ctor)));
-        {
-            let mut lock = self.registry.objects.write().await;
-            lock.insert(TypeId::of::<T>(), singleton);
-        }
 
+        self.registry.insert_or_panic::<T>(singleton).await;
         self.registry.validator.add_singleton_deps::<T, Deps>();
     }
 }
