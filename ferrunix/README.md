@@ -8,6 +8,7 @@
 [![Build Status](https://github.com/leandros/ferrunix/actions/workflows/ci.yml/badge.svg)](https://github.com/leandros/ferrunix/actions)
 [![Crates.io](https://img.shields.io/crates/v/ferrunix.svg)](https://crates.io/crates/ferrunix)
 [![API reference](https://docs.rs/ferrunix/badge.svg)](https://docs.rs/ferrunix/)
+![MSRV](https://img.shields.io/crates/msrv/ferrunix)
 ![License](https://img.shields.io/crates/l/ferrunix.svg)
 
   </p>
@@ -15,12 +16,25 @@
 
 ```toml
 [dependencies]
-ferrunix = "0"
+ferrunix = "0.3"
 ```
 
-*Compiler support: requires rustc 1.64+*
+*Compiler support: requires rustc 1.67.1+*
 
-## [Changelog](https://github.com/Leandros/ferrunix/releases)
+**Check out the [User Guide](https://leandros.github.io/ferrunix/book).**
+
+
+## Documentation
+
+Due to how the various features affect the public API of the library, the
+documentation is provided for each major feature separately.
+
+|    Feature Flags    | Link to Documentation |
+| ------------------- | --------------------- |
+| `none`              | [link to docs](https://leandros.github.io/ferrunix/docs-default/ferrunix/)     |
+| `multithread`       | [link to docs](https://leandros.github.io/ferrunix/docs-multithread/ferrunix/) |
+| `tokio`             | [link to docs](https://leandros.github.io/ferrunix/docs-multithread/ferrunix/) |
+
 
 ## Features
 
@@ -34,49 +48,19 @@ ferrunix = "0"
 - Automatic registration of types.
 - One global registry; with support for multipiple sub-registries.
 
-## Usage
-
-Add the dependency to your `Cargo.toml`:
-
-```bash
-cargo add ferrunix
-```
-
-Register your types with the [`Registry`](https://docs.rs/ferrunix/latest/ferrunix/):
-
-```rust
-use ferrunix::{Ref, Registry, Transient};
-use example::{Logger, BillingService, SysLog}
-
-#[derive(Debug, Default)]
-pub struct ExampleService {}
-
-impl ExampleService {
-    pub fn do_work(&self) {
-        // Omitted for brevity...
-    }
-}
-
-fn main() {
-    let registry = Registry::global();
-    registry.transient(|| ExampleService::default());
-    // Register more types here ...
-
-    debug_assert!(registry.validate_all());
-
-    let service = registry.get_transient::<ExampleService>().unwrap();
-    service.do_work();
-}
-```
-
-## Features
+## Cargo Feature Flags
 
 Ferrunix has the following features to enable further functionality.
-Default features are marked with `*`.
+Features enabled by default are marked with `*`.
 
-- `multithread` (`*`): Enable support for access to the registry from multiple threads.
-    This adds a bound that all registered types must be `Send` and `Sync`.
-- `derive` (`*`): Enable support for the `#[derive(Inject)]` macro.
+- `multithread`: Enables support for accessing the registry from multiple
+    threads. This adds a bound that all registered types must be `Send`.
+- `derive` (`*`): Enables support for the `#[derive(Inject)]` macro.
+- `tokio`: Enables support for `async` constructors. Bumps the MSRV up to
+    `1.75.0` because some of the internal traits require
+    [RPITIT](https://blog.rust-lang.org/2023/12/21/async-fn-rpit-in-traits.html#whats-stabilizing).
+- `tracing`: Enables support for [tracing](https://docs.rs/tracing/latest/tracing/index.html) and annotates all public functions with
+    [`tracing::instrument`](https://docs.rs/tracing/latest/tracing/attr.instrument.html).
 
 #### License
 

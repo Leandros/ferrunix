@@ -11,6 +11,7 @@ permissions:
 
 env:
   RUSTFLAGS: -Dwarnings
+  CARGO_TERM_COLOR: always
 
 jobs:
   pre_ci:
@@ -24,7 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        rust: [nightly, beta, stable, 1.64.0]
+        rust: [nightly, beta, stable, 1.67.1]
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
@@ -32,20 +33,19 @@ jobs:
         with:
           toolchain: ${{matrix.rust}}
           components: rust-src
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
       - name: Enable type layout randomization
         run: echo RUSTFLAGS=${RUSTFLAGS}\ -Zrandomize-layout >> $GITHUB_ENV
         if: matrix.rust == 'nightly'
       - name: Enable nightly-only tests
         run: echo RUSTFLAGS=${RUSTFLAGS}\ --cfg=thiserror_nightly_testing >> $GITHUB_ENV
         if: matrix.rust == 'nightly'
-      - run: cargo test -p ferrunix --no-default-features
-      - run: cargo test -p ferrunix --no-default-features -F derive
-      - run: cargo test -p ferrunix --no-default-features -F derive,multithread
-      - run: cargo test -p ferrunix-core --no-default-features
-      - run: cargo test -p ferrunix-core --no-default-features -F multithread
-      - run: cargo test -p ferrunix-macros --no-default-features
-      - run: cargo test -p ferrunix-macros --no-default-features -F multithread
-      - run: cargo test -p ferrunix-macros --no-default-features -F multithread,development
+      - run: cargo xtask ci --no-extended
+        if: matrix.rust != '1.67.1'
+      - run: cargo xtask ci --no-extended -f tokio
+        if: matrix.rust == '1.67.1'
       - uses: actions/upload-artifact@v4
         if: matrix.rust == 'nightly' && always()
         with:
@@ -120,7 +120,22 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: dtolnay/install@cargo-outdated
-      - run: cargo outdated --workspace --exit-code 1
+      # We don't want to report an error when we find outdated dependencies.
+      # Oftentimes, we use outdated dependencies because of our MSRV requirements.
+      - run: cargo outdated --workspace --exit-code 0
+
+  deny:
+    name: Cargo Deny
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+      - run: cargo deny --all-features check
 
   semver-check:
     name: SemVer Check

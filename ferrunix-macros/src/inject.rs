@@ -17,12 +17,14 @@ pub(crate) fn derive_macro_impl(
     let struct_name = &input.ident;
 
     let registration = registration(input, attrs)?;
+    let sig = register_func_sig();
+    let boxed_registration = box_if_required(&registration);
     let expanded = quote! {
         #[automatically_derived]
         impl #struct_name {
             #[allow(clippy::use_self, dead_code)]
-            pub(crate) fn register(registry: &::ferrunix::Registry) {
-                #registration
+            #sig {
+                #boxed_registration
             }
         }
 
@@ -32,6 +34,46 @@ pub(crate) fn derive_macro_impl(
     };
 
     Ok(expanded)
+}
+
+fn register_func_sig() -> proc_macro2::TokenStream {
+    #[cfg(not(feature = "tokio"))]
+    quote! { pub(crate) fn register(registry: &::ferrunix::Registry) }
+
+    #[cfg(feature = "tokio")]
+    quote! {
+        pub(crate) fn register<'reg>(
+            registry: &'reg ::ferrunix::Registry,
+        ) -> ::std::pin::Pin<
+            ::std::boxed::Box<dyn ::std::future::Future<Output = ()> + Send + 'reg>,
+        >
+        where
+            Self: Sync + 'static,
+    }
+}
+
+fn box_if_required(
+    tokens: &proc_macro2::TokenStream,
+) -> proc_macro2::TokenStream {
+    #[cfg(not(feature = "tokio"))]
+    {
+        quote! { { #tokens } }
+    }
+
+    #[cfg(feature = "tokio")]
+    {
+        quote! {
+            ::std::boxed::Box::pin(async move { #tokens })
+        }
+    }
+}
+
+fn await_if_needed() -> Option<proc_macro2::TokenStream> {
+    (cfg!(feature = "tokio")).then(|| {
+        quote! {
+           .await
+        }
+    })
 }
 
 fn registration(
@@ -77,11 +119,13 @@ fn registration_empty(
     dependency_type: &syn::Ident,
 ) -> syn::Result<proc_macro2::TokenStream> {
     let ctor = get_ctor_for(registered_ty, quote!(Self {}))?;
+    let ctor = box_if_required(&ctor);
+    let ifawait = await_if_needed();
 
     let tokens = quote! {
         registry.#dependency_type::<#registered_ty>(|| {
             #ctor
-        });
+        })#ifawait;
     };
 
     Ok(tokens)
@@ -99,6 +143,8 @@ fn registration_fields(
     let dependency_tuple = into_dependency_tuple(&fields);
     let dependency_idents = into_dependency_idents(&fields);
     let constructor = type_ctor(registered_ty, input, &fields)?;
+    let constructor = box_if_required(&constructor);
+    let ifawait = await_if_needed();
 
     let tokens = match (dependency_tuple, dependency_idents) {
         (Some(types), Some(idents)) => {
@@ -107,7 +153,7 @@ fn registration_fields(
                     .with_deps::<#registered_ty, #types>()
                     .#dependency_type(|#idents| {
                         #constructor
-                    });
+                    })#ifawait;
             }
         }
 
@@ -115,7 +161,7 @@ fn registration_fields(
             quote! {
                 registry.#dependency_type::<#registered_ty>(|| {
                     #constructor
-                });
+                })#ifawait;
             }
         }
     };

@@ -23,7 +23,7 @@ fn simple_registry_concrete_types() {
             u32::from(i) + u32::from(j) + 1_u32
         });
 
-    assert!(registry.validate_all());
+    registry.validate_all().unwrap();
 
     let x = registry.get_transient::<u8>();
     assert_eq!(x, Some(1_u8));
@@ -48,7 +48,7 @@ fn singletons_without_deps() {
     registry.singleton(|| 16_i16);
     registry.singleton(|| 32_i32);
 
-    assert!(registry.validate_all());
+    registry.validate_all().unwrap();
 
     let x1 = registry.get_singleton::<i8>();
     assert_eq!(*x1.unwrap(), 8_i8);
@@ -72,7 +72,7 @@ fn singletons_with_deps() {
             i32::from(i) + i32::from(*j)
         });
 
-    assert!(registry.validate_all());
+    registry.validate_all().unwrap();
 
     let x1 = registry.get_transient::<u8>();
     assert_eq!(x1.unwrap(), 1_u8);
@@ -102,7 +102,7 @@ fn validate_failure_missing_dependencies() {
         });
 
     assert!(
-        !registry.validate_all(),
+        registry.validate_all().is_err(),
         "should fail due to missing u8 dependency"
     );
 

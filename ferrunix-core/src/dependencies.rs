@@ -9,8 +9,9 @@
 //! inner type via `.get`.
 //!
 //! # Examples
-//! ```
-//! # use ferrunix_core::{Registry, Singleton, Transient};
+//! ```ignore,no_run
+//! use ferrunix_core::{Registry, Singleton, Transient};
+//!
 //! struct Template {
 //!     template: &'static str,
 //! }
@@ -32,7 +33,7 @@
 
 use std::any::TypeId;
 
-use crate::types::Registerable;
+use crate::types::{Registerable, RegisterableSingleton};
 use crate::{types::Ref, Registry};
 
 /// Required for sealing the `Dep` trait. *Must not be public*.
@@ -53,7 +54,18 @@ pub trait Dep: Registerable + private::Sealed {
     /// Looks up the dependency in `registry`, and constructs a new [`Dep`].
     ///
     /// This function is allowed to panic, if the type isn't registered.
+    #[cfg(not(feature = "tokio"))]
     fn new(registry: &Registry) -> Self;
+
+    /// Looks up the dependency in `registry`, and constructs a new [`Dep`].
+    ///
+    /// This function is allowed to panic, if the type isn't registered.
+    #[cfg(feature = "tokio")]
+    fn new(
+        registry: &Registry,
+    ) -> impl std::future::Future<Output = Self> + Send
+    where
+        Self: Sized;
 
     /// Returns [`std::any::TypeId`] of the dependency type.
     fn type_id() -> TypeId;
@@ -93,6 +105,7 @@ impl<T: Registerable> std::ops::DerefMut for Transient<T> {
 impl<T: Registerable> Transient<T> {
     /// Access the inner `T`.
     #[must_use]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self)))]
     pub fn get(self) -> T {
         self.inner
     }
@@ -106,9 +119,24 @@ impl<T: Registerable> Dep for Transient<T> {
     ///
     /// # Panic
     /// This function panics if the `T` isn't registered.
+    #[cfg(not(feature = "tokio"))]
     fn new(registry: &Registry) -> Self {
         Self {
             inner: registry.get_transient::<T>().expect(
+                "transient dependency must only be constructed if it's \
+                 fulfillable",
+            ),
+        }
+    }
+
+    /// Create a new [`Transient`], asynchronously.
+    ///
+    /// # Panic
+    /// This function panics if the `T` isn't registered.
+    #[cfg(feature = "tokio")]
+    async fn new(registry: &Registry) -> Self {
+        Self {
+            inner: registry.get_transient::<T>().await.expect(
                 "transient dependency must only be constructed if it's \
                  fulfillable",
             ),
@@ -139,13 +167,13 @@ impl<T: std::fmt::Debug> std::fmt::Debug for Singleton<T> {
     }
 }
 
-impl<T: Registerable> From<Singleton<T>> for Ref<T> {
+impl<T: RegisterableSingleton> From<Singleton<T>> for Ref<T> {
     fn from(value: Singleton<T>) -> Self {
         value.inner
     }
 }
 
-impl<T: Registerable> std::ops::Deref for Singleton<T> {
+impl<T: RegisterableSingleton> std::ops::Deref for Singleton<T> {
     type Target = Ref<T>;
 
     fn deref(&self) -> &Self::Target {
@@ -153,15 +181,16 @@ impl<T: Registerable> std::ops::Deref for Singleton<T> {
     }
 }
 
-impl<T: Registerable> std::ops::DerefMut for Singleton<T> {
+impl<T: RegisterableSingleton> std::ops::DerefMut for Singleton<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }
 }
 
-impl<T: Registerable> Singleton<T> {
+impl<T: RegisterableSingleton> Singleton<T> {
     /// Access the inner dependency, returns a ref-counted object.
     #[must_use]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self)))]
     pub fn get(self) -> Ref<T> {
         self.inner
     }
@@ -170,14 +199,29 @@ impl<T: Registerable> Singleton<T> {
 // Required for implementing `Dep`.
 impl<T> private::Sealed for Singleton<T> {}
 
-impl<T: Registerable> Dep for Singleton<T> {
+impl<T: RegisterableSingleton> Dep for Singleton<T> {
     /// Create a new [`Singleton`].
     ///
     /// # Panic
     /// This function panics if the `T` isn't registered.
+    #[cfg(not(feature = "tokio"))]
     fn new(registry: &Registry) -> Self {
         Self {
             inner: registry.get_singleton::<T>().expect(
+                "singleton dependency must only be constructed if it's \
+                 fulfillable",
+            ),
+        }
+    }
+
+    /// Create a new [`Singleton`], asynchronously.
+    ///
+    /// # Panic
+    /// This function panics if the `T` isn't registered.
+    #[cfg(feature = "tokio")]
+    async fn new(registry: &Registry) -> Self {
+        Self {
+            inner: registry.get_singleton::<T>().await.expect(
                 "singleton dependency must only be constructed if it's \
                  fulfillable",
             ),

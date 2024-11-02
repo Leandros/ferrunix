@@ -4,27 +4,6 @@ use ferrunix::{Registry, Transient};
 
 use crate::common::*;
 
-pub trait BillingService: Send + Sync {
-    fn charge_order(
-        &self,
-        order: PizzaOrder,
-        creditcard: &CreditCard,
-    ) -> Result<Receipt, ExampleError>;
-}
-
-pub trait CreditCardProcessor: Send + Sync {
-    fn charge(
-        &self,
-        creditcard: &CreditCard,
-        amount: i32,
-    ) -> Result<i32, ExampleError>;
-}
-
-pub trait TransactionLog: Send + Sync {
-    fn log_charge(&self, amount: i32);
-    fn log_error(&self, err: &ExampleError);
-}
-
 #[derive(Debug, Default)]
 pub struct PaypalCreditCardProcessor {}
 
@@ -85,7 +64,7 @@ fn registry_dyn_traits() {
     registry.transient::<Box<dyn TransactionLog>>(|| {
         Box::new(RealTransactionLog::default())
     });
-    assert!(registry.validate_all());
+    registry.validate_all().unwrap();
 
     registry
         .with_deps::<Box<dyn BillingService>, (
@@ -99,7 +78,7 @@ fn registry_dyn_traits() {
             })
         });
 
-    assert!(registry.validate_all());
+    registry.validate_all().unwrap();
 
     let billing_service =
         registry.get_transient::<Box<dyn BillingService>>().unwrap();

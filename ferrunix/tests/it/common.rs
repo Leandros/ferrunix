@@ -45,3 +45,31 @@ pub trait TransactionLog: Send + Sync {
     fn log_charge(&self, amount: i32);
     fn log_error(&self, err: &ExampleError);
 }
+
+//          ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+//          ┃                      Async Traits                       ┃
+//          ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+#[async_trait::async_trait]
+pub trait AsyncBillingService: Send + Sync {
+    async fn charge_order(
+        &self,
+        order: PizzaOrder,
+        creditcard: &CreditCard,
+    ) -> Result<Receipt, ExampleError>;
+}
+
+#[async_trait::async_trait]
+pub trait AsyncCreditCardProcessor: Send + Sync {
+    async fn charge(
+        &self,
+        creditcard: &CreditCard,
+        amount: i32,
+    ) -> Result<i32, ExampleError>;
+}
+
+#[async_trait::async_trait]
+pub trait AsyncTransactionLog: Send + Sync {
+    async fn log_charge(&self, amount: i32);
+    async fn log_error(&self, err: &ExampleError);
+}

@@ -4,13 +4,14 @@ members = [
     "ferrunix",
     "ferrunix-*",
     "examples/*",
+    "doc-tests",
     "xtask",
 ]
 # Only check / build main crates by default (check all with `--workspace`)
 default-members = ["ferrunix", "ferrunix-*"]
 
 [workspace.package]
-rust-version = "1.64"
+rust-version = "1.67.1" # 1.75.0 with the `tokio` feature
 edition = "2021"
 authors = ["Arvid Gerstmann <github@arvid.io>"]
 homepage = "https://github.com/Leandros/ferrunix"
@@ -42,7 +43,7 @@ noop_method_call = "warn"
 elided_lifetimes_in_paths = "warn"
 explicit_outlives_requirements = "warn"
 unsafe_op_in_unsafe_fn = "warn"
-unused_extern_crates = "warn"
+unused_extern_crates = "allow"
 unused_lifetimes = "warn"
 
 # Lints from Clippy: <https://rust-lang.github.io/rust-clippy/master/index.html>

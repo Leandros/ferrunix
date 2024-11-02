@@ -1,0 +1,18 @@
+[package]
+name = "doc-tests"
+version = "0.0.0"
+publish = false
+# Inherited.
+rust-version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+skeptic = { git = "https://github.com/Leandros/rust-skeptic.git", rev = "45d69d27c3ee1f0cf66072053bb6f88c1be0e07b" }
+
+[build-dependencies]
+skeptic = { git = "https://github.com/Leandros/rust-skeptic.git", rev = "45d69d27c3ee1f0cf66072053bb6f88c1be0e07b" }

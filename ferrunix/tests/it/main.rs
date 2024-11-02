@@ -1,9 +1,21 @@
 //! Entrypoint for all integration tests.
 
 mod common;
-#[cfg(feature = "derive")]
-mod derive_simple;
-mod manual;
-mod manual_non_object_safe;
-mod manual_traits;
+mod cycle_test;
+mod stress;
 mod validate_traits;
+
+#[cfg(all(feature = "derive", feature = "tokio"))]
+mod derive_async;
+#[cfg(all(feature = "derive", not(feature = "tokio")))]
+mod derive_simple;
+
+#[cfg(not(feature = "tokio"))]
+mod manual;
+#[cfg(not(feature = "tokio"))]
+mod manual_non_object_safe;
+#[cfg(not(feature = "tokio"))]
+mod manual_traits;
+
+#[cfg(feature = "tokio")]
+mod manual_async;
