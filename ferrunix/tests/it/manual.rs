@@ -115,3 +115,30 @@ fn validate_failure_missing_dependencies() {
     let s1 = registry.get_singleton::<String>();
     assert_eq!(s1, None);
 }
+
+#[test]
+#[should_panic]
+#[allow(clippy::should_panic_without_expect)]
+fn panic_when_registered_twice_diff() {
+    let registry = Registry::empty();
+    registry.transient(|| 1_u8);
+    registry.singleton(|| 1_u8);
+}
+
+#[test]
+#[should_panic]
+#[allow(clippy::should_panic_without_expect)]
+fn panic_when_registered_twice_transient() {
+    let registry = Registry::empty();
+    registry.transient(|| 1_u8);
+    registry.transient(|| 1_u8);
+}
+
+#[test]
+#[should_panic]
+#[allow(clippy::should_panic_without_expect)]
+fn panic_when_registered_twice_singleton() {
+    let registry = Registry::empty();
+    registry.singleton(|| 1_u8);
+    registry.singleton(|| 1_u8);
+}
