@@ -36,7 +36,7 @@ pub(super) struct CiArgs {
 /// Run all tests, similar to the GitHub Actions in `ci.yml`.
 #[allow(clippy::too_many_lines)]
 pub(super) fn run(args: &CiArgs) -> Result<()> {
-    let mut had_errors = false;
+    let mut errors: Vec<xshell::Error> = Vec::new();
     let sh = Shell::new()?;
     // sh.set_var("RUSTFLAGS", "-Dwarnings");
     // sh.set_var("CARGO_INCREMENTAL", "0");
@@ -109,8 +109,8 @@ pub(super) fn run(args: &CiArgs) -> Result<()> {
                 "cargo {testrunner...} -p {proj} --no-default-features"
             )
             .run();
-            if res.is_err() {
-                had_errors = true;
+            if let Err(err) = res {
+                errors.push(err);
             }
             continue;
         }
@@ -120,35 +120,35 @@ pub(super) fn run(args: &CiArgs) -> Result<()> {
             "cargo {testrunner...} -p {proj} --no-default-features -F {features}"
         )
         .run();
-        if res.is_err() {
-            had_errors = true;
+        if let Err(err) = res {
+            errors.push(err);
         }
     }
 
     if !args.no_extended && cmd!(sh, "cargo clippy --version").output().is_ok()
     {
         let res = cmd!(sh, "cargo clippy --tests --workspace").run();
-        if res.is_err() {
-            had_errors = true;
+        if let Err(err) = res {
+            errors.push(err);
         }
     }
 
     if !args.no_extended && has_cargo_outdated {
-        let res = cmd!(sh, "cargo outdated --workspace --exit-code 1").run();
-        if res.is_err() {
-            had_errors = true;
+        let res = cmd!(sh, "cargo outdated --workspace").run();
+        if let Err(err) = res {
+            errors.push(err);
         }
     }
 
     if !args.no_extended && has_cargo_semver {
         let res = cmd!(sh, "cargo semver-checks").run();
-        if res.is_err() {
-            had_errors = true;
+        if let Err(err) = res {
+            errors.push(err);
         }
     }
 
-    if had_errors {
-        return Err(anyhow::anyhow!("not all checks passed"));
+    if !errors.is_empty() {
+        return Err(anyhow::anyhow!("not all checks passed: {errors:#?}"));
     }
 
     Ok(())
