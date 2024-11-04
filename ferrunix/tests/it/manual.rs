@@ -142,3 +142,16 @@ fn panic_when_registered_twice_singleton() {
     registry.singleton(|| 1_u8);
     registry.singleton(|| 1_u8);
 }
+
+#[derive(Debug)]
+struct NotClone {
+    inner: String,
+}
+
+#[test]
+fn register_not_clone() {
+    let registry = Registry::empty();
+    registry.transient(|| NotClone { inner: String::new() });
+
+    let _not_clone = registry.get_transient::<NotClone>().unwrap();
+}
