@@ -20,7 +20,7 @@ readme = "README.md"
 license = "MIT OR Apache-2.0"
 keywords = ["dependency-injection", "inversion-of-control", "dependency-inversion", "di", "ioc"]
 categories = ["development-tools", "rust-patterns", "config", "data-structures"]
-exclude = ["*.png", "*.svg", "rustfmt.toml", "xtask"]
+exclude = ["*.png", "*.svg", "rustfmt.toml", "xtask", "doc-tests", "deny.toml"]
 
 [workspace.dependencies]
 ferrunix = { path = "./ferrunix" }
