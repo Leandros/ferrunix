@@ -76,8 +76,8 @@ impl Registry {
     /// entire dependency tree for each registered type.
     ///
     /// # Errors
-    /// Returns a [`ValidationError`] when the dependency graph is missing dependencies or
-    /// has cycles.
+    /// Returns a [`FullValidationError`] when the dependency graph is missing dependencies or has
+    /// cycles.
     #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn validate_all_full(&self) -> Result<(), FullValidationError> {
         self.validator.validate_all_full()
