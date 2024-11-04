@@ -10,7 +10,7 @@ pub(super) fn run(_args: &DocsArgs) -> anyhow::Result<()> {
     let sh = Shell::new()?;
 
     // Run tests for ferrunix; these validate all code in the book.
-    cmd!(sh, "cargo test -p ferrunix").run()?;
+    cmd!(sh, "cargo test -p doc-tests").run()?;
 
     // Build the docs.
     let feature_matrix = ["default", "multithread", "tokio"];
