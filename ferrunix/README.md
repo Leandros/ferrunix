@@ -21,7 +21,7 @@ ferrunix = "0.3"
 
 *Compiler support: requires rustc 1.67.1+*
 
-**Check out the [User Guide](https://leandros.github.io/ferrunix/book).**
+**Check out the [User Guide](https://leandros.github.io/ferrunix/user-guide/first-steps.html).**
 
 
 ## Documentation
@@ -38,15 +38,20 @@ documentation is provided for each major feature separately.
 
 ## Features
 
-- Can register and inject any type (incl. generics, types must be `Send` +
-    `Sync` if the `multithread` feature is enabled).
-- Simple and elegant Rust API, making the derive macro purely optional.
+- Can register and inject any type (incl. generics, types must be `Send` if the
+  `multithread` feature is enabled, and `Send + Sync` if `tokio` is enabled).
+- Simple and elegant Rust API; making the derive macro purely optional.
 - Different dependency lifetimes:
-    - Singleton: Only a single instance of the object is created.
-    - Transient: A new instance is created for every request.
+    - **Singleton**: Only a single instance of the object is created.
+    - **Transient**: A new instance is created for every request.
+- Dependency resolution happens at run time, making it possible to dynamically
+  register types.
+- Injection of concrete value types (`T`), `Box<T>`, `Rc<T>`, and `Arc<T>`.
 - Derive macro (`#[derive(Inject)]`) to simplify registration.
-- Automatic registration of types.
-- One global registry; with support for multipiple sub-registries.
+- Automatic registration of types, thanks to
+  [`inventory`](https://docs.rs/inventory/latest/inventory/).
+- One global registry; with support for multiple sub-registries.
+
 
 ## Cargo Feature Flags
 
