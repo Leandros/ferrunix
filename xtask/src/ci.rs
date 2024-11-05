@@ -85,7 +85,6 @@ pub(super) fn run(args: &CiArgs) -> Result<()> {
         ferrunix
             .chain(ferrunix_core)
             .chain(ferrunix_macros)
-            .chain(iter::once(("doc-tests", String::new())))
             .filter(|(_, features)| {
                 if filter.is_empty() {
                     true
@@ -120,6 +119,14 @@ pub(super) fn run(args: &CiArgs) -> Result<()> {
             "cargo {testrunner...} -p {proj} --no-default-features -F {features}"
         )
         .run();
+        if let Err(err) = res {
+            errors.push(err);
+        }
+    }
+
+    {
+        cmd!(sh, "cargo clean -p ferrunix -p ferrunix-core -p ferrunix-macros").run()?;
+        let res = cmd!(sh, "cargo {testrunner...} -p doc-tests").run();
         if let Err(err) = res {
             errors.push(err);
         }
