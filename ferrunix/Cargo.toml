@@ -25,7 +25,7 @@ tracing = ["ferrunix-core/tracing"]
 
 [dependencies]
 ferrunix-core = { path = "../ferrunix-core", default-features = false, version = "=0.3.0" }
-ferrunix-macros = { path = "../ferrunix-macros", optional = true, version = "=0.2.0" }
+ferrunix-macros = { path = "../ferrunix-macros", optional = true, version = "=0.3.0" }
 
 [dev-dependencies]
 thiserror = "1"
