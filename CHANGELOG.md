@@ -7,6 +7,25 @@ of the changelog is based on [Keep a Changelog](https://keepachangelog.com/en/1.
 Deprecated features will be kept for any following maintenance release, and
 will be removed after two major releases.
 
+## [0.3.0] - UNRELEASED
+
+MSRV is bumped from `1.64.0` to `1.67.1`. MSRV with `tokio` enabled is `1.75.0`.
+
+### <!-- 0 -->🚀 Features
+- Add support for `async` constructors. Enabled with the `tokio` feature.
+- Detect loops and missing dependency in the dependency graph, detected by
+  `Registry::validate_all`.
+- Constructor of singletons is now `FnOnce`.
+- Much less restrictive type bounds. Bounds for single-threaded registry is
+  only `'static`, bounds for multi-threaded registry is `Send + 'static`,
+  bounds for async are `Send + Sync + 'static`.
+- Test all documentation code using newly introduced `doc-tests` sub-crate.
+
+### <!-- 1 -->🐛 Bug Fixes
+- Results of validations are cached correctly.
+- All features are now additive. Priority of features is as follows: `tokio` >
+  `multithread` > `default`.
+
 ## [0.2.0] - 2024-10-16
 
 ### <!-- 0 -->🚀 Features
