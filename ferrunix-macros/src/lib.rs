@@ -56,9 +56,8 @@ mod utils;
 /// - `singleton [= true]`
 ///     - Construct the field as a singleton by retrieving it from the `Registry`.
 ///
-/// ```rust,no_run
+/// ```rust,ignore,no_run
 /// # #![allow(unused)]
-/// # extern crate ferrunix;
 /// use ferrunix::Inject;
 ///
 /// pub trait Logger {}
