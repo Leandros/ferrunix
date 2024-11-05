@@ -11,12 +11,17 @@ pub(super) fn run(_args: &DocsArgs) -> anyhow::Result<()> {
 
     // Run tests for ferrunix; these validate all code in the book.
     {
-        cmd!(sh, "cargo clean -p ferrunix -p ferrunix-core -p ferrunix-macros").run()?;
+        cmd!(
+            sh,
+            "cargo clean -p ferrunix -p ferrunix-core -p ferrunix-macros"
+        )
+        .run()?;
         cmd!(sh, "cargo test -p doc-tests").run()?;
     }
 
     // Build the docs.
-    let feature_matrix = ["default", "multithread", "tokio"];
+    let feature_matrix =
+        ["derive,default", "derive,multithread", "derive,tokio"];
     {
         for feature in feature_matrix {
             if feature == "default" {
