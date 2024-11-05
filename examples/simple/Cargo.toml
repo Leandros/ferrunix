@@ -8,8 +8,6 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 
-[lints]
-workspace = true
-
 [dependencies]
 ferrunix.workspace = true
+thiserror = "1"
