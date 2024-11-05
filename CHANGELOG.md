@@ -7,6 +7,11 @@ of the changelog is based on [Keep a Changelog](https://keepachangelog.com/en/1.
 Deprecated features will be kept for any following maintenance release, and
 will be removed after two major releases.
 
+## [0.3.1] - 2024-11-05
+
+### <!-- 1 -->🐛 Bug Fixes
+- Publish `ferrunix` v0.3.1 which depends on an updated `ferrunix-macros`
+
 ## [0.3.0] - 2024-11-05
 
 MSRV is bumped from `1.64.0` to `1.67.1`. MSRV with `tokio` enabled is `1.75.0`.
