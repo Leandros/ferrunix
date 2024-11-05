@@ -11,6 +11,9 @@ license.workspace = true
 [lints]
 workspace = true
 
+[dependencies]
+ferrunix = { path = "../ferrunix", default-features = false, features = ["multithread"], version = "=0.3.0" }
+
 [dev-dependencies]
 skeptic = { git = "https://github.com/Leandros/rust-skeptic.git", rev = "45d69d27c3ee1f0cf66072053bb6f88c1be0e07b" }
 
