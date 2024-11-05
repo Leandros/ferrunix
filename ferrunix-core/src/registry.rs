@@ -549,7 +549,7 @@ where
     /// This constructor will be called for every `T` that is requested.
     ///
     /// # Example
-    /// ```no_run
+    /// ```rust,no_run
     /// # use ferrunix_core::{Registry, Singleton, Transient};
     /// # let registry = Registry::empty();
     /// # struct Template {
@@ -646,7 +646,7 @@ where
     /// instance of `T` is requested.
     ///
     /// # Example
-    /// ```no_run
+    /// ```rust,no_run
     /// # use ferrunix_core::{Registry, Singleton, Transient};
     /// # let registry = Registry::empty();
     /// # struct Template {
