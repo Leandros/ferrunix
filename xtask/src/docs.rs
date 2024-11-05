@@ -20,16 +20,15 @@ pub(super) fn run(_args: &DocsArgs) -> anyhow::Result<()> {
     }
 
     // Build the docs.
-    let feature_matrix =
-        ["derive,default", "derive,multithread", "derive,tokio"];
+    let feature_matrix = ["default", "multithread", "tokio"];
     {
         for feature in feature_matrix {
             if feature == "default" {
-                cmd!(sh, "cargo doc --target-dir target/doc-default --no-default-features").run()?;
+                cmd!(sh, "cargo doc --target-dir target/doc-default --no-default-features -F derive").run()?;
                 continue;
             }
 
-            cmd!(sh, "cargo doc --target-dir target/doc-{feature} --no-default-features -F {feature}").run()?;
+            cmd!(sh, "cargo doc --target-dir target/doc-{feature} --no-default-features -F derive,{feature}").run()?;
         }
     }
 
