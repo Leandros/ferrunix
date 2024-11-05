@@ -1,10 +1,10 @@
-//! Simple example for ferrunix, using manual registration.
+//! Simple example for ferrunix, using the `derive` macro.
 //!
 //! This example is inspired by the Guice example.
 
 use std::error::Error;
 
-use ferrunix::{Registry, Transient};
+use ferrunix::{Inject, Registry};
 
 use self::traits::{
     BillingService, CreditCard, CreditCardProcessor, ExampleError, PizzaOrder,
@@ -14,7 +14,8 @@ use self::traits::{
 mod traits;
 
 /// An implementation of a credit card processr for PayPal.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Inject)]
+#[provides(transient = "dyn CreditCardProcessor")]
 pub struct PaypalCreditCardProcessor {}
 
 impl CreditCardProcessor for PaypalCreditCardProcessor {
@@ -29,7 +30,8 @@ impl CreditCardProcessor for PaypalCreditCardProcessor {
 }
 
 /// An implementation of a transaction log for stdout/stderr.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Inject)]
+#[provides(transient = "dyn TransactionLog")]
 pub struct RealTransactionLog {}
 
 impl TransactionLog for RealTransactionLog {
@@ -43,8 +45,12 @@ impl TransactionLog for RealTransactionLog {
 }
 
 /// An implementation of a concrete billing service.
+#[derive(Inject)]
+#[provides(transient = "dyn BillingService")]
 pub struct RealBillingService {
+    #[inject(transient)]
     creditcard_processor: Box<dyn CreditCardProcessor>,
+    #[inject(transient)]
     transactionlog: Box<dyn TransactionLog>,
 }
 
@@ -68,26 +74,7 @@ impl BillingService for RealBillingService {
 }
 
 fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
-    let registry = Registry::empty();
-    registry.transient::<Box<dyn CreditCardProcessor>>(|| {
-        Box::new(PaypalCreditCardProcessor::default())
-    });
-    registry.transient::<Box<dyn TransactionLog>>(|| {
-        Box::new(RealTransactionLog::default())
-    });
-
-    registry
-        .with_deps::<Box<dyn BillingService>, (
-            Transient<Box<dyn TransactionLog>>,
-            Transient<Box<dyn CreditCardProcessor>>,
-        )>()
-        .transient(|(transaction, processor)| {
-            Box::new(RealBillingService {
-                transactionlog: transaction.get(),
-                creditcard_processor: processor.get(),
-            })
-        });
-
+    let registry = Registry::global();
     registry.validate_all_full()?;
 
     let billing_service =

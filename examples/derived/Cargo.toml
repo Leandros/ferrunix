@@ -1,0 +1,13 @@
+[package]
+name = "example-derived"
+version = "0.0.0"
+publish = false
+# Inherited.
+rust-version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+ferrunix.workspace = true
+thiserror = "1"
