@@ -1,5 +1,5 @@
 //! Holds all registered types that can be injected or constructed.
-#![allow(clippy::missing_docs_in_private_items)]
+#![allow(clippy::multiple_inherent_impl)]
 
 use std::any::TypeId;
 use std::marker::PhantomData;
@@ -19,7 +19,9 @@ use crate::{
 
 /// Registry for all types that can be constructed or otherwise injected.
 pub struct Registry {
+    /// Internal hashtable of all registered objects.
     objects: RwLock<HashMap<TypeId, Object>>,
+    /// Validation.
     validator: DependencyValidator,
 }
 
@@ -526,8 +528,11 @@ impl std::fmt::Debug for Registry {
 /// [`Registry::with_deps`].
 #[allow(clippy::single_char_lifetime_names)]
 pub struct Builder<'reg, T, Deps> {
+    /// Reference to parent registry.
     registry: &'reg Registry,
+    /// Marker for `T`.
     _marker: PhantomData<T>,
+    /// Marker for `Deps`.
     _marker1: PhantomData<Deps>,
 }
 
