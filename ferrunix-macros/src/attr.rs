@@ -101,8 +101,16 @@ pub(crate) struct DeriveAttrInput {
     // attrs: Vec<syn::Attribute>,
 
     //  ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫ Custom: ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+    /// Whether this type is registered as a transient, and, optionally specify what type.
     transient: Option<Override<Type>>,
+
+    /// Whether this type is registered as a singleton, and, optionally specify what type.
     singleton: Option<Override<Type>>,
+
+    /// Whether this type isn't registered automatically. With this disabled, the generated
+    /// `Register` function needs to be called manually.
+    #[darling(default)]
+    no_registration: bool,
 }
 
 impl DeriveAttrInput {
@@ -172,5 +180,11 @@ impl DeriveAttrInput {
 
             None => None,
         }
+    }
+
+    /// Whether this type isn't registered automatically. With this disabled, the generated
+    /// `Register` function needs to be called manually.
+    pub(crate) fn no_registration(&self) -> bool {
+        self.no_registration
     }
 }

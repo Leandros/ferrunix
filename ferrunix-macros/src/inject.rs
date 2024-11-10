@@ -34,6 +34,19 @@ pub(crate) fn derive_macro_impl(
     let registration = registration(input, attrs)?;
     let sig = register_func_sig();
     let boxed_registration = box_if_required(&registration);
+
+    let autoregistration = {
+        if attrs.no_registration() {
+            None
+        } else {
+            Some(quote! {
+                ::ferrunix::autoregister!(::ferrunix::RegistrationFunc::new(
+                        <#struct_name>::register
+                ));
+            })
+        }
+    };
+
     let expanded = quote! {
         #[automatically_derived]
         impl #struct_name {
@@ -43,9 +56,7 @@ pub(crate) fn derive_macro_impl(
             }
         }
 
-        ::ferrunix::autoregister!(::ferrunix::RegistrationFunc::new(
-            <#struct_name>::register
-        ));
+        #autoregistration
     };
 
     Ok(expanded)

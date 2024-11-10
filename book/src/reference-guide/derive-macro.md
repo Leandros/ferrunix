@@ -17,11 +17,15 @@ struct Transient {
 ## `provides` Properties
 
 - `transient [= "<TYPE-SIGNATURE>"]`
-    - The object is provided as a transient registered with `<TYPE-SIGNATURE>` as key.
-      If the signature is omitted, the concrete type is used as a key.
+    - The object is provided as a transient registered with `<TYPE-SIGNATURE>`
+      as key. If the signature is omitted, the concrete type is used as a key.
 - `singleton [= "<TYPE-SIGNATURE>"]`
-    - The object is provided as a singleton registered with `<TYPE-SIGNATURE>` as key.
-      If the signature is omitted, the concrete type is used as a key.
+    - The object is provided as a singleton registered with `<TYPE-SIGNATURE>`
+      as key. If the signature is omitted, the concrete type is used as a key.
+- `no_registration`
+    - The type isn't registered automatically and the generated
+      `Self::register(&ferrunix::Registry)` function needs to be called
+      manually to register the type.
 
 ## `inject` Properties
 
@@ -44,7 +48,7 @@ use ferrunix::Inject;
 pub trait Logger {}
 
 #[derive(Inject)]
-#[provides(transient = "dyn Logger")]
+#[provides(transient = "dyn Logger", no_registration)]
 //                   ^^^^^^^^^^^^^^
 // The explicit type can be omitted, if it matches the concrete type.
 pub struct MyLogger {}
@@ -52,7 +56,7 @@ pub struct MyLogger {}
 impl Logger for MyLogger {}
 
 #[derive(Inject)]
-#[provides(singleton)]
+#[provides(singleton, no_registration)]
 pub struct MyConfig {
     #[inject(default)]
     // Use the `Default::default` impl for construction.

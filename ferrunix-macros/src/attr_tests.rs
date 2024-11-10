@@ -139,3 +139,16 @@ pub struct Foo {
     assert_eq!(singleton.as_ref(), &ty);
     assert_eq!(receiver.transient(), None);
 }
+
+#[test]
+fn attr_singleton_no_autoregistry() {
+    let input = r#"
+#[derive(Inject)]
+#[provides(singleton, no_registration)]
+pub struct Foo {
+}"#;
+    let parsed = syn::parse_str(input).unwrap();
+    let receiver = DeriveAttrInput::from_derive_input(&parsed);
+    let receiver = receiver.unwrap();
+    assert!(receiver.no_registration());
+}
