@@ -57,7 +57,7 @@ fn box_if_required(
 ) -> proc_macro2::TokenStream {
     #[cfg(not(feature = "tokio"))]
     {
-        quote! { { #tokens } }
+        quote! { #tokens }
     }
 
     #[cfg(feature = "tokio")]
