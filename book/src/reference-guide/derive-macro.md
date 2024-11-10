@@ -22,6 +22,10 @@ struct Transient {
 - `singleton [= "<TYPE-SIGNATURE>"]`
     - The object is provided as a singleton registered with `<TYPE-SIGNATURE>`
       as key. If the signature is omitted, the concrete type is used as a key.
+- `ctor = <IDENTIFIER>`
+    - The object isn't constructed using member-wise construction, but it's
+      constructed using a custom constructor (e.g., `new`). The constructor
+      will be passed the members in order of declaration as parameters.
 - `no_registration`
     - The type isn't registered automatically and the generated
       `Self::register(&ferrunix::Registry)` function needs to be called

@@ -152,3 +152,17 @@ pub struct Foo {
     let receiver = receiver.unwrap();
     assert!(receiver.no_registration());
 }
+
+#[test]
+fn attr_singleton_custom_ctor() {
+    let input = r#"
+#[derive(Inject)]
+#[provides(singleton, ctor = "new")]
+pub struct Foo {
+}"#;
+    let parsed = syn::parse_str(input).unwrap();
+    let receiver = DeriveAttrInput::from_derive_input(&parsed);
+    let receiver = receiver.unwrap();
+    let ctor = receiver.custom_ctor().unwrap();
+    assert_eq!(*ctor.as_ident(), format_ident!("new"));
+}

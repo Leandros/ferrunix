@@ -11,6 +11,8 @@ mod derive_async;
 mod derive_registration;
 #[cfg(feature = "derive")]
 mod derive_regression;
+#[cfg(feature = "derive")]
+mod derive_ctor;
 #[cfg(all(feature = "derive", not(feature = "tokio")))]
 mod derive_simple;
 

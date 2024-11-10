@@ -174,7 +174,7 @@ fn registration_fields(
     let fields = attrs.fields();
     let dependency_tuple = into_dependency_tuple(&fields);
     let dependency_idents = into_dependency_idents(&fields);
-    let constructor = type_ctor(registered_ty, input, &fields)?;
+    let constructor = type_ctor(registered_ty, input, attrs, &fields)?;
     let constructor = box_if_required(&constructor);
     let ifawait = await_if_needed();
     let generic_args = {
@@ -258,8 +258,25 @@ fn into_dependency_type(
 fn type_ctor(
     registered_ty: &syn::Type,
     input: &DeriveInput,
+    attrs: &DeriveAttrInput,
     fields: &Fields<DeriveField>,
 ) -> syn::Result<proc_macro2::TokenStream> {
+    let params = fields
+        .iter()
+        .enumerate()
+        .filter(|(_, field)| !field.not_injected())
+        .map(|(idx, field)| field_ctor_rhs(idx, field))
+        .collect::<syn::Result<Vec<_>>>()?;
+    if let Some(ctor_name) = attrs.custom_ctor() {
+        let ctor_name = ctor_name.as_ident();
+        let ctor = get_ctor_for(registered_ty, quote! {
+            Self::#ctor_name(#(#params),*)
+        });
+        let ctor = ctor?;
+
+        return Ok(ctor);
+    }
+
     let ctors = fields
         .iter()
         .enumerate()
@@ -302,28 +319,7 @@ fn field_ctor(
         .cloned()
         .unwrap_or_else(|| format_ident!("_{idx}"));
 
-    let ctor = {
-        if attrs.is_transient() || attrs.is_singleton() {
-            quote! { #ident.get() }
-        } else if let Some(ctor) = attrs.ctor() {
-            let parsed = syn::parse_str::<syn::Expr>(ctor);
-            if let Err(err) = parsed {
-                return Err(syn::Error::new(
-                    ctor.span(),
-                    format!(
-                        "couldn't parse ctor expression: {err}\n\nTo \
-                         construct a string, you need to double quote it."
-                    ),
-                ));
-            };
-
-            let parsed = parsed.expect("error handled above");
-            quote! { #parsed }
-        } else {
-            // Always fall back to `Default::default()`.
-            quote! { Default::default() }
-        }
-    };
+    let ctor = field_ctor_rhs(idx, attrs)?;
 
     // We have a named struct.
     let tokens = if attrs.ident().is_some() {
@@ -334,6 +330,37 @@ fn field_ctor(
     };
 
     Ok(tokens)
+}
+
+fn field_ctor_rhs(
+    idx: usize,
+    attrs: &DeriveField,
+) -> syn::Result<proc_macro2::TokenStream> {
+    let ident = attrs
+        .ident()
+        .cloned()
+        .unwrap_or_else(|| format_ident!("_{idx}"));
+
+    if attrs.is_transient() || attrs.is_singleton() {
+        Ok(quote! { #ident.get() })
+    } else if let Some(ctor) = attrs.ctor() {
+        let parsed = syn::parse_str::<syn::Expr>(ctor);
+        if let Err(err) = parsed {
+            return Err(syn::Error::new(
+                ctor.span(),
+                format!(
+                    "couldn't parse ctor expression: {err}\n\nTo \
+                         construct a string, you need to double quote it."
+                ),
+            ));
+        };
+
+        let parsed = parsed.expect("error handled above");
+        Ok(quote! { #parsed })
+    } else {
+        // Always fall back to `Default::default()`.
+        Ok(quote! { Default::default() })
+    }
 }
 
 fn registration_singleton(

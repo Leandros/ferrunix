@@ -7,7 +7,7 @@
 use std::borrow::Cow;
 
 use darling::ast::Fields;
-use darling::util::{Override, SpannedValue};
+use darling::util::{IdentString, Override, SpannedValue};
 use darling::{util, FromDeriveInput, FromField};
 use quote::quote;
 use syn::Type;
@@ -49,6 +49,8 @@ pub(crate) struct DeriveField {
     /// If it's neither a transient, singleton, or default constructed, this is
     /// used as a constructor.
     ctor: Option<SpannedValue<String>>,
+
+    // Make sure to update `not_injected` when adding any new attributes.
 }
 
 impl DeriveField {
@@ -89,6 +91,15 @@ impl DeriveField {
     pub(crate) fn ctor(&self) -> Option<&SpannedValue<String>> {
         self.ctor.as_ref()
     }
+
+    /// Whether this field is ignored during custom ctor construction, and not
+    /// passed as an injected field to the constructor.
+    pub(crate) fn not_injected(&self) -> bool {
+        !self.is_transient()
+            && !self.is_singleton()
+            && self.ctor.is_none()
+            && !self.default
+    }
 }
 
 #[derive(Debug, Clone, FromDeriveInput)]
@@ -106,6 +117,10 @@ pub(crate) struct DeriveAttrInput {
 
     /// Whether this type is registered as a singleton, and, optionally specify what type.
     singleton: Option<Override<Type>>,
+
+    /// Whether a non-default ctor is called, into which all the dependencies are passed as
+    /// function arguments.
+    ctor: Option<SpannedValue<IdentString>>,
 
     /// Whether this type isn't registered automatically. With this disabled, the generated
     /// `Register` function needs to be called manually.
@@ -186,5 +201,11 @@ impl DeriveAttrInput {
     /// `Register` function needs to be called manually.
     pub(crate) fn no_registration(&self) -> bool {
         self.no_registration
+    }
+
+    /// Whether a non-default ctor is called, into which all the dependencies are passed as
+    /// function arguments.
+    pub(crate) fn custom_ctor(&self) -> Option<&SpannedValue<IdentString>> {
+        self.ctor.as_ref()
     }
 }
