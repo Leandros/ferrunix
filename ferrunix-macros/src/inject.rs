@@ -3,12 +3,27 @@
 //! Specifically, not in `lib.rs` to create module encapsulation.
 
 use darling::ast::Fields;
-use quote::{format_ident, quote};
+use quote::{format_ident, quote, ToTokens, TokenStreamExt};
 use syn::spanned::Spanned;
 use syn::{Data, DeriveInput};
 
 use crate::attr::{DeriveAttrInput, DeriveField};
 use crate::utils::get_ctor_for;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DependencyType {
+    Singleton,
+    Transient,
+}
+
+impl ToTokens for DependencyType {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        match self {
+            Self::Singleton => tokens.append(format_ident!("singleton")),
+            Self::Transient => tokens.append(format_ident!("transient")),
+        }
+    }
+}
 
 pub(crate) fn derive_macro_impl(
     input: &DeriveInput,
@@ -103,11 +118,11 @@ fn registration_transient(
     // eprintln!("registered_ty: {registered_ty:#?}");
 
     if fields_is_empty {
-        registration_empty(&registered_ty, &format_ident!("transient"))
+        registration_empty(DependencyType::Transient, &registered_ty)
     } else {
         registration_fields(
+            DependencyType::Transient,
             &registered_ty,
-            &format_ident!("transient"),
             input,
             attrs,
         )
@@ -115,15 +130,21 @@ fn registration_transient(
 }
 
 fn registration_empty(
+    dependency_type: DependencyType,
     registered_ty: &syn::Type,
-    dependency_type: &syn::Ident,
 ) -> syn::Result<proc_macro2::TokenStream> {
     let ctor = get_ctor_for(registered_ty, quote!(Self {}))?;
     let ctor = box_if_required(&ctor);
     let ifawait = await_if_needed();
+    let generic_args = {
+        match dependency_type {
+            DependencyType::Singleton => quote! { <#registered_ty, _> },
+            DependencyType::Transient => quote! { <#registered_ty> },
+        }
+    };
 
     let tokens = quote! {
-        registry.#dependency_type::<#registered_ty>(|| {
+        registry.#dependency_type::#generic_args(|| {
             #ctor
         })#ifawait;
     };
@@ -132,8 +153,8 @@ fn registration_empty(
 }
 
 fn registration_fields(
+    dependency_type: DependencyType,
     registered_ty: &syn::Type,
-    dependency_type: &syn::Ident,
     input: &DeriveInput,
     attrs: &DeriveAttrInput,
 ) -> syn::Result<proc_macro2::TokenStream> {
@@ -145,6 +166,12 @@ fn registration_fields(
     let constructor = type_ctor(registered_ty, input, &fields)?;
     let constructor = box_if_required(&constructor);
     let ifawait = await_if_needed();
+    let generic_args = {
+        match dependency_type {
+            DependencyType::Singleton => quote! { <#registered_ty, _> },
+            DependencyType::Transient => quote! { <#registered_ty> },
+        }
+    };
 
     let tokens = match (dependency_tuple, dependency_idents) {
         (Some(types), Some(idents)) => {
@@ -159,7 +186,7 @@ fn registration_fields(
 
         _ => {
             quote! {
-                registry.#dependency_type::<#registered_ty>(|| {
+                registry.#dependency_type::#generic_args(|| {
                     #constructor
                 })#ifawait;
             }
@@ -306,11 +333,11 @@ fn registration_singleton(
     let registered_ty = attrs.singleton().expect("singleton attribute");
 
     if fields_is_empty {
-        registration_empty(&registered_ty, &format_ident!("singleton"))
+        registration_empty(DependencyType::Singleton, &registered_ty)
     } else {
         registration_fields(
+            DependencyType::Singleton,
             &registered_ty,
-            &format_ident!("singleton"),
             input,
             attrs,
         )
