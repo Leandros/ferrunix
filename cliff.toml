@@ -20,6 +20,7 @@ commit_parsers = [
   { message = "^chore\\(pr\\)", skip = true },
   { message = "^chore\\(pull\\)", skip = true },
   { message = "^chore|^ci|^chroe", skip = true },
+  { message = "^release", skip = true },
   { body = ".*security", group = "<!-- 8 -->🛡️ Security" },
   { message = "^revert", group = "<!-- 9 -->◀️ Revert" },
 ]
@@ -28,7 +29,7 @@ tag_pattern = "v[0-9].*"
 [bump]
 features_always_bump_minor = true
 breaking_always_bump_major = true
-initial_tag = "0.2.0"
+initial_tag = "0.3.1"
 
 [changelog]
 # template for the changelog header
@@ -46,7 +47,7 @@ will be removed after two major releases.\n
 # https://keats.github.io/tera/docs/#introduction
 body = """
 {%- macro remote_url() -%}
-  https://github.com/{{ remote.github.owner }}/{{ remote.github.repo }}
+  https://github.com/leandros/ferrunix
 {%- endmacro -%}
 
 {% if version -%}
@@ -80,7 +81,7 @@ body = """
 # template for the changelog footer
 footer = """
 {%- macro remote_url() -%}
-  https://github.com/{{ remote.github.owner }}/{{ remote.github.repo }}
+  https://github.com/leandros/ferrunix
 {%- endmacro -%}
 
 {% for release in releases -%}

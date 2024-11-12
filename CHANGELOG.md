@@ -7,6 +7,18 @@ of the changelog is based on [Keep a Changelog](https://keepachangelog.com/en/1.
 Deprecated features will be kept for any following maintenance release, and
 will be removed after two major releases.
 
+## [unreleased]
+
+### <!-- 0 -->🚀 Features
+- Add `no_registration` attribute to `provides` macro
+- Add `ctor` attribute to `provides` macro
+
+### <!-- 1 -->🐛 Bug Fixes
+- Remove unecessary braces around constructor
+- Fix singleton derive macro registration regression
+- Fix incorrectly requiring singletons to be `Clone`
+- Fix `#[derive(Inject)]` macro with `tokio` enabled
+
 ## [0.3.1] - 2024-11-05
 
 ### <!-- 1 -->🐛 Bug Fixes
@@ -41,7 +53,7 @@ MSRV is bumped from `1.64.0` to `1.67.1`. MSRV with `tokio` enabled is `1.75.0`.
 - Add `multithread` feature
 
 ### <!-- 1 -->🐛 Bug Fixes
-- Ci badge
+- CI badge
 - Specify version of dependency for publishing
 - Specify ferrunix-macros version
 - Required minimal versions
@@ -55,4 +67,6 @@ MSRV is bumped from `1.64.0` to `1.67.1`. MSRV with `tokio` enabled is `1.75.0`.
 - Ci failing
 - Panic in cmd! proc-macro
 
-
+[unreleased]: https://github.com/leandros/ferrunix/compare/v0.3.1..HEAD
+[0.3.0]: https://github.com/leandros/ferrunix/compare/v0.2.0..v0.3.0
+[0.3.1]: https://github.com/leandros/ferrunix/compare/v0.3.0..v0.3.1
