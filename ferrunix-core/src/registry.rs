@@ -365,7 +365,7 @@ impl Registry {
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
     pub async fn singleton<T, F>(&self, ctor: F)
     where
-        T: RegisterableSingleton + Clone,
+        T: RegisterableSingleton,
         F: SingletonCtor<T>,
     {
         use crate::object_builder::AsyncSingletonNoDeps;
