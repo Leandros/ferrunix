@@ -155,3 +155,11 @@ fn register_not_clone() {
 
     let _not_clone = registry.get_transient::<NotClone>().unwrap();
 }
+
+struct TupleWithStatic(&'static str);
+
+#[test]
+fn register_static_lifetime() {
+    let registry = Registry::empty();
+    registry.transient(|| TupleWithStatic("TEST"));
+}
