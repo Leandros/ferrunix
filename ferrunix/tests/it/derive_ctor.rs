@@ -1,6 +1,6 @@
 use ferrunix::{Inject, Registry};
 
-pub trait Adder {
+pub trait Adder: Send + Sync {
     fn add(&self, lhs: u32, rhs: u32) -> u32;
 }
 
@@ -35,12 +35,26 @@ impl DerivedCustomCtor {
 }
 
 #[test]
+#[cfg(not(feature = "tokio"))]
 fn custom_ctor() {
     let registry = Registry::empty();
     MyAdder::register(&registry);
     DerivedCustomCtor::register(&registry);
 
     let derived = registry.get_transient::<DerivedCustomCtor>().unwrap();
+    assert_eq!(derived.counter, 1);
+    assert_eq!(derived.prefix, "log-prefix: ");
+    assert_eq!(derived.adder.add(1, 3), 4);
+}
+
+#[tokio::test]
+#[cfg(feature = "tokio")]
+async fn custom_ctor() {
+    let registry = Registry::empty();
+    MyAdder::register(&registry).await;
+    DerivedCustomCtor::register(&registry).await;
+
+    let derived = registry.get_transient::<DerivedCustomCtor>().await.unwrap();
     assert_eq!(derived.counter, 1);
     assert_eq!(derived.prefix, "log-prefix: ");
     assert_eq!(derived.adder.add(1, 3), 4);

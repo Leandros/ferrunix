@@ -94,6 +94,24 @@ fn box_if_required(
     }
 }
 
+#[allow(unused)]
+fn box_ctor_if_required(
+    registered_ty: &syn::Type,
+    tokens: &proc_macro2::TokenStream,
+) -> proc_macro2::TokenStream {
+    #[cfg(not(feature = "tokio"))]
+    {
+        quote! { #tokens }
+    }
+
+    #[cfg(feature = "tokio")]
+    {
+        quote! {
+            ::std::boxed::Box::pin(async move { #tokens as #registered_ty })
+        }
+    }
+}
+
 fn await_if_needed() -> Option<proc_macro2::TokenStream> {
     (cfg!(feature = "tokio")).then(|| {
         quote! {
@@ -145,7 +163,7 @@ fn registration_empty(
     registered_ty: &syn::Type,
 ) -> syn::Result<proc_macro2::TokenStream> {
     let ctor = get_ctor_for(registered_ty, quote!(Self {}))?;
-    let ctor = box_if_required(&ctor);
+    let ctor = box_ctor_if_required(registered_ty, &ctor);
     let ifawait = await_if_needed();
     let generic_args = {
         match dependency_type {
@@ -175,7 +193,7 @@ fn registration_fields(
     let dependency_tuple = into_dependency_tuple(&fields);
     let dependency_idents = into_dependency_idents(&fields);
     let constructor = type_ctor(registered_ty, input, attrs, &fields)?;
-    let constructor = box_if_required(&constructor);
+    let constructor = box_ctor_if_required(registered_ty, &constructor);
     let ifawait = await_if_needed();
     let generic_args = {
         match dependency_type {
