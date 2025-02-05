@@ -67,6 +67,10 @@ Features enabled by default are marked with `*`.
 - `tracing`: Enables support for [tracing](https://docs.rs/tracing/latest/tracing/index.html) and annotates all public functions with
     [`tracing::instrument`](https://docs.rs/tracing/latest/tracing/attr.instrument.html).
 
+## Support
+
+> Development of ferrunix is sponsored by [RagnarLab](https://ragnarlab.com). RagnarLab is a Rust consultancy based in Stuttgart, Germany. We provide Rust development from prototype to product, helping you write safer software. [Interested in Rust? Get in touch with us.](https://ragnarlab.com)
+
 #### License
 
 <sup>
