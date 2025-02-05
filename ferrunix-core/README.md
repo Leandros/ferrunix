@@ -8,6 +8,9 @@ Core types, traits, and implementations for [ferrunix](https://crates.io/crates/
 
 More information about this crate can be found in the [crate documentation](https://docs.rs/ferrunix-core/).
 
+## Support
+
+> Development of ferrunix is sponsored by [RagnarLab](https://ragnarlab.com). RagnarLab is a Rust consultancy based in Stuttgart, Germany. We provide Rust development from prototype to product, helping you write safer software. [Interested in Rust? Get in touch with us.](https://ragnarlab.com)
 
 #### License
 
