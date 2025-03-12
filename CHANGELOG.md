@@ -10,6 +10,19 @@ will be removed after two major releases.
 ## [unreleased]
 
 ### <!-- 0 -->🚀 Features
+
+### <!-- 1 -->🐛 Bug Fixes
+
+## [0.3.3] - 2025-03-12
+
+### <!-- 0 -->🚀 Features
+
+### <!-- 1 -->🐛 Bug Fixes
+- Fix building on MSRV (`1.67.1`)
+
+## [0.3.2] - 2024-11-21
+
+### <!-- 0 -->🚀 Features
 - Add `no_registration` attribute to `provides` macro
 - Add `ctor` attribute to `provides` macro
 
