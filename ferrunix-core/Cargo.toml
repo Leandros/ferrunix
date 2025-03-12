@@ -23,7 +23,7 @@ tokio = ["dep:tokio", "dep:async-trait"]
 tracing = ["dep:tracing"]
 
 [dependencies]
-once_cell = { version = "1.11" }
+once_cell = { version = "~1.20" }
 parking_lot = "0.12"
 thiserror = "1"
 inventory = "0.3.1"
