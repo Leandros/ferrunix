@@ -20,16 +20,16 @@ pub(super) fn run(args: &PublishArgs) -> Result<()> {
     let sh = Shell::new()?;
     let is_dry_run = args.dry_run.then_some("--dry-run");
 
-    let out = cmd!(sh, "git cliff -c cliff.toml --bump --latest").output()?;
-    let changelog = String::from_utf8(out.stdout)?;
-    if args.dry_run {
-        println!("{changelog}\n\n");
-        println!("would've written to CHANGELOG.md");
-    } else {
-        sh.write_file("./CHANGELOG.md", changelog)?;
-        cmd!(sh, "git add ./CHANGELOG.md").run()?;
-        cmd!(sh, "git commit -m 'chore: update changelog'").run()?;
-    }
+    // let out = cmd!(sh, "git cliff -c cliff.toml --bump --latest").output()?;
+    // let changelog = String::from_utf8(out.stdout)?;
+    // if args.dry_run {
+    //     println!("{changelog}\n\n");
+    //     println!("would've written to CHANGELOG.md");
+    // } else {
+    //     sh.write_file("./CHANGELOG.md", changelog)?;
+    //     cmd!(sh, "git add ./CHANGELOG.md").run()?;
+    //     cmd!(sh, "git commit -m 'chore: update changelog'").run()?;
+    // }
 
     if !args.no_publish {
         cmd!(sh, "cargo publish -p ferrunix-core {is_dry_run...}").run()?;

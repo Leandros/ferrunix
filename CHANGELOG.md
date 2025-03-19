@@ -13,6 +13,13 @@ will be removed after two major releases.
 
 ### <!-- 1 -->🐛 Bug Fixes
 
+## [0.3.4] - 2025-03-19
+
+### <!-- 0 -->🚀 Features
+
+### <!-- 1 -->🐛 Bug Fixes
+- Bump MSRV to `1.70.0` to reduce stringent tokio version requirement
+
 ## [0.3.3] - 2025-03-12
 
 ### <!-- 0 -->🚀 Features
