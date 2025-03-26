@@ -120,6 +120,7 @@ pub(crate) fn transform_type(
     }
 }
 
+#[allow(clippy::similar_names)]
 pub(crate) fn strip_arc_rc_ref(
     ty: &'_ syn::Type,
 ) -> syn::Result<Cow<'_, syn::Type>> {
@@ -130,65 +131,57 @@ pub(crate) fn strip_arc_rc_ref(
             let len = segments.len();
 
             let std_arc = (|| -> Option<PathArguments> {
-                if segments.get(0)?.ident == format_ident!("std") {
+                if segments.first()?.ident == format_ident!("std") {
                     if segments.get(1)?.ident == format_ident!("sync")
                         && segments.get(2)?.ident == format_ident!("Arc")
                     {
                         return Some(segments.get(2)?.arguments.clone());
                     }
-                } else {
-                    if segments.get(0)?.ident == format_ident!("Arc") {
-                        return Some(segments.get(0)?.arguments.clone());
-                    }
+                } else if segments.first()?.ident == format_ident!("Arc") {
+                    return Some(segments.first()?.arguments.clone());
                 }
 
                 None
             })();
             let std_rc = (|| -> Option<PathArguments> {
-                if segments.get(0)?.ident == format_ident!("std") {
+                if segments.first()?.ident == format_ident!("std") {
                     if segments.get(1)?.ident == format_ident!("rc")
                         && segments.get(2)?.ident == format_ident!("Rc")
                     {
                         return Some(segments.get(2)?.arguments.clone());
                     }
-                } else {
-                    if segments.get(0)?.ident == format_ident!("Rc") {
-                        return Some(segments.get(0)?.arguments.clone());
-                    }
+                } else if segments.first()?.ident == format_ident!("Rc") {
+                    return Some(segments.first()?.arguments.clone());
                 }
 
                 None
             })();
             let ferrunix_ref = (|| -> Option<PathArguments> {
-                if segments.get(0)?.ident == format_ident!("ferrunix") {
+                if segments.first()?.ident == format_ident!("ferrunix") {
                     if segments.get(1)?.ident == format_ident!("Ref") {
                         return Some(segments.get(1)?.arguments.clone());
                     }
-                } else {
-                    if segments.get(0)?.ident == format_ident!("Ref") {
-                        return Some(segments.get(0)?.arguments.clone());
-                    }
+                } else if segments.first()?.ident == format_ident!("Ref") {
+                    return Some(segments.first()?.arguments.clone());
                 }
 
                 None
             })();
 
-            let path = match (std_arc, std_rc, ferrunix_ref) {
-                (Some(x), None, None) => x,
-                (None, Some(x), None) => x,
-                (None, None, Some(x)) => x,
-                _ => {
-                    return Ok(Cow::Borrowed(ty));
-                }
+            let ((None, None, Some(path_args))
+            | (None, Some(path_args), None)
+            | (Some(path_args), None, None)) = (std_arc, std_rc, ferrunix_ref)
+            else {
+                return Ok(Cow::Borrowed(ty));
             };
 
-            match path {
+            match path_args {
                 PathArguments::AngleBracketed(args) => {
                     let first =
                         args.args.first().expect("missing generic argument");
                     match first {
-                        syn::GenericArgument::Type(ty) => {
-                            return Ok(Cow::Owned(ty.clone()))
+                        syn::GenericArgument::Type(generic_ty) => {
+                            return Ok(Cow::Owned(generic_ty.clone()))
                         }
                         unsupported => {
                             return Err(syn::Error::new(
