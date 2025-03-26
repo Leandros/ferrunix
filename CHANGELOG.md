@@ -13,6 +13,17 @@ will be removed after two major releases.
 
 ### <!-- 1 -->🐛 Bug Fixes
 
+## [0.4.0] - 2025-03-XX
+
+### <!-- 0 -->🚀 Features
+- Singleton created via `#[derive]` now support `dyn` types
+  - **BREAKING:** `dyn` types are now automatically wrapped in a `Box`: `Box<dyn T>`,
+    which requires all users to now retrieve singletons using the new type: `registry.get_singleton::<Box<dyn T>>`
+
+### <!-- 1 -->🐛 Bug Fixes
+- Remove unused tests
+- Fix singleton behavior with derive macro
+
 ## [0.3.4] - 2025-03-19
 
 ### <!-- 0 -->🚀 Features
@@ -87,6 +98,10 @@ MSRV is bumped from `1.64.0` to `1.67.1`. MSRV with `tokio` enabled is `1.75.0`.
 - Ci failing
 - Panic in cmd! proc-macro
 
-[unreleased]: https://github.com/leandros/ferrunix/compare/v0.3.1..HEAD
+[unreleased]: https://github.com/leandros/ferrunix/compare/v0.4.0..HEAD
 [0.3.0]: https://github.com/leandros/ferrunix/compare/v0.2.0..v0.3.0
 [0.3.1]: https://github.com/leandros/ferrunix/compare/v0.3.0..v0.3.1
+[0.3.2]: https://github.com/leandros/ferrunix/compare/v0.3.1..v0.3.2
+[0.3.3]: https://github.com/leandros/ferrunix/compare/v0.3.2..v0.3.3
+[0.3.4]: https://github.com/leandros/ferrunix/compare/v0.3.3..v0.3.4
+[0.4.0]: https://github.com/leandros/ferrunix/compare/v0.3.4..v0.4.0
