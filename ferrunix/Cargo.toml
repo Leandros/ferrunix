@@ -24,8 +24,8 @@ tokio = ["ferrunix-core/tokio", "ferrunix-macros?/tokio"]
 tracing = ["ferrunix-core/tracing"]
 
 [dependencies]
-ferrunix-core = { path = "../ferrunix-core", default-features = false, version = "=0.3.4" }
-ferrunix-macros = { path = "../ferrunix-macros", optional = true, version = "=0.3.4" }
+ferrunix-core = { path = "../ferrunix-core", default-features = false, version = "=0.4.0" }
+ferrunix-macros = { path = "../ferrunix-macros", optional = true, version = "=0.4.0" }
 
 [dev-dependencies]
 thiserror = "1"
