@@ -3,14 +3,8 @@
 use ferrunix::{Inject, Ref, Registry};
 
 #[derive(Inject)]
-#[provides(singleton = "dyn Logger")]
+#[provides(singleton = "dyn Logger + Send + Sync")]
 pub struct MyLogger {}
-
-// impl MyLogger {
-//     fn register(registry: &Registry) {
-//         registry.singleton::<Box<dyn Logger>, _>(|| Box::new(MyLogger {}));
-//     }
-// }
 
 impl Logger for MyLogger {
     fn info(&self, message: &str) {
@@ -26,29 +20,23 @@ pub trait Logger {
 #[provides(singleton)]
 pub struct MyContext {
     #[inject(singleton)]
-    logger: Ref<Box<dyn Logger>>,
+    logger: Ref<Box<dyn Logger + Send + Sync>>,
 }
-
-// impl MyContext {
-//     fn register(registry: &Registry) {
-//         registry
-//             .with_deps::<Self, (Singleton<Box<dyn Logger>>,)>()
-//             .singleton(|(logger,)| MyContext {
-//                 logger: logger.get(),
-//             });
-//     }
-// }
 
 #[test]
 fn derive_singleton() {
     let registry = Registry::empty();
 
+    // We register all types manually, to avoid having types from other tests
+    // registered here and failing our tests for no reason.
     MyLogger::register(&registry);
     MyContext::register(&registry);
 
     registry.validate_all_full().unwrap();
 
-    let logger = registry.get_singleton::<Box<dyn Logger>>().unwrap();
+    let logger = registry
+        .get_singleton::<Box<dyn Logger + Send + Sync>>()
+        .unwrap();
     logger.info("Hello!");
 
     let ctx = registry.get_singleton::<MyContext>().unwrap();
