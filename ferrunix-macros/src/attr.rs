@@ -49,7 +49,6 @@ pub(crate) struct DeriveField {
     /// If it's neither a transient, singleton, or default constructed, this is
     /// used as a constructor.
     ctor: Option<SpannedValue<String>>,
-
     // Make sure to update `not_injected` when adding any new attributes.
 }
 

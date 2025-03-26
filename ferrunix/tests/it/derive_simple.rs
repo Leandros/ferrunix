@@ -70,9 +70,7 @@ fn inject_stringtemplate() {
 
     registry.validate_all_full().unwrap();
 
-    let logger = registry
-        .get_singleton::<Box<dyn ColorLogger>>()
-        .unwrap();
+    let logger = registry.get_singleton::<Box<dyn ColorLogger>>().unwrap();
     logger.log_colored("hello");
 
     let stringtemplate = registry.get_transient::<StringTemplate>().unwrap();

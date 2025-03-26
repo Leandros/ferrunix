@@ -125,7 +125,11 @@ pub(super) fn run(args: &CiArgs) -> Result<()> {
     }
 
     {
-        cmd!(sh, "cargo clean -p ferrunix -p ferrunix-core -p ferrunix-macros").run()?;
+        cmd!(
+            sh,
+            "cargo clean -p ferrunix -p ferrunix-core -p ferrunix-macros"
+        )
+        .run()?;
         let res = cmd!(sh, "cargo {testrunner...} -p doc-tests").run();
         if let Err(err) = res {
             errors.push(err);

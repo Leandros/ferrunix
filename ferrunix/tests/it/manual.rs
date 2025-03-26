@@ -151,7 +151,9 @@ struct NotClone {
 #[test]
 fn register_not_clone() {
     let registry = Registry::empty();
-    registry.transient(|| NotClone { inner: String::new() });
+    registry.transient(|| NotClone {
+        inner: String::new(),
+    });
 
     let _not_clone = registry.get_transient::<NotClone>().unwrap();
 }

@@ -137,7 +137,7 @@ where
     ) -> Option<R>
     where
         R: Sized,
-        Self: Sized
+        Self: Sized,
     {
         Some(ctor(()))
     }
@@ -164,8 +164,7 @@ where
         _: private::SealToken,
     ) -> std::pin::Pin<
         Box<dyn std::future::Future<Output = Option<R>> + Send + '_>,
-    >
-    {
+    > {
         Box::pin(async move { Some(ctor(()).await) })
     }
 

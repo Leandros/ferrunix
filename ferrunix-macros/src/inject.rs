@@ -290,9 +290,12 @@ fn type_ctor(
         .collect::<syn::Result<Vec<_>>>()?;
     if let Some(ctor_name) = attrs.custom_ctor() {
         let ctor_name = ctor_name.as_ident();
-        let ctor = get_ctor_for(registered_ty, quote! {
-            Self::#ctor_name(#(#params),*)
-        });
+        let ctor = get_ctor_for(
+            registered_ty,
+            quote! {
+                Self::#ctor_name(#(#params),*)
+            },
+        );
         let ctor = ctor?;
 
         return Ok(ctor);
