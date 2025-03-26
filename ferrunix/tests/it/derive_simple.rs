@@ -58,11 +58,20 @@ struct TemplateMaker {
 
 #[test]
 fn inject_stringtemplate() {
-    let registry = Registry::autoregistered();
-    registry.validate_all().unwrap();
+    let registry = Registry::empty();
+
+    // We register all types manually, to avoid having types from other tests
+    // registered here and failing our tests for no reason.
+    Empty::register(&registry);
+    StdoutLog::register(&registry);
+    ColoredStdoutLog::register(&registry);
+    StringTemplate::register(&registry);
+    TemplateMaker::register(&registry);
+
+    registry.validate_all_full().unwrap();
 
     let logger = registry
-        .get_singleton::<ferrunix::Ref<dyn ColorLogger>>()
+        .get_singleton::<Box<dyn ColorLogger>>()
         .unwrap();
     logger.log_colored("hello");
 

@@ -54,18 +54,34 @@ fn test_transform_type() {
     run_test(
         "dyn Foo + Send + Sync",
         TransformType::Singleton,
-        "::ferrunix::Ref<dyn Foo + Send + Sync>",
+        "::std::boxed::Box<dyn Foo + Send + Sync>",
     );
+    run_test("Foo", TransformType::Singleton, "Foo");
     run_test(
-        "dyn Foo + Send + Sync",
+        "::ferrunix::Ref<Foo>",
         TransformType::Singleton,
-        "::ferrunix::Ref<dyn Foo + Send + Sync>",
+        "::ferrunix::Ref<Foo>",
     );
-    run_test("Foo", TransformType::Singleton, "::ferrunix::Ref<Foo>");
-    // TODO: Fix this case.
-    // run_test(
-    //     "::ferrunix::Ref<Foo>",
-    //     TransformType::Singleton,
-    //     "::ferrunix::Ref<Foo>",
-    // );
+}
+
+#[test]
+fn test_strip_arc_rc_ref() {
+    let run_test = |ty: &str, result: &str| {
+        let parsed: syn::Type = syn::parse_str(ty).unwrap();
+        let result_from_test = strip_arc_rc_ref(&parsed).unwrap();
+        let result_required: syn::Type = parse_str(result).unwrap();
+        assert_eq!(*result_from_test, result_required, "test failed");
+    };
+
+    run_test("::ferrunix::Ref<MySingleton>", "MySingleton");
+    run_test("ferrunix::Ref<MySingleton>", "MySingleton");
+    run_test("Ref<MySingleton>", "MySingleton");
+
+    run_test("Arc<MySingleton>", "MySingleton");
+    run_test("::std::sync::Arc<MySingleton>", "MySingleton");
+    run_test("std::sync::Arc<MySingleton>", "MySingleton");
+
+    run_test("Rc<MySingleton>", "MySingleton");
+    run_test("::std::rc::Rc<MySingleton>", "MySingleton");
+    run_test("std::rc::Rc<MySingleton>", "MySingleton");
 }

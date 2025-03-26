@@ -15,6 +15,8 @@ mod derive_regression;
 mod derive_ctor;
 #[cfg(all(feature = "derive", not(feature = "tokio")))]
 mod derive_simple;
+#[cfg(all(feature = "derive"))]
+mod derive_singleton;
 
 #[cfg(not(feature = "tokio"))]
 mod manual;

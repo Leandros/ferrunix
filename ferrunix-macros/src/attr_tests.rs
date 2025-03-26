@@ -118,7 +118,7 @@ pub struct Foo {
     let receiver = DeriveAttrInput::from_derive_input(&parsed);
     let receiver = receiver.unwrap();
     let singleton = receiver.singleton().unwrap();
-    let ty: syn::Type = syn::parse2(quote!(::ferrunix::Ref<Foo>)).unwrap();
+    let ty: syn::Type = syn::parse2(quote!(Foo)).unwrap();
     assert_eq!(singleton.as_ref(), &ty);
     assert_eq!(receiver.transient(), None);
 }
