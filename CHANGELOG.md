@@ -13,7 +13,7 @@ will be removed after two major releases.
 
 ### <!-- 1 -->🐛 Bug Fixes
 
-## [0.4.0] - 2025-03-XX
+## [0.4.0] - 2025-03-26
 
 ### <!-- 0 -->🚀 Features
 - Singleton created via `#[derive]` now support `dyn` types

@@ -36,7 +36,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! ferrunix = { version = "0.3", features = ["multithread"] }
+//! ferrunix = { version = "0.4", features = ["multithread"] }
 //! ```
 //!
 //! ## Cargo Feature Flags
