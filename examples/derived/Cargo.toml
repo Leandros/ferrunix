@@ -9,5 +9,5 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
-ferrunix.workspace = true
-thiserror = "1"
+ferrunix = { path = "../../ferrunix", features = ["multithread"] }
+thiserror = "2"
