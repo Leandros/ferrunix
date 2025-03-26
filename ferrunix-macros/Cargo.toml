@@ -33,7 +33,7 @@ quote = "1"
 darling = "0.20"
 
 [dev-dependencies]
-thiserror = "1"
+thiserror = "2"
 
 # Docs about this available here <https://docs.rs/about/metadata>
 [package.metadata."docs.rs"]
