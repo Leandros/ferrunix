@@ -28,6 +28,7 @@ pub(crate) struct Visitor(
 #[cfg(all(feature = "multithread", not(feature = "tokio")))]
 mod sync {
     use std::any::Any;
+    use std::error::Error;
 
     use crate::object_builder::{SingletonGetter, TransientBuilder};
 
@@ -56,6 +57,7 @@ mod sync {
         Box<dyn TransientBuilder + Send + Sync + 'static>;
     pub(crate) type BoxedSingletonGetter =
         Box<dyn SingletonGetter + Send + Sync + 'static>;
+    pub(crate) type BoxErr = Box<dyn Error + Send + Sync + 'static>;
 
     /// A generic constructor for singletons.
     ///
@@ -134,6 +136,7 @@ mod sync {
 #[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
 mod unsync {
     use std::any::Any;
+    use std::error::Error;
 
     use crate::object_builder::{SingletonGetter, TransientBuilder};
 
@@ -180,6 +183,7 @@ mod unsync {
     pub(crate) type SingletonCell = OnceCell<RefAny>;
     pub(crate) type BoxedTransientBuilder = Box<dyn TransientBuilder>;
     pub(crate) type BoxedSingletonGetter = Box<dyn SingletonGetter>;
+    pub(crate) type BoxErr = Box<dyn Error>;
 
     /// A generic constructor for singletons.
     ///
@@ -191,6 +195,7 @@ mod unsync {
         /// Calls the construcor.
         fn call(self, _: super::private::SealToken) -> T;
     }
+
     impl<T, F> SingletonCtor<T> for F
     where
         F: FnOnce() -> T + 'static,
@@ -206,9 +211,9 @@ mod unsync {
     /// It's not implementable by other crates.
     ///
     /// A blanket implementation for `FnOnce(Deps) -> T` is provided.
-    pub trait SingletonCtorDeps<T, Deps>: FnOnce(Deps) -> T + 'static {
+    pub trait SingletonCtorDeps<T, Deps> {
         /// Calls the construcor.
-        fn call(self, deps: Deps, _: super::private::SealToken) -> T;
+        fn call(self, deps: Deps, _: super::private::SealToken) -> Result<T, BoxErr>;
     }
 
     impl<T, F, Deps> SingletonCtorDeps<T, Deps> for F
@@ -216,7 +221,18 @@ mod unsync {
         F: FnOnce(Deps) -> T + 'static,
         Deps: crate::dependency_builder::DepBuilder<T> + 'static,
     {
-        fn call(self, deps: Deps, _: super::private::SealToken) -> T {
+        fn call(self, deps: Deps, _: super::private::SealToken) -> Result<T, BoxErr> {
+            Ok((self)(deps))
+        }
+    }
+
+    impl<T, F, Deps> SingletonCtorDeps<T, Deps> for F
+    where
+        T: 'static,
+        F: FnOnce(Deps) -> Result<T, BoxErr>,
+        Deps: crate::dependency_builder::DepBuilder<T> + 'static,
+    {
+        fn call(self, deps: Deps, _: super::private::SealToken) -> Result<T, BoxErr> {
             (self)(deps)
         }
     }

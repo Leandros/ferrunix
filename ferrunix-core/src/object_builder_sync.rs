@@ -1,10 +1,35 @@
 //! Abstraction layer to build transient and singleton dependencies.
 use crate::dependency_builder::DepBuilder;
+use crate::error::ResolveError;
 use crate::types::{
-    BoxedAny, OnceCell, Ref, RefAny, Registerable, RegisterableSingleton,
-    RwLock, SingletonCtor, SingletonCtorDeps,
+    BoxErr, BoxedAny, OnceCell, Ref, RefAny, Registerable,
+    RegisterableSingleton, RwLock, SingletonCtor, SingletonCtorDeps,
 };
 use crate::Registry;
+
+pub(crate) trait CtorFunc<T, D: ?Sized> {
+    fn call(self, deps: D) -> Result<T, BoxErr>;
+}
+
+impl<T, D> CtorFunc<T, D> for fn(D) -> T
+where
+    T: Sized,
+    D: DepBuilder<T>,
+{
+    fn call(self, deps: D) -> Result<T, BoxErr> {
+        Ok((self)(deps))
+    }
+}
+
+impl<T, D> CtorFunc<T, D> for fn(D) -> Result<T, BoxErr>
+where
+    T: Sized,
+    D: DepBuilder<T>,
+{
+    fn call(self, deps: D) -> Result<T, BoxErr> {
+        (self)(deps)
+    }
+}
 
 /// Trait to build a new object with transient lifetime.
 ///
@@ -13,6 +38,8 @@ use crate::Registry;
 ///
 ///   * [`TransientBuilderImplNoDeps`]
 ///   * [`TransientBuilderImplWithDeps`]
+///   * [`TransientBuilderFallibleImplNoDeps`]
+///   * [`TransientBuilderFallibleImplWithDeps`]
 pub(crate) trait TransientBuilder {
     /// Constructs a new object; it may use the [`Registry`] to construct any
     /// dependencies.
@@ -20,7 +47,10 @@ pub(crate) trait TransientBuilder {
     /// <div class="warning">It must not use the global registry.</div>
     ///
     /// May return `None` if the dependencies couldn't be fulfilled.
-    fn make_transient(&self, registry: &Registry) -> Option<BoxedAny>;
+    fn make_transient(
+        &self,
+        registry: &Registry,
+    ) -> Result<BoxedAny, ResolveError>;
 }
 
 /// Trait to build a new object with singleton lifetime.
@@ -37,7 +67,10 @@ pub(crate) trait SingletonGetter {
     /// <div class="warning">It must not use the global registry.</div>
     ///
     /// May return `None` if the dependencies couldn't be fulfilled.
-    fn get_singleton(&self, registry: &Registry) -> Option<RefAny>;
+    fn get_singleton(
+        &self,
+        registry: &Registry,
+    ) -> Result<RefAny, ResolveError>;
 }
 
 //          ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
@@ -63,9 +96,43 @@ impl<T> TransientBuilder for TransientBuilderImplNoDeps<T>
 where
     T: Registerable,
 {
-    fn make_transient(&self, _registry: &Registry) -> Option<BoxedAny> {
+    fn make_transient(
+        &self,
+        _registry: &Registry,
+    ) -> Result<BoxedAny, ResolveError> {
         let obj = (self.ctor)();
-        Some(Box::new(obj))
+        Ok(Box::new(obj))
+    }
+}
+
+//          ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+//          ┃              TRANSIENT (no deps, fallible)              ┃
+//          ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+/// Construct a new transient with no dependencies. Usually used through `dyn TransientBuilder`.
+pub(crate) struct TransientBuilderFallibleImplNoDeps<T> {
+    /// Constructor, returns a new `T`.
+    ctor: fn() -> Result<T, BoxErr>,
+}
+
+impl<T> TransientBuilderFallibleImplNoDeps<T> {
+    /// Create a new [`TransientBuilder`] using `ctor` to create new objects.
+    ///
+    /// `ctor` should not have side-effects. It may be called multiple times.
+    pub(crate) fn new(ctor: fn() -> Result<T, BoxErr>) -> Self {
+        Self { ctor }
+    }
+}
+
+impl<T> TransientBuilder for TransientBuilderFallibleImplNoDeps<T>
+where
+    T: Registerable,
+{
+    fn make_transient(
+        &self,
+        _registry: &Registry,
+    ) -> Result<BoxedAny, ResolveError> {
+        let obj = (self.ctor)().map_err(ResolveError::Ctor)?;
+        Ok(Box::new(obj))
     }
 }
 
@@ -96,16 +163,58 @@ where
     Deps: DepBuilder<T> + 'static,
     T: Registerable,
 {
-    fn make_transient(&self, registry: &Registry) -> Option<BoxedAny> {
+    fn make_transient(
+        &self,
+        registry: &Registry,
+    ) -> Result<BoxedAny, ResolveError> {
         #[allow(clippy::option_if_let_else)]
-        match Deps::build(
+        let obj = Deps::build(
             registry,
             self.ctor,
             crate::dependency_builder::private::SealToken,
-        ) {
-            Some(obj) => Some(Box::new(obj)),
-            None => None,
-        }
+        )?;
+
+        Ok(Box::new(obj))
+    }
+}
+
+//          ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+//          ┃             TRANSIENT (with deps, fallible)             ┃
+//          ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+/// Construct a new transient with any number of dependencies. Usually used through `dyn
+/// TransientBuilder`.
+///
+/// The dependency tuple `Deps` must implement [`DepBuilder<T>`].
+pub(crate) struct TransientBuilderFallibleImplWithDeps<T, Deps> {
+    /// Constructor, returns a new `T`.
+    ctor: fn(Deps) -> Result<T, BoxErr>,
+}
+
+impl<T, Deps> TransientBuilderFallibleImplWithDeps<T, Deps> {
+    /// Create a new [`TransientBuilder`] using `ctor` to create new objects.
+    ///
+    /// `ctor` should not have side-effects. It may be called multiple times.
+    pub(crate) fn new(ctor: fn(Deps) -> Result<T, BoxErr>) -> Self {
+        Self { ctor }
+    }
+}
+
+impl<T, Deps> TransientBuilder for TransientBuilderFallibleImplWithDeps<T, Deps>
+where
+    Deps: DepBuilder<T> + 'static,
+    T: Registerable,
+{
+    fn make_transient(
+        &self,
+        registry: &Registry,
+    ) -> Result<BoxedAny, ResolveError> {
+        let obj = Deps::build(
+            registry,
+            self.ctor,
+            crate::dependency_builder::private::SealToken,
+        )?;
+
+        Ok(Box::new(obj))
     }
 }
 
@@ -142,7 +251,10 @@ impl<T> SingletonGetter for SingletonGetterNoDeps<T>
 where
     T: RegisterableSingleton,
 {
-    fn get_singleton(&self, _registry: &Registry) -> Option<RefAny> {
+    fn get_singleton(
+        &self,
+        _registry: &Registry,
+    ) -> Result<RefAny, ResolveError> {
         let rc = self.cell.get_or_init(|| {
             let ctor = {
                 let mut lock = self.ctor.write();
@@ -151,7 +263,7 @@ where
             Ref::new((ctor)())
         });
         let rc = Ref::clone(rc) as RefAny;
-        Some(rc)
+        Ok(rc)
     }
 }
 
@@ -191,24 +303,23 @@ where
     Deps: DepBuilder<T> + 'static,
     T: RegisterableSingleton,
 {
-    fn get_singleton(&self, registry: &Registry) -> Option<RefAny> {
+    fn get_singleton(
+        &self,
+        registry: &Registry,
+    ) -> Result<RefAny, ResolveError> {
         let ctor = {
             let mut lock = self.ctor.write();
             lock.take().expect("to be called only once")
         };
 
-        #[allow(clippy::option_if_let_else)]
-        match Deps::build_once(
+        let obj = Deps::build_once(
             registry,
             ctor,
             crate::dependency_builder::private::SealToken,
-        ) {
-            Some(obj) => {
-                let rc = self.cell.get_or_init(|| Ref::new(obj));
-                let rc = Ref::clone(rc) as RefAny;
-                Some(rc)
-            }
-            None => None,
-        }
+        )?;
+
+        let rc = self.cell.get_or_init(|| Ref::new(obj));
+        let rc = Ref::clone(rc) as RefAny;
+        Ok(rc)
     }
 }

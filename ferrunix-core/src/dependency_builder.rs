@@ -3,7 +3,9 @@
 
 use std::any::TypeId;
 
-use crate::types::{Registerable, SingletonCtorDeps};
+use crate::error::ResolveError;
+use crate::object_builder::CtorFunc;
+use crate::types::{BoxErr, Registerable, SingletonCtorDeps};
 use crate::Registry;
 
 /// Required for sealing the trait. *Must not be public*.
@@ -38,13 +40,14 @@ pub trait DepBuilder<R> {
     ///
     /// It's advised to avoid *manually* implementing `build`.
     #[cfg(not(feature = "tokio"))]
-    fn build(
+    fn build<C>(
         registry: &Registry,
-        ctor: fn(Self) -> R,
+        ctor: C,
         _: private::SealToken,
-    ) -> Option<R>
+    ) -> Result<R, ResolveError>
     where
-        R: Sized;
+        R: Sized,
+        C: CtorFunc<R, Self>;
 
     /// Similar to [`DepBuilder::build`], except that it takes a boxed `dyn FnOnce` closure.
     /// This constructor is used for singletons.
@@ -55,9 +58,9 @@ pub trait DepBuilder<R> {
     #[cfg(not(feature = "tokio"))]
     fn build_once(
         registry: &Registry,
-        ctor: Box<dyn SingletonCtorDeps<R, Self>>,
+        ctor: Box<dyn SingletonCtorDeps<Result<R, BoxErr>, Self>>,
         _: private::SealToken,
-    ) -> Option<R>
+    ) -> Result<R, ResolveError>
     where
         R: Sized,
         Self: Sized;
@@ -121,25 +124,28 @@ where
     R: Registerable,
 {
     #[cfg(not(feature = "tokio"))]
-    fn build(
+    fn build<C>(
         _registry: &Registry,
-        ctor: fn(Self) -> R,
+        ctor: C,
         _: private::SealToken,
-    ) -> Option<R> {
-        Some(ctor(()))
+    ) -> Result<R, ResolveError>
+    where
+        C: CtorFunc<R, Self>,
+    {
+        ctor.call(()).map_err(ResolveError::Ctor)
     }
 
     #[cfg(not(feature = "tokio"))]
     fn build_once(
         _registry: &Registry,
-        ctor: Box<dyn SingletonCtorDeps<R, Self>>,
+        ctor: Box<dyn SingletonCtorDeps<Result<R, BoxErr>, Self>>,
         _: private::SealToken,
-    ) -> Option<R>
+    ) -> Result<R, ResolveError>
     where
         R: Sized,
         Self: Sized,
     {
-        Some(ctor(()))
+        ctor(()).map_err(ResolveError::Ctor)
     }
 
     #[cfg(feature = "tokio")]
@@ -182,10 +188,15 @@ macro_rules! DepBuilderImpl {
             $($ts: $crate::dependencies::Dep,)*
         {
             #[cfg(not(feature = "tokio"))]
-            fn build(registry: &$crate::registry::Registry, ctor: fn(Self) -> R, _: private::SealToken) -> Option<R> {
-                if registry.validate::<R>().is_err() {
-                    return None;
-                }
+            fn build<C>(
+                registry: &$crate::registry::Registry,
+                ctor: C,
+                _: private::SealToken,
+            ) -> Result<R, ResolveError>
+            where
+                C: CtorFunc<R, Self>,
+            {
+                registry.validate::<R>()?;
 
                 let deps = (
                     $(
@@ -193,32 +204,29 @@ macro_rules! DepBuilderImpl {
                     )*
                 );
 
-                Some(ctor(deps))
+                ctor.call(deps).map_err(ResolveError::Ctor)
             }
 
             #[cfg(not(feature = "tokio"))]
             fn build_once(
-                registry: &Registry,
-                ctor: Box<dyn SingletonCtorDeps<R, Self>>,
+                registry: &$crate::registry::Registry,
+                ctor: Box<dyn SingletonCtorDeps<Result<R, BoxErr>, Self>>,
                 _: private::SealToken,
-                ) -> Option<R>
+                ) -> Result<R, ResolveError>
                 where
                     R: Sized,
                     Self: Sized
-                {
-                    if registry.validate::<R>().is_err() {
-                        return None;
-                    }
+            {
+                registry.validate::<R>()?;
 
-                    let deps = (
-                        $(
-                            <$ts>::new(registry),
-                            )*
-                    );
+                let deps = (
+                    $(
+                        <$ts>::new(registry),
+                    )*
+                );
 
-                    Some(ctor(deps))
-                }
-
+                ctor(deps).map_err(ResolveError::Ctor)
+            }
 
             #[cfg(feature = "tokio")]
             fn build(

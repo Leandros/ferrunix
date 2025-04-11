@@ -8,6 +8,7 @@ use crate::cycle_detection::{
     DependencyValidator, FullValidationError, ValidationError,
 };
 use crate::dependency_builder::DepBuilder;
+use crate::error::{ImplErrors, ResolveError};
 use crate::object_builder::Object;
 use crate::types::{
     Registerable, RegisterableSingleton, SingletonCtor, SingletonCtorDeps,
@@ -203,9 +204,8 @@ impl Registry {
     /// Retrieves a newly constructed `T` from this registry.
     ///
     /// Returns `None` if `T` wasn't registered or failed to construct.
-    #[must_use]
     #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub fn get_transient<T>(&self) -> Option<T>
+    pub fn get_transient<T>(&self) -> Result<T, ResolveError>
     where
         T: Registerable,
     {
@@ -214,21 +214,23 @@ impl Registry {
         {
             let resolved = transient.make_transient(self)?;
             drop(lock);
-            if let Ok(obj) = resolved.downcast::<T>() {
-                return Some(*obj);
-            }
+            let ret = resolved.downcast::<T>().map_err(|_self| {
+                ResolveError::Impl(ImplErrors::TypeMismatch)
+            })?;
+            return Ok(*ret);
         }
 
-        None
+        Err(ResolveError::TypeMissing {
+            typename: std::any::type_name::<T>(),
+        })
     }
 
     /// Retrieves the singleton `T` from this registry.
     ///
     /// Returns `None` if `T` wasn't registered or failed to construct. The
     /// singleton is a ref-counted pointer object (either `Arc` or `Rc`).
-    #[must_use]
     #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub fn get_singleton<T>(&self) -> Option<Ref<T>>
+    pub fn get_singleton<T>(&self) -> Result<Ref<T>, ResolveError>
     where
         T: RegisterableSingleton,
     {
@@ -237,12 +239,15 @@ impl Registry {
         {
             let resolved = singleton.get_singleton(self)?;
             drop(lock);
-            if let Ok(obj) = resolved.downcast::<T>() {
-                return Some(obj);
-            }
+            let obj = resolved.downcast::<T>().map_err(|_self| {
+                ResolveError::Impl(ImplErrors::TypeMismatch)
+            })?;
+            return Ok(obj);
         }
 
-        None
+        Err(ResolveError::TypeMissing {
+            typename: std::any::type_name::<T>(),
+        })
     }
 
     /// Reset the global registry, removing all previously registered types, and
@@ -424,7 +429,7 @@ impl Registry {
     /// Returns `None` if `T` wasn't registered or failed to construct.
     #[must_use]
     #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub async fn get_transient<T>(&self) -> Option<T>
+    pub async fn get_transient<T>(&self) -> Result<T, ResolveError>
     where
         T: Registerable,
     {
@@ -447,7 +452,7 @@ impl Registry {
     /// singleton is a ref-counted pointer object (either `Arc` or `Rc`).
     #[must_use]
     #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub async fn get_singleton<T>(&self) -> Option<Ref<T>>
+    pub async fn get_singleton<T>(&self) -> Result<Ref<T>, ResolveError>
     where
         T: RegisterableSingleton,
     {

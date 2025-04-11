@@ -34,6 +34,27 @@ impl DerivedCustomCtor {
     }
 }
 
+// #[derive(Inject)]
+// #[provides(transient, no_registration, ctor = "new")]
+// pub struct DerivedCustomCtorFallible {
+//     // These two are not injected.
+//     counter: u32,
+//     prefix: String,
+
+//     #[inject(transient)]
+//     adder: Box<dyn Adder>,
+// }
+
+// impl DerivedCustomCtorFallible {
+//     pub fn new(adder: Box<dyn Adder>) -> Result<Self, std::io::Error> {
+//         Ok(Self {
+//             counter: 1,
+//             prefix: "log-prefix: ".to_owned(),
+//             adder,
+//         })
+//     }
+// }
+
 #[test]
 #[cfg(not(feature = "tokio"))]
 fn custom_ctor() {
