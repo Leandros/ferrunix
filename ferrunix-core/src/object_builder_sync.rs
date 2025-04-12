@@ -4,32 +4,9 @@ use crate::error::ResolveError;
 use crate::types::{
     BoxErr, BoxedAny, OnceCell, Ref, RefAny, Registerable,
     RegisterableSingleton, RwLock, SingletonCtor, SingletonCtorDeps,
+    TransientCtorFn, TransientCtorFnDeps,
 };
 use crate::Registry;
-
-pub trait CtorFunc<T, D: ?Sized> {
-    fn call(self, deps: D) -> Result<T, BoxErr>;
-}
-
-impl<T, D> CtorFunc<T, D> for fn(D) -> T
-where
-    T: Sized,
-    D: DepBuilder<T>,
-{
-    fn call(self, deps: D) -> Result<T, BoxErr> {
-        Ok((self)(deps))
-    }
-}
-
-impl<T, D> CtorFunc<T, D> for fn(D) -> Result<T, BoxErr>
-where
-    T: Sized,
-    D: DepBuilder<T>,
-{
-    fn call(self, deps: D) -> Result<T, BoxErr> {
-        (self)(deps)
-    }
-}
 
 /// Trait to build a new object with transient lifetime.
 ///
@@ -78,14 +55,14 @@ pub(crate) trait SingletonGetter {
 /// Construct a new transient with no dependencies. Usually used through `dyn TransientBuilder`.
 pub(crate) struct TransientBuilderImplNoDeps<T> {
     /// Constructor, returns a new `T`.
-    ctor: fn() -> Result<T, BoxErr>,
+    ctor: Box<dyn TransientCtorFn<T>>,
 }
 
 impl<T> TransientBuilderImplNoDeps<T> {
     /// Create a new [`TransientBuilder`] using `ctor` to create new objects.
     ///
     /// `ctor` should not have side-effects. It may be called multiple times.
-    pub(crate) fn new(ctor: fn() -> Result<T, BoxErr>) -> Self {
+    pub(crate) fn new(ctor: Box<dyn TransientCtorFn<T>>) -> Self {
         Self { ctor }
     }
 }
@@ -113,14 +90,14 @@ where
 /// The dependency tuple `Deps` must implement [`DepBuilder<T>`].
 pub(crate) struct TransientBuilderImplWithDeps<T, Deps> {
     /// Constructor, returns a new `T`.
-    ctor: fn(Deps) -> Result<T, BoxErr>,
+    ctor: Box<dyn TransientCtorFnDeps<T, Deps>>,
 }
 
 impl<T, Deps> TransientBuilderImplWithDeps<T, Deps> {
     /// Create a new [`TransientBuilder`] using `ctor` to create new objects.
     ///
     /// `ctor` should not have side-effects. It may be called multiple times.
-    pub(crate) fn new(ctor: fn(Deps) -> Result<T, BoxErr>) -> Self {
+    pub(crate) fn new(ctor: Box<dyn TransientCtorFnDeps<T, Deps>>) -> Self {
         Self { ctor }
     }
 }
@@ -137,13 +114,14 @@ where
         #[allow(clippy::option_if_let_else)]
         let obj = Deps::build(
             registry,
-            self.ctor,
+            &*self.ctor,
             crate::dependency_builder::private::SealToken,
         )?;
 
         Ok(Box::new(obj))
     }
 }
+
 //          ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 //          ┃                   SINGLETON (no deps)                   ┃
 //          ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
@@ -203,7 +181,7 @@ where
 /// The dependency tuple `Deps` must implement [`DepBuilder<T>`].
 pub(crate) struct SingletonGetterWithDeps<T, Deps> {
     /// Constructor, returns a new `T`.
-    ctor: RwLock<Option<Box<dyn SingletonCtorDeps<Result<T, BoxErr>, Deps>>>>,
+    ctor: RwLock<Option<Box<dyn SingletonCtorDeps<T, Deps>>>>,
     /// Cell containing the constructed `T`.
     cell: OnceCell<Ref<T>>,
 }
@@ -215,7 +193,7 @@ impl<T, Deps> SingletonGetterWithDeps<T, Deps> {
     /// `ctor` may contain side-effects. It's guaranteed to be only called once (for each thread).
     pub(crate) fn new<F>(ctor: F) -> Self
     where
-        F: SingletonCtorDeps<Result<T, BoxErr>, Deps>,
+        F: SingletonCtorDeps<T, Deps>,
     {
         Self {
             ctor: RwLock::new(Some(Box::new(ctor))),

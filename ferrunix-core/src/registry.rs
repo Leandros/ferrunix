@@ -11,7 +11,8 @@ use crate::dependency_builder::DepBuilder;
 use crate::error::{ImplErrors, ResolveError};
 use crate::object_builder::Object;
 use crate::types::{
-    BoxErr, Registerable, RegisterableSingleton, SingletonCtor, SingletonCtorDeps
+    BoxErr, Registerable, RegisterableSingleton, SingletonCtor,
+    SingletonCtorDeps, TransientCtor, TransientCtorDeps,
 };
 use crate::{
     registration::RegistrationFunc, registration::DEFAULT_REGISTRY,
@@ -149,9 +150,10 @@ impl Registry {
     /// # Panics
     /// When the type has been registered already.
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
-    pub fn transient<T>(&self, ctor: fn() -> Result<T, BoxErr>)
+    pub fn transient<T, C>(&self, ctor: C)
     where
         T: Registerable,
+        C: TransientCtor<T> + Copy + 'static,
     {
         use crate::object_builder::TransientBuilderImplNoDeps;
 
@@ -161,8 +163,10 @@ impl Registry {
             std::any::type_name::<T>()
         );
 
-        let transient =
-            Object::Transient(Box::new(TransientBuilderImplNoDeps::new(ctor)));
+        let closure = Box::new(move || -> Result<T, BoxErr> { ctor.call() });
+        let transient = Object::Transient(Box::new(
+            TransientBuilderImplNoDeps::new(closure),
+        ));
 
         self.insert_or_panic::<T>(transient);
         self.validator.add_transient_no_deps::<T>();
@@ -580,7 +584,10 @@ where
     /// When the type has been registered already.
     #[cfg(not(feature = "tokio"))]
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
-    pub fn transient(&self, ctor: fn(Deps) -> Result<T, BoxErr>) {
+    pub fn transient<C>(&self, ctor: C)
+    where
+        C: TransientCtorDeps<T, Deps> + Copy + 'static,
+    {
         use crate::object_builder::TransientBuilderImplWithDeps;
 
         #[cfg(feature = "tracing")]
@@ -589,8 +596,10 @@ where
             std::any::type_name::<T>()
         );
 
+        let closure =
+            Box::new(move |deps| -> Result<T, BoxErr> { ctor.call(deps) });
         let transient = Object::Transient(Box::new(
-            TransientBuilderImplWithDeps::new(ctor),
+            TransientBuilderImplWithDeps::new(closure),
         ));
 
         self.registry.insert_or_panic::<T>(transient);
@@ -676,7 +685,7 @@ where
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
     pub fn singleton<F>(&self, ctor: F)
     where
-        F: SingletonCtorDeps<Result<T, BoxErr>, Deps>,
+        F: SingletonCtorDeps<T, Deps>,
     {
         use crate::object_builder::SingletonGetterWithDeps;
 

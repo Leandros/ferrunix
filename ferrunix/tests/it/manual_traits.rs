@@ -58,10 +58,10 @@ impl BillingService for RealBillingService {
 #[test]
 fn registry_dyn_traits() {
     let registry = Registry::empty();
-    registry.transient::<Box<dyn CreditCardProcessor>>(|| {
+    registry.transient::<Box<dyn CreditCardProcessor>, _>(|| {
         Box::new(PaypalCreditCardProcessor::default())
     });
-    registry.transient::<Box<dyn TransactionLog>>(|| {
+    registry.transient::<Box<dyn TransactionLog>, _>(|| {
         Box::new(RealTransactionLog::default())
     });
     registry.validate_all().unwrap();

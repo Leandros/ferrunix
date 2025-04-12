@@ -185,6 +185,71 @@ mod unsync {
     pub(crate) type BoxedSingletonGetter = Box<dyn SingletonGetter>;
     pub(crate) type BoxErr = Box<dyn Error>;
 
+    /// TODO: Docs
+    pub trait TransientCtor<T>: Fn() -> T + 'static {
+        /// TODO: Seal trait
+        fn call(self) -> Result<T, BoxErr>;
+    }
+
+    impl<T, F> TransientCtor<T> for F
+    where
+        F: Fn() -> T + 'static,
+    {
+        fn call(self) -> Result<T, BoxErr> {
+            Ok((self)())
+        }
+    }
+
+    /// TODO: Docs
+    pub trait TransientCtorDeps<T, D>: Fn(D) -> T + 'static {
+        /// TODO: Seal trait
+        fn call(self, deps: D) -> Result<T, BoxErr>;
+    }
+
+    impl<T, D, F> TransientCtorDeps<T, D> for F
+    where
+        T: 'static,
+        F: Fn(D) -> T + 'static,
+        D: crate::dependency_builder::DepBuilder<T> + 'static,
+    {
+        fn call(self, deps: D) -> Result<T, BoxErr> {
+            Ok((self)(deps))
+        }
+    }
+
+    /// TODO: Docs
+    pub trait TransientCtorFn<T>: Fn() -> Result<T, BoxErr> {
+        /// TODO: Seal trait
+        fn call(self) -> Result<T, BoxErr>;
+    }
+
+    impl<T, F> TransientCtorFn<T> for F
+    where
+        F: Fn() -> Result<T, BoxErr>,
+    {
+        fn call(self) -> Result<T, BoxErr> {
+            (self)()
+        }
+    }
+
+    /// TODO: Docs
+    pub trait TransientCtorFnDeps<T, Deps>:
+        Fn(Deps) -> Result<T, BoxErr>
+    {
+        /// TODO: Seal trait
+        fn call(self, deps: Deps) -> Result<T, BoxErr>;
+    }
+
+    impl<T, F, Deps> TransientCtorFnDeps<T, Deps> for F
+    where
+        F: Fn(Deps) -> Result<T, BoxErr>,
+        Deps: crate::dependency_builder::DepBuilder<T> + 'static,
+    {
+        fn call(self, deps: Deps) -> Result<T, BoxErr> {
+            (self)(deps)
+        }
+    }
+
     /// A generic constructor for singletons.
     ///
     /// This is a marker trait to identify all valid constructors usable by singletons.
