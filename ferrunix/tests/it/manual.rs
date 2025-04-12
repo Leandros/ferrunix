@@ -3,8 +3,18 @@
 use ferrunix::{Registry, Singleton, Transient};
 
 #[test]
+fn test_fallible() {
+    let registry = Registry::empty();
+    registry.transient_err(|| Ok(1_u8));
+
+    let x = registry.get_transient::<u8>();
+    assert_eq!(x.unwrap(), 1_u8);
+}
+
+#[test]
 fn simple_registry_concrete_types() {
     let registry = Registry::empty();
+    todo!("make `transient` accept a non-fallible function, which is internally converted to a fallible function");
     registry.transient(|| 1_u8);
     registry.singleton(|| String::from("Hello, World"));
 
@@ -26,13 +36,13 @@ fn simple_registry_concrete_types() {
     registry.validate_all().unwrap();
 
     let x = registry.get_transient::<u8>();
-    assert_eq!(x, Some(1_u8));
+    assert_eq!(x.unwrap(), 1_u8);
 
     let x1 = registry.get_transient::<u16>();
-    assert_eq!(x1, Some(2_u16));
+    assert_eq!(x1.unwrap(), 2_u16);
 
     let x2 = registry.get_transient::<u32>();
-    assert_eq!(x2, Some(4_u32));
+    assert_eq!(x2.unwrap(), 4_u32);
 
     let s1 = registry.get_singleton::<String>().unwrap();
     assert_eq!(&*s1, &"Hello, World".to_owned());
@@ -107,13 +117,13 @@ fn validate_failure_missing_dependencies() {
     );
 
     let x1 = registry.get_transient::<u16>();
-    assert_eq!(x1, None);
+    assert_eq!(x1.is_err(), true);
 
     let x2 = registry.get_transient::<u32>();
-    assert_eq!(x2, None);
+    assert_eq!(x2.is_err(), true);
 
     let s1 = registry.get_singleton::<String>();
-    assert_eq!(s1, None);
+    assert_eq!(s1.is_err(), true);
 }
 
 #[test]

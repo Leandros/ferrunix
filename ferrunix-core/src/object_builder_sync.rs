@@ -7,7 +7,7 @@ use crate::types::{
 };
 use crate::Registry;
 
-pub(crate) trait CtorFunc<T, D: ?Sized> {
+pub trait CtorFunc<T, D: ?Sized> {
     fn call(self, deps: D) -> Result<T, BoxErr>;
 }
 
@@ -38,8 +38,6 @@ where
 ///
 ///   * [`TransientBuilderImplNoDeps`]
 ///   * [`TransientBuilderImplWithDeps`]
-///   * [`TransientBuilderFallibleImplNoDeps`]
-///   * [`TransientBuilderFallibleImplWithDeps`]
 pub(crate) trait TransientBuilder {
     /// Constructs a new object; it may use the [`Registry`] to construct any
     /// dependencies.
@@ -80,41 +78,10 @@ pub(crate) trait SingletonGetter {
 /// Construct a new transient with no dependencies. Usually used through `dyn TransientBuilder`.
 pub(crate) struct TransientBuilderImplNoDeps<T> {
     /// Constructor, returns a new `T`.
-    ctor: fn() -> T,
-}
-
-impl<T> TransientBuilderImplNoDeps<T> {
-    /// Create a new [`TransientBuilder`] using `ctor` to create new objects.
-    ///
-    /// `ctor` should not have side-effects. It may be called multiple times.
-    pub(crate) fn new(ctor: fn() -> T) -> Self {
-        Self { ctor }
-    }
-}
-
-impl<T> TransientBuilder for TransientBuilderImplNoDeps<T>
-where
-    T: Registerable,
-{
-    fn make_transient(
-        &self,
-        _registry: &Registry,
-    ) -> Result<BoxedAny, ResolveError> {
-        let obj = (self.ctor)();
-        Ok(Box::new(obj))
-    }
-}
-
-//          ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-//          ┃              TRANSIENT (no deps, fallible)              ┃
-//          ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-/// Construct a new transient with no dependencies. Usually used through `dyn TransientBuilder`.
-pub(crate) struct TransientBuilderFallibleImplNoDeps<T> {
-    /// Constructor, returns a new `T`.
     ctor: fn() -> Result<T, BoxErr>,
 }
 
-impl<T> TransientBuilderFallibleImplNoDeps<T> {
+impl<T> TransientBuilderImplNoDeps<T> {
     /// Create a new [`TransientBuilder`] using `ctor` to create new objects.
     ///
     /// `ctor` should not have side-effects. It may be called multiple times.
@@ -123,7 +90,7 @@ impl<T> TransientBuilderFallibleImplNoDeps<T> {
     }
 }
 
-impl<T> TransientBuilder for TransientBuilderFallibleImplNoDeps<T>
+impl<T> TransientBuilder for TransientBuilderImplNoDeps<T>
 where
     T: Registerable,
 {
@@ -146,14 +113,14 @@ where
 /// The dependency tuple `Deps` must implement [`DepBuilder<T>`].
 pub(crate) struct TransientBuilderImplWithDeps<T, Deps> {
     /// Constructor, returns a new `T`.
-    ctor: fn(Deps) -> T,
+    ctor: fn(Deps) -> Result<T, BoxErr>,
 }
 
 impl<T, Deps> TransientBuilderImplWithDeps<T, Deps> {
     /// Create a new [`TransientBuilder`] using `ctor` to create new objects.
     ///
     /// `ctor` should not have side-effects. It may be called multiple times.
-    pub(crate) fn new(ctor: fn(Deps) -> T) -> Self {
+    pub(crate) fn new(ctor: fn(Deps) -> Result<T, BoxErr>) -> Self {
         Self { ctor }
     }
 }
@@ -177,47 +144,6 @@ where
         Ok(Box::new(obj))
     }
 }
-
-//          ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-//          ┃             TRANSIENT (with deps, fallible)             ┃
-//          ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-/// Construct a new transient with any number of dependencies. Usually used through `dyn
-/// TransientBuilder`.
-///
-/// The dependency tuple `Deps` must implement [`DepBuilder<T>`].
-pub(crate) struct TransientBuilderFallibleImplWithDeps<T, Deps> {
-    /// Constructor, returns a new `T`.
-    ctor: fn(Deps) -> Result<T, BoxErr>,
-}
-
-impl<T, Deps> TransientBuilderFallibleImplWithDeps<T, Deps> {
-    /// Create a new [`TransientBuilder`] using `ctor` to create new objects.
-    ///
-    /// `ctor` should not have side-effects. It may be called multiple times.
-    pub(crate) fn new(ctor: fn(Deps) -> Result<T, BoxErr>) -> Self {
-        Self { ctor }
-    }
-}
-
-impl<T, Deps> TransientBuilder for TransientBuilderFallibleImplWithDeps<T, Deps>
-where
-    Deps: DepBuilder<T> + 'static,
-    T: Registerable,
-{
-    fn make_transient(
-        &self,
-        registry: &Registry,
-    ) -> Result<BoxedAny, ResolveError> {
-        let obj = Deps::build(
-            registry,
-            self.ctor,
-            crate::dependency_builder::private::SealToken,
-        )?;
-
-        Ok(Box::new(obj))
-    }
-}
-
 //          ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 //          ┃                   SINGLETON (no deps)                   ┃
 //          ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
@@ -277,7 +203,7 @@ where
 /// The dependency tuple `Deps` must implement [`DepBuilder<T>`].
 pub(crate) struct SingletonGetterWithDeps<T, Deps> {
     /// Constructor, returns a new `T`.
-    ctor: RwLock<Option<Box<dyn SingletonCtorDeps<T, Deps>>>>,
+    ctor: RwLock<Option<Box<dyn SingletonCtorDeps<Result<T, BoxErr>, Deps>>>>,
     /// Cell containing the constructed `T`.
     cell: OnceCell<Ref<T>>,
 }
@@ -289,7 +215,7 @@ impl<T, Deps> SingletonGetterWithDeps<T, Deps> {
     /// `ctor` may contain side-effects. It's guaranteed to be only called once (for each thread).
     pub(crate) fn new<F>(ctor: F) -> Self
     where
-        F: SingletonCtorDeps<T, Deps>,
+        F: SingletonCtorDeps<Result<T, BoxErr>, Deps>,
     {
         Self {
             ctor: RwLock::new(Some(Box::new(ctor))),

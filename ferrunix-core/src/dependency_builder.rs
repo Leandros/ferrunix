@@ -143,7 +143,7 @@ where
     ) -> Result<R, ResolveError>
     where
         R: Sized,
-        Self: Sized,
+        Self: Sized
     {
         ctor(()).map_err(ResolveError::Ctor)
     }

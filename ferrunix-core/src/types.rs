@@ -211,28 +211,16 @@ mod unsync {
     /// It's not implementable by other crates.
     ///
     /// A blanket implementation for `FnOnce(Deps) -> T` is provided.
-    pub trait SingletonCtorDeps<T, Deps> {
+    pub trait SingletonCtorDeps<T, Deps>: FnOnce(Deps) -> T + 'static {
         /// Calls the construcor.
-        fn call(self, deps: Deps, _: super::private::SealToken) -> Result<T, BoxErr>;
+        fn call(self, deps: Deps, _: super::private::SealToken) -> T;
     }
-
     impl<T, F, Deps> SingletonCtorDeps<T, Deps> for F
     where
         F: FnOnce(Deps) -> T + 'static,
         Deps: crate::dependency_builder::DepBuilder<T> + 'static,
     {
-        fn call(self, deps: Deps, _: super::private::SealToken) -> Result<T, BoxErr> {
-            Ok((self)(deps))
-        }
-    }
-
-    impl<T, F, Deps> SingletonCtorDeps<T, Deps> for F
-    where
-        T: 'static,
-        F: FnOnce(Deps) -> Result<T, BoxErr>,
-        Deps: crate::dependency_builder::DepBuilder<T> + 'static,
-    {
-        fn call(self, deps: Deps, _: super::private::SealToken) -> Result<T, BoxErr> {
+        fn call(self, deps: Deps, _: super::private::SealToken) -> T {
             (self)(deps)
         }
     }

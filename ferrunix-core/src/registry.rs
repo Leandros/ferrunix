@@ -11,7 +11,7 @@ use crate::dependency_builder::DepBuilder;
 use crate::error::{ImplErrors, ResolveError};
 use crate::object_builder::Object;
 use crate::types::{
-    Registerable, RegisterableSingleton, SingletonCtor, SingletonCtorDeps,
+    BoxErr, Registerable, RegisterableSingleton, SingletonCtor, SingletonCtorDeps
 };
 use crate::{
     registration::RegistrationFunc, registration::DEFAULT_REGISTRY,
@@ -149,7 +149,7 @@ impl Registry {
     /// # Panics
     /// When the type has been registered already.
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
-    pub fn transient<T>(&self, ctor: fn() -> T)
+    pub fn transient<T>(&self, ctor: fn() -> Result<T, BoxErr>)
     where
         T: Registerable,
     {
@@ -580,7 +580,7 @@ where
     /// When the type has been registered already.
     #[cfg(not(feature = "tokio"))]
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
-    pub fn transient(&self, ctor: fn(Deps) -> T) {
+    pub fn transient(&self, ctor: fn(Deps) -> Result<T, BoxErr>) {
         use crate::object_builder::TransientBuilderImplWithDeps;
 
         #[cfg(feature = "tracing")]
@@ -676,7 +676,7 @@ where
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
     pub fn singleton<F>(&self, ctor: F)
     where
-        F: SingletonCtorDeps<T, Deps>,
+        F: SingletonCtorDeps<Result<T, BoxErr>, Deps>,
     {
         use crate::object_builder::SingletonGetterWithDeps;
 
