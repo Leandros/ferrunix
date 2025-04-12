@@ -12,7 +12,8 @@ use crate::error::{ImplErrors, ResolveError};
 use crate::object_builder::Object;
 use crate::types::{
     BoxErr, Registerable, RegisterableSingleton, SingletonCtor,
-    SingletonCtorDeps, TransientCtor, TransientCtorDeps,
+    SingletonCtorDeps, TransientCtor, TransientCtorDeps, TransientCtorFn,
+    TransientCtorFnDeps,
 };
 use crate::{
     registration::RegistrationFunc, registration::DEFAULT_REGISTRY,
@@ -154,6 +155,15 @@ impl Registry {
     where
         T: Registerable,
         C: TransientCtor<T> + Copy + 'static,
+    {
+        self.transient_err::<T, _>(move || -> Result<T, BoxErr> { ctor.call() })
+    }
+
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
+    pub fn transient_err<T, C>(&self, ctor: C)
+    where
+        T: Registerable,
+        C: TransientCtorFn<T> + Copy + 'static,
     {
         use crate::object_builder::TransientBuilderImplNoDeps;
 
@@ -587,6 +597,17 @@ where
     pub fn transient<C>(&self, ctor: C)
     where
         C: TransientCtorDeps<T, Deps> + Copy + 'static,
+    {
+        self.transient_err::<_>(move |deps| -> Result<T, BoxErr> {
+            ctor.call(deps)
+        })
+    }
+
+    #[cfg(not(feature = "tokio"))]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
+    pub fn transient_err<C>(&self, ctor: C)
+    where
+        C: TransientCtorFnDeps<T, Deps> + Copy + 'static,
     {
         use crate::object_builder::TransientBuilderImplWithDeps;
 
