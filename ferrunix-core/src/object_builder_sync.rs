@@ -3,8 +3,8 @@ use crate::dependency_builder::DepBuilder;
 use crate::error::ResolveError;
 use crate::types::{
     BoxedAny, OnceCell, Ref, RefAny, Registerable, RegisterableSingleton,
-    RwLock, SingletonCtorDepsErr, SingletonCtorErr, TransientCtorFn,
-    TransientCtorFnDeps,
+    RwLock, SingletonCtorFallibleDeps, SingletonCtorFallible, TransientCtorFallible,
+    TransientCtorFallibleDeps,
 };
 use crate::Registry;
 
@@ -55,14 +55,14 @@ pub(crate) trait SingletonGetter {
 /// Construct a new transient with no dependencies. Usually used through `dyn TransientBuilder`.
 pub(crate) struct TransientBuilderImplNoDeps<T> {
     /// Constructor, returns a new `T`.
-    ctor: Box<dyn TransientCtorFn<T>>,
+    ctor: Box<dyn TransientCtorFallible<T>>,
 }
 
 impl<T> TransientBuilderImplNoDeps<T> {
     /// Create a new [`TransientBuilder`] using `ctor` to create new objects.
     ///
     /// `ctor` should not have side-effects. It may be called multiple times.
-    pub(crate) fn new(ctor: Box<dyn TransientCtorFn<T>>) -> Self {
+    pub(crate) fn new(ctor: Box<dyn TransientCtorFallible<T>>) -> Self {
         Self { ctor }
     }
 }
@@ -90,14 +90,16 @@ where
 /// The dependency tuple `Deps` must implement [`DepBuilder<T>`].
 pub(crate) struct TransientBuilderImplWithDeps<T, Deps> {
     /// Constructor, returns a new `T`.
-    ctor: Box<dyn TransientCtorFnDeps<T, Deps>>,
+    ctor: Box<dyn TransientCtorFallibleDeps<T, Deps>>,
 }
 
 impl<T, Deps> TransientBuilderImplWithDeps<T, Deps> {
     /// Create a new [`TransientBuilder`] using `ctor` to create new objects.
     ///
     /// `ctor` should not have side-effects. It may be called multiple times.
-    pub(crate) fn new(ctor: Box<dyn TransientCtorFnDeps<T, Deps>>) -> Self {
+    pub(crate) fn new(
+        ctor: Box<dyn TransientCtorFallibleDeps<T, Deps>>,
+    ) -> Self {
         Self { ctor }
     }
 }
@@ -130,7 +132,7 @@ where
 /// SingletonGetter`.
 pub(crate) struct SingletonGetterNoDeps<T> {
     /// Constructor, returns a new `T`.
-    ctor: RwLock<Option<Box<dyn SingletonCtorErr<T>>>>,
+    ctor: RwLock<Option<Box<dyn SingletonCtorFallible<T>>>>,
     /// Cell containing the constructed `T`.
     cell: OnceCell<Ref<T>>,
 }
@@ -142,7 +144,7 @@ impl<T> SingletonGetterNoDeps<T> {
     /// `ctor` may contain side-effects. It's guaranteed to be only called once (for each thread).
     pub(crate) fn new<F>(ctor: F) -> Self
     where
-        F: SingletonCtorErr<T>,
+        F: SingletonCtorFallible<T>,
     {
         Self {
             ctor: RwLock::new(Some(Box::new(ctor))),
@@ -182,7 +184,7 @@ where
 /// The dependency tuple `Deps` must implement [`DepBuilder<T>`].
 pub(crate) struct SingletonGetterWithDeps<T, Deps> {
     /// Constructor, returns a new `T`.
-    ctor: RwLock<Option<Box<dyn SingletonCtorDepsErr<T, Deps>>>>,
+    ctor: RwLock<Option<Box<dyn SingletonCtorFallibleDeps<T, Deps>>>>,
     /// Cell containing the constructed `T`.
     cell: OnceCell<Ref<T>>,
 }
@@ -194,7 +196,7 @@ impl<T, Deps> SingletonGetterWithDeps<T, Deps> {
     /// `ctor` may contain side-effects. It's guaranteed to be only called once (for each thread).
     pub(crate) fn new<F>(ctor: F) -> Self
     where
-        F: SingletonCtorDepsErr<T, Deps>,
+        F: SingletonCtorFallibleDeps<T, Deps>,
     {
         Self {
             ctor: RwLock::new(Some(Box::new(ctor))),

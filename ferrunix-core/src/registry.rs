@@ -12,8 +12,9 @@ use crate::error::{ImplErrors, ResolveError};
 use crate::object_builder::Object;
 use crate::types::{
     BoxErr, Registerable, RegisterableSingleton, SingletonCtor,
-    SingletonCtorDeps, SingletonCtorDepsErr, SingletonCtorErr, TransientCtor,
-    TransientCtorDeps, TransientCtorFn, TransientCtorFnDeps,
+    SingletonCtorDeps, SingletonCtorFallible, SingletonCtorFallibleDeps,
+    TransientCtor, TransientCtorDeps, TransientCtorFallible,
+    TransientCtorFallibleDeps,
 };
 use crate::{
     registration::RegistrationFunc, registration::DEFAULT_REGISTRY,
@@ -156,14 +157,27 @@ impl Registry {
         T: Registerable,
         C: TransientCtor<T> + Copy + 'static,
     {
-        self.transient_err::<T, _>(move || -> Result<T, BoxErr> { ctor.call() })
+        self.transient_err::<T, _>(move || -> Result<T, BoxErr> {
+            Ok((ctor)())
+        })
     }
 
+    /// Register a new transient object, without dependencies.
+    ///
+    /// To register a type with dependencies, use the builder returned from
+    /// [`Registry::with_deps`].
+    ///
+    /// # Parameters
+    ///   * `ctor`: A constructor function returning a `Result<T, E>`.
+    ///     This constructor will be called for every `T` that is requested.
+    ///
+    /// # Panics
+    /// When the type has been registered already.
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
     pub fn transient_err<T, C>(&self, ctor: C)
     where
         T: Registerable,
-        C: TransientCtorFn<T> + Copy + 'static,
+        C: TransientCtorFallible<T> + Copy + 'static,
     {
         use crate::object_builder::TransientBuilderImplNoDeps;
 
@@ -173,7 +187,7 @@ impl Registry {
             std::any::type_name::<T>()
         );
 
-        let closure = Box::new(move || -> Result<T, BoxErr> { ctor.call() });
+        let closure = Box::new(move || -> Result<T, BoxErr> { (ctor)() });
         let transient = Object::Transient(Box::new(
             TransientBuilderImplNoDeps::new(closure),
         ));
@@ -203,11 +217,23 @@ impl Registry {
         self.singleton_err(move || -> Result<T, BoxErr> { Ok((ctor)()) })
     }
 
+    /// Register a new singleton object, without dependencies.
+    ///
+    /// To register a type with dependencies, use the builder returned from
+    /// [`Registry::with_deps`].
+    ///
+    /// # Parameters
+    ///   * `ctor`: A constructor function returning a `Result<T, E>`.
+    ///     This constructor will be called once, lazily, when the first
+    ///     instance of `T` is requested.
+    ///
+    /// # Panics
+    /// When the type has been registered already.
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
     pub fn singleton_err<T, F>(&self, ctor: F)
     where
         T: RegisterableSingleton,
-        F: SingletonCtorErr<T>,
+        F: SingletonCtorFallible<T>,
     {
         use crate::object_builder::SingletonGetterNoDeps;
 
@@ -572,14 +598,13 @@ impl<
 where
     T: Registerable,
 {
-    /// Register a new transient object, with dependencies specified in
-    /// `.with_deps`.
+    /// Register a new transient object, with dependencies specified in [`Registry::with_deps`].
     ///
-    /// The `ctor` parameter is a constructor function returning the newly
-    /// constructed `T`. The constructor accepts a single argument `Deps` (a
-    /// tuple implementing [`crate::dependency_builder::DepBuilder`]). It's
-    /// best to destructure the tuple to accept each dependency separately.
-    /// This constructor will be called for every `T` that is requested.
+    /// The `ctor` parameter is a constructor function returning the newly constructed `T`. The
+    /// constructor accepts a single argument `Deps` (a tuple implementing
+    /// [`crate::dependency_builder::DepBuilder`]). It's best to destructure the tuple to accept
+    /// each dependency separately. This constructor will be called for every `T` that is
+    /// requested.
     ///
     /// # Example
     /// ```rust,no_run
@@ -608,15 +633,43 @@ where
         C: TransientCtorDeps<T, Deps> + Copy + 'static,
     {
         self.transient_err::<_>(move |deps| -> Result<T, BoxErr> {
-            ctor.call(deps)
+            Ok((ctor)(deps))
         })
     }
 
+    /// Register a new transient object, with dependencies specified in [`Registry::with_deps`].
+    ///
+    /// The `ctor` parameter is a constructor function returning a `Result<T, E>`. The
+    /// constructor accepts a single argument `Deps` (a tuple implementing
+    /// [`crate::dependency_builder::DepBuilder`]). It's best to destructure the tuple to accept
+    /// each dependency separately. This constructor will be called for every `T` that is
+    /// requested.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// # use ferrunix_core::{Registry, Singleton, Transient};
+    /// # let registry = Registry::empty();
+    /// # struct Template {
+    /// #     template: &'static str,
+    /// # }
+    /// registry
+    ///     .with_deps::<_, (Transient<u8>, Singleton<Template>)>()
+    ///     .transient(|(num, template)| {
+    ///         // access `num` and `template` here.
+    ///         u16::from(*num)
+    ///     });
+    /// ```
+    ///
+    /// For single dependencies, the destructured tuple needs to end with a
+    /// comma: `(dep,)`.
+    ///
+    /// # Panics
+    /// When the type has been registered already.
     #[cfg(not(feature = "tokio"))]
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
     pub fn transient_err<C>(&self, ctor: C)
     where
-        C: TransientCtorFnDeps<T, Deps> + Copy + 'static,
+        C: TransientCtorFallibleDeps<T, Deps> + Copy + 'static,
     {
         use crate::object_builder::TransientBuilderImplWithDeps;
 
@@ -627,7 +680,7 @@ where
         );
 
         let closure =
-            Box::new(move |deps| -> Result<T, BoxErr> { ctor.call(deps) });
+            Box::new(move |deps| -> Result<T, BoxErr> { (ctor)(deps) });
         let transient = Object::Transient(Box::new(
             TransientBuilderImplWithDeps::new(closure),
         ));
@@ -684,14 +737,13 @@ impl<
 where
     T: RegisterableSingleton,
 {
-    /// Register a new singleton object, with dependencies specified in
-    /// `.with_deps`.
+    /// Register a new singleton object, with dependencies specified by
+    /// [`Registry::with_deps`].
     ///
-    /// The `ctor` parameter is a constructor function returning the newly
-    /// constructed `T`. The constructor accepts a single argument `Deps` (a
-    /// tuple implementing [`crate::dependency_builder::DepBuilder`]). It's
-    /// best to destructure the tuple to accept each dependency separately.
-    /// This constructor will be called once, lazily, when the first
+    /// The `ctor` parameter is a constructor function returning the newly constructed `T`. The
+    /// constructor accepts a single argument `Deps` (a tuple implementing
+    /// [`crate::dependency_builder::DepBuilder`]). It's best to destructure the tuple to accept
+    /// each dependency separately. This constructor will be called once, lazily, when the first
     /// instance of `T` is requested.
     ///
     /// # Example
@@ -722,11 +774,36 @@ where
         })
     }
 
+    /// Register a new singleton object, with dependencies specified by
+    /// [`Registry::with_deps`].
+    ///
+    /// The `ctor` parameter is a constructor function returning a `Result<T, E>`. The constructor
+    /// accepts a single argument `Deps` (a tuple implementing
+    /// [`crate::dependency_builder::DepBuilder`]). It's best to destructure the tuple to accept
+    /// each dependency separately. This constructor will be called once, lazily, when the first
+    /// instance of `T` is requested.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// # use ferrunix_core::{Registry, Singleton, Transient};
+    /// # let registry = Registry::empty();
+    /// # struct Template {
+    /// #     template: &'static str,
+    /// # }
+    /// registry
+    ///     .with_deps::<_, (Transient<u8>, Singleton<Template>)>()
+    ///     .transient(|(num, template)| {
+    ///         // access `num` and `template` here.
+    ///         u16::from(*num)
+    ///     });
+    /// ```
+    ///
+    /// For single dependencies, the destructured tuple needs to end with a comma: `(dep,)`.
     #[cfg(not(feature = "tokio"))]
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
     pub fn singleton_err<F>(&self, ctor: F)
     where
-        F: SingletonCtorDepsErr<T, Deps>,
+        F: SingletonCtorFallibleDeps<T, Deps>,
     {
         use crate::object_builder::SingletonGetterWithDeps;
 
@@ -744,13 +821,12 @@ where
     }
 
     /// Register a new singleton object, with dependencies specified in
-    /// `.with_deps`.
+    /// [`Registry::with_deps`].
     ///
-    /// The `ctor` parameter is a constructor function returning the newly
-    /// constructed `T`. The constructor accepts a single argument `Deps` (a
-    /// tuple implementing [`crate::dependency_builder::DepBuilder`]). It's
-    /// best to destructure the tuple to accept each dependency separately.
-    /// This constructor will be called once, lazily, when the first
+    /// The `ctor` parameter is a constructor function returning the newly constructed `T`. The
+    /// constructor accepts a single argument `Deps` (a tuple implementing
+    /// [`crate::dependency_builder::DepBuilder`]). It's best to destructure the tuple to accept
+    /// each dependency separately. This constructor will be called once, lazily, when the first
     /// instance of `T` is requested.
     ///
     /// The `ctor` must return a boxed `dyn Future`.

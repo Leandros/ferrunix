@@ -4,7 +4,7 @@
 use std::any::TypeId;
 
 use crate::error::ResolveError;
-use crate::types::{Registerable, SingletonCtorDepsErr, TransientCtorFnDeps};
+use crate::types::{Registerable, SingletonCtorFallibleDeps, TransientCtorFallibleDeps};
 use crate::Registry;
 
 /// Required for sealing the trait. *Must not be public*.
@@ -41,7 +41,7 @@ pub trait DepBuilder<R> {
     #[cfg(not(feature = "tokio"))]
     fn build(
         registry: &Registry,
-        ctor: &(dyn TransientCtorFnDeps<R, Self>),
+        ctor: &(dyn TransientCtorFallibleDeps<R, Self>),
         _: private::SealToken,
     ) -> Result<R, ResolveError>
     where
@@ -56,7 +56,7 @@ pub trait DepBuilder<R> {
     #[cfg(not(feature = "tokio"))]
     fn build_once(
         registry: &Registry,
-        ctor: Box<dyn SingletonCtorDepsErr<R, Self>>,
+        ctor: Box<dyn SingletonCtorFallibleDeps<R, Self>>,
         _: private::SealToken,
     ) -> Result<R, ResolveError>
     where
@@ -124,7 +124,7 @@ where
     #[cfg(not(feature = "tokio"))]
     fn build(
         _registry: &Registry,
-        ctor: &(dyn TransientCtorFnDeps<R, Self>),
+        ctor: &(dyn TransientCtorFallibleDeps<R, Self>),
         _: private::SealToken,
     ) -> Result<R, ResolveError> {
         (ctor)(()).map_err(ResolveError::Ctor)
@@ -133,7 +133,7 @@ where
     #[cfg(not(feature = "tokio"))]
     fn build_once(
         _registry: &Registry,
-        ctor: Box<dyn SingletonCtorDepsErr<R, Self>>,
+        ctor: Box<dyn SingletonCtorFallibleDeps<R, Self>>,
         _: private::SealToken,
     ) -> Result<R, ResolveError>
     where
@@ -185,7 +185,7 @@ macro_rules! DepBuilderImpl {
             #[cfg(not(feature = "tokio"))]
             fn build(
                 registry: &$crate::registry::Registry,
-                ctor: &(dyn TransientCtorFnDeps<R, Self>),
+                ctor: &(dyn TransientCtorFallibleDeps<R, Self>),
                 _: private::SealToken,
             ) -> Result<R, ResolveError>
             {
@@ -203,7 +203,7 @@ macro_rules! DepBuilderImpl {
             #[cfg(not(feature = "tokio"))]
             fn build_once(
                 registry: &$crate::registry::Registry,
-                ctor: Box<dyn SingletonCtorDepsErr<R, Self>>,
+                ctor: Box<dyn SingletonCtorFallibleDeps<R, Self>>,
                 _: private::SealToken,
                 ) -> Result<R, ResolveError>
                 where
