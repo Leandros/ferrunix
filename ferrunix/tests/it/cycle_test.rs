@@ -50,25 +50,25 @@ fn detect_cycle() {
     let registry = Registry::empty();
     registry
         .with_deps::<_, (Transient<Dep0>,)>()
-        .transient(|(dep0,)| TypeZero {
+        .register_transient(|(dep0,)| TypeZero {
             dep0: Box::new(dep0.get()),
         });
 
     registry
         .with_deps::<_, (Transient<Dep1>,)>()
-        .transient(|(dep1,)| Dep0 {
+        .register_transient(|(dep1,)| Dep0 {
             dep1: Box::new(dep1.get()),
         });
 
     registry
         .with_deps::<_, (Transient<Dep2>,)>()
-        .transient(|(dep2,)| Dep1 {
+        .register_transient(|(dep2,)| Dep1 {
             dep2: Box::new(dep2.get()),
         });
 
     registry
         .with_deps::<_, (Transient<Dep0>,)>()
-        .transient(|(dep0,)| Dep2 {
+        .register_transient(|(dep0,)| Dep2 {
             dep0: Box::new(dep0.get()),
         });
 
@@ -84,25 +84,25 @@ fn detect_missing() {
     let registry = Registry::empty();
     registry
         .with_deps::<_, (Transient<Dep0>,)>()
-        .transient(|(dep0,)| TypeZero {
+        .register_transient(|(dep0,)| TypeZero {
             dep0: Box::new(dep0.get()),
         });
 
     registry
         .with_deps::<_, (Transient<Dep1>,)>()
-        .transient(|(dep1,)| Dep0 {
+        .register_transient(|(dep1,)| Dep0 {
             dep1: Box::new(dep1.get()),
         });
 
     registry
         .with_deps::<_, (Transient<Dep2>,)>()
-        .transient(|(dep2,)| Dep1 {
+        .register_transient(|(dep2,)| Dep1 {
             dep2: Box::new(dep2.get()),
         });
 
     registry
         .with_deps::<_, (Transient<DepMissing>,)>()
-        .transient(|(dep_missing,)| Dep3 {
+        .register_transient(|(dep_missing,)| Dep3 {
             dep_missing: Box::new(dep_missing.get()),
         });
 
@@ -118,23 +118,23 @@ fn all_fine() {
     let registry = Registry::empty();
     registry
         .with_deps::<_, (Transient<Dep0>,)>()
-        .transient(|(dep0,)| TypeZero {
+        .register_transient(|(dep0,)| TypeZero {
             dep0: Box::new(dep0.get()),
         });
 
     registry
         .with_deps::<_, (Transient<Dep1>,)>()
-        .transient(|(dep1,)| Dep0 {
+        .register_transient(|(dep1,)| Dep0 {
             dep1: Box::new(dep1.get()),
         });
 
     registry
         .with_deps::<_, (Transient<Dep2>,)>()
-        .transient(|(dep2,)| Dep1 {
+        .register_transient(|(dep2,)| Dep1 {
             dep2: Box::new(dep2.get()),
         });
 
-    registry.transient(|| Dep2 {});
+    registry.register_transient(|| Dep2 {});
 
     registry.validate::<TypeZero>().unwrap();
     registry.validate_all().unwrap();

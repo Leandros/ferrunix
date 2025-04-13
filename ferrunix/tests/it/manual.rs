@@ -6,19 +6,19 @@ use ferrunix::{Registry, Singleton, Transient};
 fn simple_registry_concrete_types() {
     let registry = Registry::empty();
     // todo!("make `transient` accept a non-fallible function, which is internally converted to a fallible function");
-    registry.transient(|| 1_u8);
-    registry.singleton(|| String::from("Hello, World"));
+    registry.register_transient(|| 1_u8);
+    registry.register_singleton(|| String::from("Hello, World"));
 
     registry
         .with_deps::<_, (Transient<u8>,)>()
-        .transient(|(i,)| {
+        .register_transient(|(i,)| {
             let i = i.get();
             u16::from(i) + 1_u16
         });
 
     registry
         .with_deps::<_, (Transient<u8>, Transient<u16>)>()
-        .transient(|(i, j)| {
+        .register_transient(|(i, j)| {
             let i = i.get();
             let j = j.get();
             u32::from(i) + u32::from(j) + 1_u32
@@ -42,12 +42,12 @@ fn simple_registry_concrete_types() {
 #[test]
 fn singletons_without_deps() {
     let registry = Registry::empty();
-    registry.transient(|| 1_u8);
-    registry.transient(|| 1_u16);
-    registry.transient(|| 1_u32);
-    registry.singleton(|| 8_i8);
-    registry.singleton(|| 16_i16);
-    registry.singleton(|| 32_i32);
+    registry.register_transient(|| 1_u8);
+    registry.register_transient(|| 1_u16);
+    registry.register_transient(|| 1_u32);
+    registry.register_singleton(|| 8_i8);
+    registry.register_singleton(|| 16_i16);
+    registry.register_singleton(|| 32_i32);
 
     registry.validate_all().unwrap();
 
@@ -62,12 +62,12 @@ fn singletons_without_deps() {
 #[test]
 fn singletons_with_deps() {
     let registry = Registry::empty();
-    registry.transient(|| 1_u8);
-    registry.singleton(|| 8_i8);
+    registry.register_transient(|| 1_u8);
+    registry.register_singleton(|| 8_i8);
 
     registry
         .with_deps::<_, (Transient<u8>, Singleton<i8>)>()
-        .singleton(|(i, j)| {
+        .register_singleton(|(i, j)| {
             let i = i.get();
             let j = j.get();
             i32::from(i) + i32::from(*j)
@@ -89,14 +89,14 @@ fn validate_failure_missing_dependencies() {
 
     registry
         .with_deps::<_, (Transient<u8>,)>()
-        .transient(|(i,)| {
+        .register_transient(|(i,)| {
             let i = i.get();
             u16::from(i) + 1_u16
         });
 
     registry
         .with_deps::<_, (Transient<u8>, Transient<u16>)>()
-        .transient(|(i, j)| {
+        .register_transient(|(i, j)| {
             let i = i.get();
             let j = j.get();
             u32::from(i) + u32::from(j) + 1_u32
@@ -120,11 +120,11 @@ fn validate_failure_missing_dependencies() {
 #[test]
 fn test_fallible_transient() {
     let registry = Registry::empty();
-    registry.transient_err(|| Ok(1_u8));
+    registry.try_register_transient(|| Ok(1_u8));
     registry
         .with_deps::<_, (Transient<u8>,)>()
-        .transient_err(|(first,)| Ok((*first + 15) as u16));
-    registry.transient(|| 1_u32);
+        .try_register_transient(|(first,)| Ok((*first + 15) as u16));
+    registry.register_transient(|| 1_u32);
     registry.validate_all_full().unwrap();
 
     let x = registry.get_transient::<u8>();
@@ -138,13 +138,11 @@ fn test_fallible_transient() {
 #[test]
 fn test_fallible_singleton() {
     let registry = Registry::empty();
-    registry.singleton_err(|| Ok(1_u8));
+    registry.try_register_singleton(|| Ok(1_u8));
     registry
         .with_deps::<_, (Singleton<u8>,)>()
-        .singleton_err(|(first,)| {
-            Ok((**first + 15) as u16)
-        });
-    registry.singleton(|| 1_u32);
+        .try_register_singleton(|(first,)| Ok((**first + 15) as u16));
+    registry.register_singleton(|| 1_u32);
     registry.validate_all_full().unwrap();
 
     let x = registry.get_singleton::<u8>();
@@ -160,8 +158,8 @@ fn test_fallible_singleton() {
 #[allow(clippy::should_panic_without_expect)]
 fn panic_when_registered_twice_diff() {
     let registry = Registry::empty();
-    registry.transient(|| 1_u8);
-    registry.singleton(|| 1_u8);
+    registry.register_transient(|| 1_u8);
+    registry.register_singleton(|| 1_u8);
 }
 
 #[test]
@@ -169,8 +167,8 @@ fn panic_when_registered_twice_diff() {
 #[allow(clippy::should_panic_without_expect)]
 fn panic_when_registered_twice_transient() {
     let registry = Registry::empty();
-    registry.transient(|| 1_u8);
-    registry.transient(|| 1_u8);
+    registry.register_transient(|| 1_u8);
+    registry.register_transient(|| 1_u8);
 }
 
 #[test]
@@ -178,8 +176,8 @@ fn panic_when_registered_twice_transient() {
 #[allow(clippy::should_panic_without_expect)]
 fn panic_when_registered_twice_singleton() {
     let registry = Registry::empty();
-    registry.singleton(|| 1_u8);
-    registry.singleton(|| 1_u8);
+    registry.register_singleton(|| 1_u8);
+    registry.register_singleton(|| 1_u8);
 }
 
 #[derive(Debug)]
@@ -190,7 +188,7 @@ struct NotClone {
 #[test]
 fn register_not_clone() {
     let registry = Registry::empty();
-    registry.transient(|| NotClone {
+    registry.register_transient(|| NotClone {
         inner: String::new(),
     });
 
@@ -202,5 +200,5 @@ struct TupleWithStatic(&'static str);
 #[test]
 fn register_static_lifetime() {
     let registry = Registry::empty();
-    registry.transient(|| TupleWithStatic("TEST"));
+    registry.register_transient(|| TupleWithStatic("TEST"));
 }

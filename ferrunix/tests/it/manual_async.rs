@@ -5,18 +5,18 @@ use crate::common::*;
 #[tokio::test]
 async fn test_simple() {
     let registry = Registry::empty();
-    registry.transient(|| Box::pin(async move { 1_u32 })).await;
+    registry.register_transient(|| Box::pin(async move { 1_u32 })).await;
     registry
         .with_deps::<_, (Transient<u32>,)>()
-        .transient(|(x,)| {
+        .register_transient(|(x,)| {
             Box::pin(async move {
                 let x = x.get();
                 u64::from(x) + 2
             })
         })
         .await;
-    registry.singleton(|| Box::pin(async move { 1_i64 })).await;
-    // registry.singleton(|| async_ctor!(async move { 1_u64 })).await;
+    registry.register_singleton(|| Box::pin(async move { 1_i64 })).await;
+    // registry.register_singleton(|| async_ctor!(async move { 1_u64 })).await;
 
     let val = registry.get_transient::<u32>().await.unwrap();
     assert_eq!(val, 1);
@@ -83,7 +83,7 @@ impl AsyncBillingService for RealBillingService {
 async fn test_more_complex() {
     let registry = Registry::empty();
     registry
-        .transient::<Box<dyn AsyncCreditCardProcessor>>(|| {
+        .register_transient::<Box<dyn AsyncCreditCardProcessor>>(|| {
             Box::pin(async move {
                 Box::new(PaypalCreditCardProcessor::default())
                     as Box<dyn AsyncCreditCardProcessor>
@@ -91,7 +91,7 @@ async fn test_more_complex() {
         })
         .await;
     registry
-        .transient::<Box<dyn AsyncTransactionLog>>(|| {
+        .register_transient::<Box<dyn AsyncTransactionLog>>(|| {
             Box::pin(async move {
                 Box::new(RealTransactionLog::default())
                     as Box<dyn AsyncTransactionLog>
@@ -105,7 +105,7 @@ async fn test_more_complex() {
             Transient<Box<dyn AsyncTransactionLog>>,
             Transient<Box<dyn AsyncCreditCardProcessor>>,
         )>()
-        .transient(|(transaction, processor)| {
+        .register_transient(|(transaction, processor)| {
             Box::pin(async move {
                 Box::new(RealBillingService {
                     transactionlog: transaction.get(),

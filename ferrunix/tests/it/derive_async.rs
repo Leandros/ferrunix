@@ -22,7 +22,7 @@ use ferrunix::{Inject, RegistrationFunc, Registry};
 //     {
 //         Box::pin(async move {
 //             registry
-//                 .transient(|| Box::pin(async move { Self {} }))
+//                 .register_transient(|| Box::pin(async move { Self {} }))
 //                 .await;
 //         })
 //     }

@@ -22,7 +22,7 @@ impl NotObjectSafe for ExampleStruct {
 #[test]
 fn can_store_objecs_impl_non_object_safe_traits() {
     let registry = Registry::empty();
-    registry.transient(|| ExampleStruct {
+    registry.register_transient(|| ExampleStruct {
         num: 0,
         some_string: "1".to_owned(),
     });

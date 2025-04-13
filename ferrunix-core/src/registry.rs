@@ -152,12 +152,12 @@ impl Registry {
     /// # Panics
     /// When the type has been registered already.
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
-    pub fn transient<T, C>(&self, ctor: C)
+    pub fn register_transient<T, C>(&self, ctor: C)
     where
         T: Registerable,
         C: TransientCtor<T> + Copy + 'static,
     {
-        self.transient_err::<T, _>(move || -> Result<T, BoxErr> {
+        self.try_register_transient::<T, _>(move || -> Result<T, BoxErr> {
             Ok((ctor)())
         })
     }
@@ -174,7 +174,7 @@ impl Registry {
     /// # Panics
     /// When the type has been registered already.
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
-    pub fn transient_err<T, C>(&self, ctor: C)
+    pub fn try_register_transient<T, C>(&self, ctor: C)
     where
         T: Registerable,
         C: TransientCtorFallible<T> + Copy + 'static,
@@ -209,12 +209,12 @@ impl Registry {
     /// # Panics
     /// When the type has been registered already.
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
-    pub fn singleton<T, F>(&self, ctor: F)
+    pub fn register_singleton<T, F>(&self, ctor: F)
     where
         T: RegisterableSingleton,
         F: SingletonCtor<T>,
     {
-        self.singleton_err(move || -> Result<T, BoxErr> { Ok((ctor)()) })
+        self.try_register_singleton(move || -> Result<T, BoxErr> { Ok((ctor)()) })
     }
 
     /// Register a new singleton object, without dependencies.
@@ -230,7 +230,7 @@ impl Registry {
     /// # Panics
     /// When the type has been registered already.
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
-    pub fn singleton_err<T, F>(&self, ctor: F)
+    pub fn try_register_singleton<T, F>(&self, ctor: F)
     where
         T: RegisterableSingleton,
         F: SingletonCtorFallible<T>,
@@ -417,7 +417,7 @@ impl Registry {
     /// # Panics
     /// When the type has been registered already.
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
-    pub async fn singleton<T, F>(&self, ctor: F)
+    pub async fn register_singleton<T, F>(&self, ctor: F)
     where
         T: RegisterableSingleton,
         F: SingletonCtor<T>,
@@ -449,7 +449,7 @@ impl Registry {
     /// # Panics
     /// When the type has been registered already.
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
-    pub async fn transient<T>(
+    pub async fn register_transient<T>(
         &self,
         ctor: fn() -> std::pin::Pin<
             Box<dyn std::future::Future<Output = T> + Send>,
@@ -615,7 +615,7 @@ where
     /// # }
     /// registry
     ///     .with_deps::<_, (Transient<u8>, Singleton<Template>)>()
-    ///     .transient(|(num, template)| {
+    ///     .register_transient(|(num, template)| {
     ///         // access `num` and `template` here.
     ///         u16::from(*num)
     ///     });
@@ -628,11 +628,11 @@ where
     /// When the type has been registered already.
     #[cfg(not(feature = "tokio"))]
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
-    pub fn transient<C>(&self, ctor: C)
+    pub fn register_transient<C>(&self, ctor: C)
     where
         C: TransientCtorDeps<T, Deps> + Copy + 'static,
     {
-        self.transient_err::<_>(move |deps| -> Result<T, BoxErr> {
+        self.try_register_transient::<_>(move |deps| -> Result<T, BoxErr> {
             Ok((ctor)(deps))
         })
     }
@@ -654,7 +654,7 @@ where
     /// # }
     /// registry
     ///     .with_deps::<_, (Transient<u8>, Singleton<Template>)>()
-    ///     .transient(|(num, template)| {
+    ///     .register_transient(|(num, template)| {
     ///         // access `num` and `template` here.
     ///         u16::from(*num)
     ///     });
@@ -667,7 +667,7 @@ where
     /// When the type has been registered already.
     #[cfg(not(feature = "tokio"))]
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
-    pub fn transient_err<C>(&self, ctor: C)
+    pub fn try_register_transient<C>(&self, ctor: C)
     where
         C: TransientCtorFallibleDeps<T, Deps> + Copy + 'static,
     {
@@ -704,7 +704,7 @@ where
     /// When the type has been registered already.
     #[cfg(feature = "tokio")]
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
-    pub async fn transient(
+    pub async fn register_transient(
         &self,
         ctor: fn(
             Deps,
@@ -755,7 +755,7 @@ where
     /// # }
     /// registry
     ///     .with_deps::<_, (Transient<u8>, Singleton<Template>)>()
-    ///     .transient(|(num, template)| {
+    ///     .register_transient(|(num, template)| {
     ///         // access `num` and `template` here.
     ///         u16::from(*num)
     ///     });
@@ -765,11 +765,11 @@ where
     /// comma: `(dep,)`.
     #[cfg(not(feature = "tokio"))]
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
-    pub fn singleton<F>(&self, ctor: F)
+    pub fn register_singleton<F>(&self, ctor: F)
     where
         F: SingletonCtorDeps<T, Deps>,
     {
-        self.singleton_err::<_>(move |deps| -> Result<T, BoxErr> {
+        self.try_register_singleton::<_>(move |deps| -> Result<T, BoxErr> {
             Ok((ctor)(deps))
         })
     }
@@ -792,7 +792,7 @@ where
     /// # }
     /// registry
     ///     .with_deps::<_, (Transient<u8>, Singleton<Template>)>()
-    ///     .transient(|(num, template)| {
+    ///     .register_transient(|(num, template)| {
     ///         // access `num` and `template` here.
     ///         u16::from(*num)
     ///     });
@@ -801,7 +801,7 @@ where
     /// For single dependencies, the destructured tuple needs to end with a comma: `(dep,)`.
     #[cfg(not(feature = "tokio"))]
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
-    pub fn singleton_err<F>(&self, ctor: F)
+    pub fn try_register_singleton<F>(&self, ctor: F)
     where
         F: SingletonCtorFallibleDeps<T, Deps>,
     {
@@ -832,7 +832,7 @@ where
     /// The `ctor` must return a boxed `dyn Future`.
     #[cfg(feature = "tokio")]
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
-    pub async fn singleton<F>(&self, ctor: F)
+    pub async fn register_singleton<F>(&self, ctor: F)
     where
         F: SingletonCtorDeps<T, Deps>,
     {
