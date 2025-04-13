@@ -118,7 +118,7 @@ fn validate_failure_missing_dependencies() {
 }
 
 #[test]
-fn test_fallible_transient() {
+fn test_fallible_transient_success() {
     let registry = Registry::empty();
     registry.try_register_transient(|| Ok(1_u8));
     registry
@@ -136,7 +136,7 @@ fn test_fallible_transient() {
 }
 
 #[test]
-fn test_fallible_singleton() {
+fn test_fallible_singleton_success() {
     let registry = Registry::empty();
     registry.try_register_singleton(|| Ok(1_u8));
     registry
@@ -149,6 +149,72 @@ fn test_fallible_singleton() {
     assert_eq!(*x.unwrap(), 1_u8);
     let x1 = registry.singleton::<u16>();
     assert_eq!(*x1.unwrap(), 16_u16);
+    let x2 = registry.singleton::<u32>();
+    assert_eq!(*x2.unwrap(), 1_u32);
+}
+
+#[test]
+fn test_fallible_transient_error_simple() {
+    let registry = Registry::empty();
+    registry.try_register_transient::<u8, _>(
+        || {
+            Err(Box::new(std::io::Error::other("number too large")))
+        },
+    );
+
+    registry.validate_all_full().unwrap();
+
+    let x1 = registry.transient::<u8>();
+    assert_eq!(x1.is_err(), true);
+
+}
+
+#[test]
+fn test_fallible_transient_error() {
+    let registry = Registry::empty();
+    registry.try_register_transient(|| Ok(1000_u16));
+    registry
+        .with_deps::<_, (Transient<u16>,)>()
+        .try_register_transient(|(first,)| {
+            if *first > 240 {
+                return Err(Box::new(std::io::Error::other(
+                    "number too large",
+                )));
+            }
+            Ok((*first + 15) as u8)
+        });
+    registry.register_transient(|| 1_u32);
+    registry.validate_all_full().unwrap();
+
+    let x = registry.transient::<u16>();
+    assert_eq!(x.unwrap(), 1000_u16);
+    let x1 = registry.transient::<u8>();
+    assert_eq!(x1.is_err(), true);
+    let x2 = registry.transient::<u32>();
+    assert_eq!(x2.unwrap(), 1_u32);
+}
+
+#[test]
+fn test_fallible_singleton_error() {
+    let registry = Registry::empty();
+    registry.try_register_singleton(|| Ok(1000_u16));
+    registry
+        .with_deps::<_, (Singleton<u16>,)>()
+        .try_register_singleton(|(first,)| {
+            if **first > 240 {
+                return Err(Box::new(std::io::Error::other(
+                    "number too large",
+                )));
+            }
+            Ok((**first + 15) as u8)
+        });
+    registry.register_singleton(|| 1_u32);
+    registry.validate_all_full().unwrap();
+
+    let x = registry.singleton::<u16>();
+    assert_eq!(*x.unwrap(), 1000_u16);
+    let x1 = registry.singleton::<u8>();
+    assert_eq!(x1.is_err(), true);
     let x2 = registry.singleton::<u32>();
     assert_eq!(*x2.unwrap(), 1_u32);
 }
