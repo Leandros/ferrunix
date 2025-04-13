@@ -36,7 +36,7 @@ fn all_public_types_are_debug() {
 //         s: RefCell::new("Hello".to_owned()),
 //     });
 
-//     let _notsync = registry.get_transient::<NotSync>().unwrap();
+//     let _notsync = registry.transient::<NotSync>().unwrap();
 // }
 
 // #[test]

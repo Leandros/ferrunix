@@ -81,7 +81,7 @@ fn registry_dyn_traits() {
     registry.validate_all().unwrap();
 
     let billing_service =
-        registry.get_transient::<Box<dyn BillingService>>().unwrap();
+        registry.transient::<Box<dyn BillingService>>().unwrap();
 
     let order = PizzaOrder(100);
     let creditcard = CreditCard {

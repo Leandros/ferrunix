@@ -27,7 +27,7 @@ fn can_store_objecs_impl_non_object_safe_traits() {
         some_string: "1".to_owned(),
     });
 
-    let example = registry.get_transient::<ExampleStruct>().unwrap();
+    let example = registry.transient::<ExampleStruct>().unwrap();
     let ret = example.returns();
     assert_eq!(ret.num, 1);
     assert_eq!(ret.some_string, "2");

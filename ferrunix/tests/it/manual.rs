@@ -26,16 +26,16 @@ fn simple_registry_concrete_types() {
 
     registry.validate_all().unwrap();
 
-    let x = registry.get_transient::<u8>();
+    let x = registry.transient::<u8>();
     assert_eq!(x.unwrap(), 1_u8);
 
-    let x1 = registry.get_transient::<u16>();
+    let x1 = registry.transient::<u16>();
     assert_eq!(x1.unwrap(), 2_u16);
 
-    let x2 = registry.get_transient::<u32>();
+    let x2 = registry.transient::<u32>();
     assert_eq!(x2.unwrap(), 4_u32);
 
-    let s1 = registry.get_singleton::<String>().unwrap();
+    let s1 = registry.singleton::<String>().unwrap();
     assert_eq!(&*s1, &"Hello, World".to_owned());
 }
 
@@ -51,11 +51,11 @@ fn singletons_without_deps() {
 
     registry.validate_all().unwrap();
 
-    let x1 = registry.get_singleton::<i8>();
+    let x1 = registry.singleton::<i8>();
     assert_eq!(*x1.unwrap(), 8_i8);
-    let x2 = registry.get_singleton::<i16>();
+    let x2 = registry.singleton::<i16>();
     assert_eq!(*x2.unwrap(), 16_i16);
-    let x3 = registry.get_singleton::<i32>();
+    let x3 = registry.singleton::<i32>();
     assert_eq!(*x3.unwrap(), 32_i32);
 }
 
@@ -75,11 +75,11 @@ fn singletons_with_deps() {
 
     registry.validate_all().unwrap();
 
-    let x1 = registry.get_transient::<u8>();
+    let x1 = registry.transient::<u8>();
     assert_eq!(x1.unwrap(), 1_u8);
-    let x2 = registry.get_singleton::<i8>();
+    let x2 = registry.singleton::<i8>();
     assert_eq!(*x2.unwrap(), 8_i8);
-    let x3 = registry.get_singleton::<i32>();
+    let x3 = registry.singleton::<i32>();
     assert_eq!(*x3.unwrap(), 9_i32);
 }
 
@@ -107,13 +107,13 @@ fn validate_failure_missing_dependencies() {
         "should fail due to missing u8 dependency"
     );
 
-    let x1 = registry.get_transient::<u16>();
+    let x1 = registry.transient::<u16>();
     assert_eq!(x1.is_err(), true);
 
-    let x2 = registry.get_transient::<u32>();
+    let x2 = registry.transient::<u32>();
     assert_eq!(x2.is_err(), true);
 
-    let s1 = registry.get_singleton::<String>();
+    let s1 = registry.singleton::<String>();
     assert_eq!(s1.is_err(), true);
 }
 
@@ -127,11 +127,11 @@ fn test_fallible_transient() {
     registry.register_transient(|| 1_u32);
     registry.validate_all_full().unwrap();
 
-    let x = registry.get_transient::<u8>();
+    let x = registry.transient::<u8>();
     assert_eq!(x.unwrap(), 1_u8);
-    let x1 = registry.get_transient::<u16>();
+    let x1 = registry.transient::<u16>();
     assert_eq!(x1.unwrap(), 16_u16);
-    let x2 = registry.get_transient::<u32>();
+    let x2 = registry.transient::<u32>();
     assert_eq!(x2.unwrap(), 1_u32);
 }
 
@@ -145,11 +145,11 @@ fn test_fallible_singleton() {
     registry.register_singleton(|| 1_u32);
     registry.validate_all_full().unwrap();
 
-    let x = registry.get_singleton::<u8>();
+    let x = registry.singleton::<u8>();
     assert_eq!(*x.unwrap(), 1_u8);
-    let x1 = registry.get_singleton::<u16>();
+    let x1 = registry.singleton::<u16>();
     assert_eq!(*x1.unwrap(), 16_u16);
-    let x2 = registry.get_singleton::<u32>();
+    let x2 = registry.singleton::<u32>();
     assert_eq!(*x2.unwrap(), 1_u32);
 }
 
@@ -192,7 +192,7 @@ fn register_not_clone() {
         inner: String::new(),
     });
 
-    let _not_clone = registry.get_transient::<NotClone>().unwrap();
+    let _not_clone = registry.transient::<NotClone>().unwrap();
 }
 
 struct TupleWithStatic(&'static str);

@@ -91,7 +91,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
     registry.validate_all_full()?;
 
     let billing_service =
-        registry.get_transient::<Box<dyn BillingService>>().unwrap();
+        registry.transient::<Box<dyn BillingService>>().unwrap();
 
     let order = PizzaOrder(100);
     let creditcard = CreditCard {

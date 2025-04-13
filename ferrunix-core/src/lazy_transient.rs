@@ -36,7 +36,7 @@ where
     #[must_use]
     pub fn resolved_with(registry: &Registry) -> Self {
         registry
-            .get_transient::<T>()
+            .transient::<T>()
             .map(|inner| Self {
                 inner: RwLock::new(Some(inner)),
             })
@@ -56,7 +56,7 @@ where
         registry: &Registry,
     ) -> Result<(), ResolveError> {
         match self.inner.try_write() {
-            Some(mut lockguard) => match registry.get_transient::<T>() {
+            Some(mut lockguard) => match registry.transient::<T>() {
                 Some(obj) => {
                     *lockguard = Some(obj);
                     Ok(())

@@ -254,7 +254,7 @@ impl Registry {
     ///
     /// Returns `None` if `T` wasn't registered or failed to construct.
     #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub fn get_transient<T>(&self) -> Result<T, ResolveError>
+    pub fn transient<T>(&self) -> Result<T, ResolveError>
     where
         T: Registerable,
     {
@@ -279,7 +279,7 @@ impl Registry {
     /// Returns `None` if `T` wasn't registered or failed to construct. The
     /// singleton is a ref-counted pointer object (either `Arc` or `Rc`).
     #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub fn get_singleton<T>(&self) -> Result<Ref<T>, ResolveError>
+    pub fn singleton<T>(&self) -> Result<Ref<T>, ResolveError>
     where
         T: RegisterableSingleton,
     {
@@ -478,7 +478,7 @@ impl Registry {
     /// Returns `None` if `T` wasn't registered or failed to construct.
     #[must_use]
     #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub async fn get_transient<T>(&self) -> Result<T, ResolveError>
+    pub async fn transient<T>(&self) -> Result<T, ResolveError>
     where
         T: Registerable,
     {
@@ -501,7 +501,7 @@ impl Registry {
     /// singleton is a ref-counted pointer object (either `Arc` or `Rc`).
     #[must_use]
     #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub async fn get_singleton<T>(&self) -> Result<Ref<T>, ResolveError>
+    pub async fn singleton<T>(&self) -> Result<Ref<T>, ResolveError>
     where
         T: RegisterableSingleton,
     {

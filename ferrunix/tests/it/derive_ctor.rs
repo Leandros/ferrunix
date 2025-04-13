@@ -62,7 +62,7 @@ fn custom_ctor() {
     MyAdder::register(&registry);
     DerivedCustomCtor::register(&registry);
 
-    let derived = registry.get_transient::<DerivedCustomCtor>().unwrap();
+    let derived = registry.transient::<DerivedCustomCtor>().unwrap();
     assert_eq!(derived.counter, 1);
     assert_eq!(derived.prefix, "log-prefix: ");
     assert_eq!(derived.adder.add(1, 3), 4);
@@ -75,7 +75,7 @@ async fn custom_ctor() {
     MyAdder::register(&registry).await;
     DerivedCustomCtor::register(&registry).await;
 
-    let derived = registry.get_transient::<DerivedCustomCtor>().await.unwrap();
+    let derived = registry.transient::<DerivedCustomCtor>().await.unwrap();
     assert_eq!(derived.counter, 1);
     assert_eq!(derived.prefix, "log-prefix: ");
     assert_eq!(derived.adder.add(1, 3), 4);

@@ -70,13 +70,13 @@ fn inject_stringtemplate() {
 
     registry.validate_all_full().unwrap();
 
-    let logger = registry.get_singleton::<Box<dyn ColorLogger>>().unwrap();
+    let logger = registry.singleton::<Box<dyn ColorLogger>>().unwrap();
     logger.log_colored("hello");
 
-    let stringtemplate = registry.get_transient::<StringTemplate>().unwrap();
+    let stringtemplate = registry.transient::<StringTemplate>().unwrap();
     assert_eq!(stringtemplate.raw, "The Magic Number is ");
 
-    let maker = registry.get_transient::<TemplateMaker>().unwrap();
+    let maker = registry.transient::<TemplateMaker>().unwrap();
     assert_eq!(maker.template.raw, "The Magic Number is ");
     assert_eq!(maker.number, 5);
 }

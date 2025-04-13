@@ -9,7 +9,7 @@ pub struct NotRegistered {}
 #[cfg(not(feature = "tokio"))]
 fn no_not_registered_type() {
     let global = Registry::autoregistered();
-    let not_registered = global.get_singleton::<NotRegistered>();
+    let not_registered = global.singleton::<NotRegistered>();
     assert!(not_registered.is_err());
 }
 
@@ -17,6 +17,6 @@ fn no_not_registered_type() {
 #[cfg(feature = "tokio")]
 async fn no_not_registered_type() {
     let global = Registry::autoregistered().await;
-    let not_registered = global.get_singleton::<NotRegistered>().await;
+    let not_registered = global.singleton::<NotRegistered>().await;
     assert!(not_registered.is_err());
 }

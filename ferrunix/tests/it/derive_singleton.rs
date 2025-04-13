@@ -35,10 +35,10 @@ fn derive_singleton() {
     registry.validate_all_full().unwrap();
 
     let logger = registry
-        .get_singleton::<Box<dyn Logger + Send + Sync>>()
+        .singleton::<Box<dyn Logger + Send + Sync>>()
         .unwrap();
     logger.info("Hello!");
 
-    let ctx = registry.get_singleton::<MyContext>().unwrap();
+    let ctx = registry.singleton::<MyContext>().unwrap();
     ctx.logger.info("Hello!");
 }

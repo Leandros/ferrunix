@@ -7,10 +7,10 @@ to use as a key, what dependencies it has, and how to construct it.
 For the registration, we have four functions on the [`Registry`] that are of
 interest:
 
-- [`Registry::transient(...)`]
-- [`Registry::singleton(...)`]
-- [`Registry::with_deps::<_, (Ts, ...)>().transient(...)`]
-- [`Registry::with_deps::<_, (Ts, ...)>().singleton(...)`]
+- [`Registry::register_transient(...)`]
+- [`Registry::register_singleton(...)`]
+- [`Registry::with_deps::<_, (Ts, ...)>().register_transient(...)`]
+- [`Registry::with_deps::<_, (Ts, ...)>().register_singleton(...)`]
 
 
 ## Without dependencies
@@ -29,10 +29,10 @@ fn main() {
     let registry = Registry::empty();
 
     // Register `CurrentCurrency` as a singleton.
-    registry.singleton(|| CurrentCurrency("USD"));
+    registry.register_singleton(|| CurrentCurrency("USD"));
 
     // Retrieve `CurrentCurrency` from the registry.
-    let currency = registry.get_singleton::<CurrentCurrency>().unwrap();
+    let currency = registry.singleton::<CurrentCurrency>().unwrap();
 
     // Assert that our retrieved object is actually what we expect.
     assert_eq!(currency.0, "USD");
@@ -42,13 +42,15 @@ fn main() {
 Of course, this example is rather simple, but should highlight the pattern of
 registering a new object:
 
-1. The constructor is registered with `registry.singleton` or `registry.transient`.
-2. A new object is retrieved using either `registry.get_singleton` or `registry.get_transient`.
+1. The constructor is registered with `registry.register_singleton` or
+   `registry.register_transient`.
+2. A new object is retrieved using either `registry.singleton` or
+   `registry.transient`.
 3. The retrieved object is used.
 
 The `CurrentCurrency` object in the example above is registered with a
-`singleton` lifetime. As a result, it needs to be retrieved with
-`get_singleton`. Trying to retrieve it with `get_transient` will return `None`.
+`Singleton` lifetime. As a result, it needs to be retrieved with `singleton`.
+Trying to retrieve it with `transient` will return `None`.
 
 <div class="warning">
 <b>Remember!</b>
@@ -77,19 +79,19 @@ pub struct Config {
 fn main() {
     let registry = Registry::empty();
     // Register a type without dependencies.
-    registry.transient(|| CurrentCurrency("USD"));
+    registry.register_transient(|| CurrentCurrency("USD"));
 
     // Register our `Config` types with a dependency.
     registry
         .with_deps::<_, (Transient<CurrentCurrency>,)>() // Trailing comma required!
-        .transient(|(currency,)| {
+        .register_transient(|(currency,)| {
             Config {
                 currency: currency.get(),
             }
         });
 
     // Construct a new config.
-    let config = registry.get_transient::<Config>().unwrap();
+    let config = registry.transient::<Config>().unwrap();
 
     // Assert that our retrieved object is actually what we expect.
     assert_eq!(config.currency.0, "USD");
@@ -113,7 +115,7 @@ Let's examine this in a bit more detail:
 # let registry = Registry::empty();
 registry
   .with_deps::<_, (Transient<CurrentCurrency>,)>() // <-- (1)
-  .transient(|(currency,)| { // <-- (2)
+  .register_transient(|(currency,)| { // <-- (2)
       Config {
           currency: currency.get(), // <-- (3)
       }
@@ -150,10 +152,10 @@ the previously registered constructor.
 With the registration done, the last part to is [retrieval of constructed objects].
 
 [`Registry`]: https://leandros.github.io/ferrunix/docs-multithread/ferrunix/struct.Registry.html
-[`Registry::transient(...)`]: https://leandros.github.io/ferrunix/docs-multithread/ferrunix/registry/struct.Registry.html#method.transient
-[`Registry::singleton(...)`]: https://leandros.github.io/ferrunix/docs-multithread/ferrunix/registry/struct.Registry.html#method.singleton
-[`Registry::with_deps::<_, (Ts, ...)>().transient(...)`]: https://leandros.github.io/ferrunix/docs-multithread/ferrunix/registry/struct.Builder.html#method.transient
-[`Registry::with_deps::<_, (Ts, ...)>().singleton(...)`]: https://leandros.github.io/ferrunix/docs-multithread/ferrunix/registry/struct.Builder.html#method.singleton
+[`Registry::register_transient(...)`]: https://leandros.github.io/ferrunix/docs-multithread/ferrunix/registry/struct.Registry.html#method.register_transient
+[`Registry::register_singleton(...)`]: https://leandros.github.io/ferrunix/docs-multithread/ferrunix/registry/struct.Registry.html#method.register_singleton
+[`Registry::with_deps::<_, (Ts, ...)>().register_transient(...)`]: https://leandros.github.io/ferrunix/docs-multithread/ferrunix/registry/struct.Builder.html#method.register_transient
+[`Registry::with_deps::<_, (Ts, ...)>().register_singleton(...)`]: https://leandros.github.io/ferrunix/docs-multithread/ferrunix/registry/struct.Builder.html#method.register_singleton
 
 [`Transient<T>`]: https://leandros.github.io/ferrunix/docs-multithread/ferrunix/struct.Transient.html
 [`Singleton<T>`]: https://leandros.github.io/ferrunix/docs-multithread/ferrunix/struct.Singleton.html

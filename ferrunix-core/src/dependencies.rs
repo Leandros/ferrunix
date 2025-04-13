@@ -27,7 +27,7 @@
 //!         format!("{} {num}", template.template) // you can also use the `Deref` impl.
 //!     });
 //!
-//! let s = registry.get_transient::<String>().unwrap();
+//! let s = registry.transient::<String>().unwrap();
 //! assert_eq!(s, "u8 is: 1".to_string());
 //! ```
 
@@ -122,7 +122,7 @@ impl<T: Registerable> Dep for Transient<T> {
     #[cfg(not(feature = "tokio"))]
     fn new(registry: &Registry) -> Self {
         Self {
-            inner: registry.get_transient::<T>().expect(
+            inner: registry.transient::<T>().expect(
                 "transient dependency must only be constructed if it's \
                  fulfillable",
             ),
@@ -136,7 +136,7 @@ impl<T: Registerable> Dep for Transient<T> {
     #[cfg(feature = "tokio")]
     async fn new(registry: &Registry) -> Self {
         Self {
-            inner: registry.get_transient::<T>().await.expect(
+            inner: registry.transient::<T>().await.expect(
                 "transient dependency must only be constructed if it's \
                  fulfillable",
             ),
@@ -207,7 +207,7 @@ impl<T: RegisterableSingleton> Dep for Singleton<T> {
     #[cfg(not(feature = "tokio"))]
     fn new(registry: &Registry) -> Self {
         Self {
-            inner: registry.get_singleton::<T>().expect(
+            inner: registry.singleton::<T>().expect(
                 "singleton dependency must only be constructed if it's \
                  fulfillable",
             ),
@@ -221,7 +221,7 @@ impl<T: RegisterableSingleton> Dep for Singleton<T> {
     #[cfg(feature = "tokio")]
     async fn new(registry: &Registry) -> Self {
         Self {
-            inner: registry.get_singleton::<T>().await.expect(
+            inner: registry.singleton::<T>().await.expect(
                 "singleton dependency must only be constructed if it's \
                  fulfillable",
             ),

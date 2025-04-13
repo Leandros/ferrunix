@@ -77,5 +77,5 @@ struct Dep2 {
 async fn simple_derive() {
     let registry = Registry::autoregistered().await;
 
-    // let _obj = registry.get_transient::<Empty>().await.unwrap();
+    // let _obj = registry.transient::<Empty>().await.unwrap();
 }
