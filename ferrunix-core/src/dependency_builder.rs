@@ -4,10 +4,7 @@
 use std::any::TypeId;
 
 use crate::error::ResolveError;
-use crate::types::{
-    Registerable, SingletonCtorDeps, TransientCtorFn,
-    TransientCtorFnDeps,
-};
+use crate::types::{Registerable, SingletonCtorDepsErr, TransientCtorFnDeps};
 use crate::Registry;
 
 /// Required for sealing the trait. *Must not be public*.
@@ -59,7 +56,7 @@ pub trait DepBuilder<R> {
     #[cfg(not(feature = "tokio"))]
     fn build_once(
         registry: &Registry,
-        ctor: Box<dyn SingletonCtorDeps<R, Self>>,
+        ctor: Box<dyn SingletonCtorDepsErr<R, Self>>,
         _: private::SealToken,
     ) -> Result<R, ResolveError>
     where
@@ -136,14 +133,14 @@ where
     #[cfg(not(feature = "tokio"))]
     fn build_once(
         _registry: &Registry,
-        ctor: Box<dyn SingletonCtorDeps<R, Self>>,
+        ctor: Box<dyn SingletonCtorDepsErr<R, Self>>,
         _: private::SealToken,
     ) -> Result<R, ResolveError>
     where
         R: Sized,
         Self: Sized,
     {
-        Ok(ctor(()))
+        ctor(()).map_err(ResolveError::Ctor)
     }
 
     #[cfg(feature = "tokio")]
@@ -206,7 +203,7 @@ macro_rules! DepBuilderImpl {
             #[cfg(not(feature = "tokio"))]
             fn build_once(
                 registry: &$crate::registry::Registry,
-                ctor: Box<dyn SingletonCtorDeps<R, Self>>,
+                ctor: Box<dyn SingletonCtorDepsErr<R, Self>>,
                 _: private::SealToken,
                 ) -> Result<R, ResolveError>
                 where
@@ -221,7 +218,7 @@ macro_rules! DepBuilderImpl {
                     )*
                 );
 
-                Ok(ctor(deps))
+                ctor(deps).map_err(ResolveError::Ctor)
             }
 
             #[cfg(feature = "tokio")]

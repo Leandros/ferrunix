@@ -258,14 +258,29 @@ mod unsync {
     /// A blanket implementation for `FnOnce() -> T` is provided.
     pub trait SingletonCtor<T>: FnOnce() -> T + 'static {
         /// Calls the construcor.
-        fn call(self, _: super::private::SealToken) -> T;
+        fn call(self, _: super::private::SealToken) -> Result<T, BoxErr>;
     }
 
     impl<T, F> SingletonCtor<T> for F
     where
         F: FnOnce() -> T + 'static,
     {
-        fn call(self, _: super::private::SealToken) -> T {
+        fn call(self, _: super::private::SealToken) -> Result<T, BoxErr> {
+            Ok((self)())
+        }
+    }
+
+    pub trait SingletonCtorErr<T>: FnOnce() -> Result<T, BoxErr> + 'static {
+        /// Calls the construcor.
+        fn call(self, _: super::private::SealToken) -> Result<T, BoxErr>;
+    }
+
+    impl<T, F> SingletonCtorErr<T> for F
+    where
+        T: 'static,
+        F: FnOnce() -> Result<T, BoxErr> + 'static,
+    {
+        fn call(self, _: super::private::SealToken) -> Result<T, BoxErr> {
             (self)()
         }
     }
@@ -278,14 +293,29 @@ mod unsync {
     /// A blanket implementation for `FnOnce(Deps) -> T` is provided.
     pub trait SingletonCtorDeps<T, Deps>: FnOnce(Deps) -> T + 'static {
         /// Calls the construcor.
-        fn call(self, deps: Deps, _: super::private::SealToken) -> T;
+        fn call(self, deps: Deps, _: super::private::SealToken) -> Result<T, BoxErr>;
     }
     impl<T, F, Deps> SingletonCtorDeps<T, Deps> for F
     where
         F: FnOnce(Deps) -> T + 'static,
         Deps: crate::dependency_builder::DepBuilder<T> + 'static,
     {
-        fn call(self, deps: Deps, _: super::private::SealToken) -> T {
+        fn call(self, deps: Deps, _: super::private::SealToken) -> Result<T, BoxErr> {
+            Ok((self)(deps))
+        }
+    }
+
+    pub trait SingletonCtorDepsErr<T, Deps>: FnOnce(Deps) -> Result<T, BoxErr> + 'static {
+        /// Calls the construcor.
+        fn call(self, deps: Deps, _: super::private::SealToken) -> Result<T, BoxErr>;
+    }
+    impl<T, F, Deps> SingletonCtorDepsErr<T, Deps> for F
+    where
+        T: 'static,
+        F: FnOnce(Deps) -> Result<T, BoxErr> + 'static,
+        Deps: crate::dependency_builder::DepBuilder<T> + 'static,
+    {
+        fn call(self, deps: Deps, _: super::private::SealToken) -> Result<T, BoxErr> {
             (self)(deps)
         }
     }

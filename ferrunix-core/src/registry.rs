@@ -12,8 +12,8 @@ use crate::error::{ImplErrors, ResolveError};
 use crate::object_builder::Object;
 use crate::types::{
     BoxErr, Registerable, RegisterableSingleton, SingletonCtor,
-    SingletonCtorDeps, TransientCtor, TransientCtorDeps, TransientCtorFn,
-    TransientCtorFnDeps,
+    SingletonCtorDeps, SingletonCtorDepsErr, SingletonCtorErr, TransientCtor,
+    TransientCtorDeps, TransientCtorFn, TransientCtorFnDeps,
 };
 use crate::{
     registration::RegistrationFunc, registration::DEFAULT_REGISTRY,
@@ -199,6 +199,15 @@ impl Registry {
     where
         T: RegisterableSingleton,
         F: SingletonCtor<T>,
+    {
+        self.singleton_err(move || -> Result<T, BoxErr> { Ok((ctor)()) })
+    }
+
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
+    pub fn singleton_err<T, F>(&self, ctor: F)
+    where
+        T: RegisterableSingleton,
+        F: SingletonCtorErr<T>,
     {
         use crate::object_builder::SingletonGetterNoDeps;
 
@@ -707,6 +716,17 @@ where
     pub fn singleton<F>(&self, ctor: F)
     where
         F: SingletonCtorDeps<T, Deps>,
+    {
+        self.singleton_err::<_>(move |deps| -> Result<T, BoxErr> {
+            Ok((ctor)(deps))
+        })
+    }
+
+    #[cfg(not(feature = "tokio"))]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
+    pub fn singleton_err<F>(&self, ctor: F)
+    where
+        F: SingletonCtorDepsErr<T, Deps>,
     {
         use crate::object_builder::SingletonGetterWithDeps;
 

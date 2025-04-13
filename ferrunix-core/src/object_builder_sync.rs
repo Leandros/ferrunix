@@ -2,9 +2,9 @@
 use crate::dependency_builder::DepBuilder;
 use crate::error::ResolveError;
 use crate::types::{
-    BoxErr, BoxedAny, OnceCell, Ref, RefAny, Registerable,
-    RegisterableSingleton, RwLock, SingletonCtor, SingletonCtorDeps,
-    TransientCtorFn, TransientCtorFnDeps,
+    BoxedAny, OnceCell, Ref, RefAny, Registerable, RegisterableSingleton,
+    RwLock, SingletonCtorDepsErr, SingletonCtorErr, TransientCtorFn,
+    TransientCtorFnDeps,
 };
 use crate::Registry;
 
@@ -130,7 +130,7 @@ where
 /// SingletonGetter`.
 pub(crate) struct SingletonGetterNoDeps<T> {
     /// Constructor, returns a new `T`.
-    ctor: RwLock<Option<Box<dyn SingletonCtor<T>>>>,
+    ctor: RwLock<Option<Box<dyn SingletonCtorErr<T>>>>,
     /// Cell containing the constructed `T`.
     cell: OnceCell<Ref<T>>,
 }
@@ -142,7 +142,7 @@ impl<T> SingletonGetterNoDeps<T> {
     /// `ctor` may contain side-effects. It's guaranteed to be only called once (for each thread).
     pub(crate) fn new<F>(ctor: F) -> Self
     where
-        F: SingletonCtor<T>,
+        F: SingletonCtorErr<T>,
     {
         Self {
             ctor: RwLock::new(Some(Box::new(ctor))),
@@ -159,13 +159,14 @@ where
         &self,
         _registry: &Registry,
     ) -> Result<RefAny, ResolveError> {
-        let rc = self.cell.get_or_init(|| {
+        let rc = self.cell.get_or_try_init(|| {
             let ctor = {
                 let mut lock = self.ctor.write();
                 lock.take().expect("to be called only once")
             };
-            Ref::new((ctor)())
-        });
+            let obj = (ctor)().map_err(ResolveError::Ctor)?;
+            Ok::<_, ResolveError>(Ref::new(obj))
+        })?;
         let rc = Ref::clone(rc) as RefAny;
         Ok(rc)
     }
@@ -181,7 +182,7 @@ where
 /// The dependency tuple `Deps` must implement [`DepBuilder<T>`].
 pub(crate) struct SingletonGetterWithDeps<T, Deps> {
     /// Constructor, returns a new `T`.
-    ctor: RwLock<Option<Box<dyn SingletonCtorDeps<T, Deps>>>>,
+    ctor: RwLock<Option<Box<dyn SingletonCtorDepsErr<T, Deps>>>>,
     /// Cell containing the constructed `T`.
     cell: OnceCell<Ref<T>>,
 }
@@ -193,7 +194,7 @@ impl<T, Deps> SingletonGetterWithDeps<T, Deps> {
     /// `ctor` may contain side-effects. It's guaranteed to be only called once (for each thread).
     pub(crate) fn new<F>(ctor: F) -> Self
     where
-        F: SingletonCtorDeps<T, Deps>,
+        F: SingletonCtorDepsErr<T, Deps>,
     {
         Self {
             ctor: RwLock::new(Some(Box::new(ctor))),
