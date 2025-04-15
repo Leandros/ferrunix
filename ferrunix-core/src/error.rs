@@ -43,3 +43,20 @@ pub enum ImplErrors {
     #[error("type mismatch")]
     TypeMismatch,
 }
+
+impl ResolveError {
+    /// Returns true if the underlying error was produced by a failure in one of the constructors
+    /// registered.
+    pub fn is_ctor_err(&self) -> bool {
+        matches!(self, Self::Ctor(_))
+    }
+
+    /// Returns the underlying error that was produced by the failure in one of the registered
+    /// constructors, or `None` if it's another error.
+    pub fn ctor_err(&self) -> Option<&BoxErr> {
+        match self {
+            Self::Ctor(error) => Some(error),
+            _ => None,
+        }
+    }
+}

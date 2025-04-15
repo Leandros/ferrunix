@@ -190,6 +190,7 @@ fn test_fallible_transient_error() {
     assert_eq!(x.unwrap(), 1000_u16);
     let x1 = registry.transient::<u8>();
     assert_eq!(x1.is_err(), true);
+    assert_eq!(x1.as_ref().unwrap_err().is_ctor_err(), true);
     let Err(ResolveError::Ctor(_x1err)) = x1 else { panic!("wrong error returned") };
     let x2 = registry.transient::<u32>();
     assert_eq!(x2.unwrap(), 1_u32);
