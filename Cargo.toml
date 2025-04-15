@@ -11,8 +11,8 @@ members = [
 default-members = ["ferrunix", "ferrunix-*"]
 
 [workspace.package]
-rust-version = "1.70.0" # 1.75.0 with the `tokio` feature
-edition = "2021"
+rust-version = "1.85.0" # 1.75.0 with the `tokio` feature
+edition = "2024"
 authors = ["Arvid Gerstmann <github@arvid.io>"]
 homepage = "https://github.com/Leandros/ferrunix"
 repository = "https://github.com/Leandros/ferrunix"

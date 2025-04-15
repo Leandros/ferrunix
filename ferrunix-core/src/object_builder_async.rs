@@ -1,8 +1,10 @@
 //! Abstraction layer to build transient and singleton dependencies, asynchronously.
 use crate::dependency_builder::DepBuilder;
+use crate::error::ResolveError;
 use crate::types::{
     BoxedAny, Ref, RefAny, Registerable, RegisterableSingleton, RwLock,
-    SingletonCtor, SingletonCtorDeps,
+    SingletonCtorFallible, SingletonCtorFallibleDeps, TransientCtorFallible,
+    TransientCtorFallibleDeps,
 };
 use crate::Registry;
 
@@ -23,7 +25,10 @@ pub(crate) trait AsyncTransientBuilder {
     /// <div class="warning">It must not use the global registry.</div>
     ///
     /// May return `None` if the dependencies couldn't be fulfilled.
-    async fn make_transient(&self, registry: &Registry) -> Option<BoxedAny>;
+    async fn make_transient(
+        &self,
+        registry: &Registry,
+    ) -> Result<BoxedAny, ResolveError>;
 }
 
 /// Trait to build a new object with singleton lifetime.
@@ -41,7 +46,10 @@ pub(crate) trait AsyncSingleton {
     /// <div class="warning">It must not use the global registry.</div>
     ///
     /// May return `None` if the dependencies couldn't be fulfilled.
-    async fn get_singleton(&self, registry: &Registry) -> Option<RefAny>;
+    async fn get_singleton(
+        &self,
+        registry: &Registry,
+    ) -> Result<RefAny, ResolveError>;
 }
 
 //          ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
@@ -51,19 +59,14 @@ pub(crate) trait AsyncSingleton {
 /// Construct a new transient with no dependencies. Usually used through `dyn AsyncTransientBuilder`.
 pub(crate) struct AsyncTransientBuilderImplNoDeps<T> {
     /// Constructor, returns a boxed future to `T`.
-    ctor:
-        fn() -> std::pin::Pin<Box<dyn std::future::Future<Output = T> + Send>>,
+    ctor: Box<dyn TransientCtorFallible<T>>,
 }
 
 impl<T> AsyncTransientBuilderImplNoDeps<T> {
     /// Create a new [`AsyncTransientBuilder`] using `ctor` to create new objects.
     ///
     /// `ctor` should not have side-effects. It may be called multiple times.
-    pub(crate) fn new(
-        ctor: fn() -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = T> + Send>,
-        >,
-    ) -> Self {
+    pub(crate) fn new(ctor: Box<dyn TransientCtorFallible<T>>) -> Self {
         Self { ctor }
     }
 }
@@ -74,9 +77,12 @@ where
     Self: Send + Sync,
     T: Registerable,
 {
-    async fn make_transient(&self, _: &Registry) -> Option<BoxedAny> {
-        let obj = (self.ctor)().await;
-        Option::<BoxedAny>::Some(Box::new(obj))
+    async fn make_transient(
+        &self,
+        _: &Registry,
+    ) -> Result<BoxedAny, ResolveError> {
+        let obj = (self.ctor)().await.map_err(ResolveError::Ctor)?;
+        Ok(Box::new(obj))
     }
 }
 
@@ -90,10 +96,7 @@ where
 /// The dependency tuple `Deps` must implement [`DepBuilder<T>`].
 pub(crate) struct AsyncTransientBuilderImplWithDeps<T, Deps> {
     /// Constructor, returns a boxed future to `T`.
-    ctor: fn(
-        Deps,
-    )
-        -> std::pin::Pin<Box<dyn std::future::Future<Output = T> + Send>>,
+    ctor: Box<dyn TransientCtorFallibleDeps<T, Deps>>,
 }
 
 impl<T, Deps> AsyncTransientBuilderImplWithDeps<T, Deps> {
@@ -101,11 +104,7 @@ impl<T, Deps> AsyncTransientBuilderImplWithDeps<T, Deps> {
     ///
     /// `ctor` should not have side-effects. It may be called multiple times.
     pub(crate) fn new(
-        ctor: fn(
-            Deps,
-        ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = T> + Send>,
-        >,
+        ctor: Box<dyn TransientCtorFallibleDeps<T, Deps>>,
     ) -> Self {
         Self { ctor }
     }
@@ -116,21 +115,22 @@ impl<T, Deps> AsyncTransientBuilder
     for AsyncTransientBuilderImplWithDeps<T, Deps>
 where
     Self: Send,
-    Deps: DepBuilder<T> + 'static,
+    Deps: DepBuilder<T> + Send + 'static,
     T: Registerable,
 {
-    async fn make_transient(&self, registry: &Registry) -> Option<BoxedAny> {
-        #[allow(clippy::option_if_let_else)]
-        match Deps::build(
-            registry,
-            self.ctor,
-            crate::dependency_builder::private::SealToken,
-        )
-        .await
-        {
-            Some(obj) => Some(Box::new(obj)),
-            None => None,
-        }
+    async fn make_transient(
+        &self,
+        registry: &Registry,
+    ) -> Result<BoxedAny, ResolveError> {
+        todo!()
+        // let obj = Deps::build(
+        //     registry,
+        //     &*self.ctor,
+        //     crate::dependency_builder::private::SealToken,
+        // )
+        // .await?;
+
+        // Ok(Box::new(obj))
     }
 }
 
@@ -142,7 +142,7 @@ where
 /// AsyncSingleton`.
 pub(crate) struct AsyncSingletonNoDeps<T> {
     /// Constructor, returns a boxed future to `T`.
-    ctor: RwLock<Option<Box<dyn SingletonCtor<T>>>>,
+    ctor: RwLock<Option<Box<dyn SingletonCtorFallible<T>>>>,
     /// Cell containing the constructed `T`.
     cell: ::tokio::sync::OnceCell<Ref<T>>,
 }
@@ -154,7 +154,7 @@ impl<T> AsyncSingletonNoDeps<T> {
     /// `ctor` may contain side-effects. It's guaranteed to be only called once (for each thread).
     pub(crate) fn new<F>(ctor: F) -> Self
     where
-        F: SingletonCtor<T>,
+        F: SingletonCtorFallible<T>,
     {
         Self {
             ctor: RwLock::new(Some(Box::new(ctor))),
@@ -169,20 +169,23 @@ where
     Self: Send,
     T: RegisterableSingleton,
 {
-    async fn get_singleton(&self, _registry: &Registry) -> Option<RefAny> {
+    async fn get_singleton(
+        &self,
+        _registry: &Registry,
+    ) -> Result<RefAny, ResolveError> {
         let rc = self
             .cell
-            .get_or_init(move || async move {
+            .get_or_try_init(move || async move {
                 let ctor = {
                     let mut lock = self.ctor.write().await;
                     lock.take().expect("to be called only once")
                 };
-                let obj = (ctor)().await;
-                Ref::new(obj)
+                let obj = (ctor)().await.map_err(ResolveError::Ctor)?;
+                Ok::<_, ResolveError>(Ref::new(obj))
             })
-            .await;
+            .await?;
         let rc = Ref::clone(rc) as RefAny;
-        Option::<RefAny>::Some(rc)
+        Ok(rc)
     }
 }
 
@@ -196,7 +199,7 @@ where
 /// The dependency tuple `Deps` must implement [`DepBuilder<T>`].
 pub(crate) struct AsyncSingletonWithDeps<T, Deps> {
     /// Constructor, returns a boxed future to `T`.
-    ctor: RwLock<Option<Box<dyn SingletonCtorDeps<T, Deps>>>>,
+    ctor: RwLock<Option<Box<dyn SingletonCtorFallibleDeps<T, Deps>>>>,
     /// Cell containing the constructed `T`.
     cell: ::tokio::sync::OnceCell<Ref<T>>,
 }
@@ -208,7 +211,7 @@ impl<T, Deps> AsyncSingletonWithDeps<T, Deps> {
     /// `ctor` may contain side-effects. It's guaranteed to be only called once (for each thread).
     pub(crate) fn new<F>(ctor: F) -> Self
     where
-        F: SingletonCtorDeps<T, Deps>,
+        F: SingletonCtorFallibleDeps<T, Deps>,
     {
         Self {
             ctor: RwLock::new(Some(Box::new(ctor))),
@@ -221,32 +224,31 @@ impl<T, Deps> AsyncSingletonWithDeps<T, Deps> {
 impl<T, Deps> AsyncSingleton for AsyncSingletonWithDeps<T, Deps>
 where
     Self: Send,
-    Deps: DepBuilder<T> + 'static,
+    Deps: DepBuilder<T> + Send + 'static,
     T: RegisterableSingleton,
 {
-    async fn get_singleton(&self, registry: &Registry) -> Option<RefAny> {
+    async fn get_singleton(
+        &self,
+        registry: &Registry,
+    ) -> Result<RefAny, ResolveError> {
         let ctor = {
             let mut lock = self.ctor.write().await;
             lock.take().expect("to be called only once")
         };
 
-        #[allow(clippy::option_if_let_else)]
-        match Deps::build_once(
-            registry,
-            ctor,
-            crate::dependency_builder::private::SealToken,
-        )
-        .await
-        {
-            Some(obj) => {
-                let rc = self
-                    .cell
-                    .get_or_init(move || async move { Ref::new(obj) })
-                    .await;
-                let rc = Ref::clone(rc) as RefAny;
-                Option::<RefAny>::Some(rc)
-            }
-            None => None,
-        }
+        // let obj = Deps::build_once(
+        //     registry,
+        //     ctor,
+        //     crate::dependency_builder::private::SealToken,
+        // )
+        // .await?;
+
+        todo!()
+        // let rc = self
+        //     .cell
+        //     .get_or_init(move || async move { Ref::new(obj) })
+        //     .await;
+        // let rc = Ref::clone(rc) as RefAny;
+        // Ok(rc)
     }
 }

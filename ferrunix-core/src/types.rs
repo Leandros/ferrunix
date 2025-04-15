@@ -470,15 +470,15 @@ mod unsync {
     ///
     /// A blanket implementation for `FnOnce() -> Result<T, Err>` is provided.
     pub trait SingletonCtorFallible<T>:
-        FnOnce() -> Result<T, BoxErr> + 'static
+        FnOnce() -> Result<T, BoxErr> + Send + Sync + 'static
     {
         /// Calls the construcor.
         fn call(self, _: super::private::SealToken) -> Result<T, BoxErr>;
     }
     impl<T, F> SingletonCtorFallible<T> for F
     where
-        T: 'static,
-        F: FnOnce() -> Result<T, BoxErr> + 'static,
+        T: Send + Sync + 'static,
+        F: FnOnce() -> Result<T, BoxErr> + Send + Sync + 'static,
     {
         fn call(self, _: super::private::SealToken) -> Result<T, BoxErr> {
             (self)()
@@ -575,10 +575,16 @@ mod unsync {
 #[cfg(feature = "tokio")]
 mod tokio_ext {
     use std::any::Any;
+    use std::error::Error;
+    use std::future::Future;
+    use std::pin::Pin;
 
     // Alias types used in [`Registry`].
     pub(crate) type BoxedAny = Box<dyn Any + Send>;
     pub(crate) type RefAny = Ref<dyn Any + Send + Sync + 'static>;
+    pub(crate) type BoxErr = Box<dyn Error + Send + Sync + 'static>;
+    pub(crate) type BoxFuture<'a, T> =
+        Pin<Box<dyn Future<Output = T> + Send + Sync + 'a>>;
 
     // `RwLock` types.
     pub(crate) type NonAsyncRwLock<T> = parking_lot::RwLock<T>;
@@ -591,6 +597,79 @@ mod tokio_ext {
     pub(crate) type OnceCell<T> = ::tokio::sync::OnceCell<T>;
     pub(crate) type SingletonCell = ::tokio::sync::OnceCell<RefAny>;
 
+    /// Constructor closure for transients.
+    ///
+    /// This is a marker trait to identify all valid constructors usable by singletons.
+    /// It's not implementable by other crates.
+    ///
+    /// A blanket implementation for `Fn() -> T` is provided.
+    pub trait TransientCtor<T>:
+        Fn() -> BoxFuture<'static, T> + Send + Sync + 'static
+    {
+    }
+    impl<T, F> TransientCtor<T> for F where
+        F: Fn() -> BoxFuture<'static, T> + Send + Sync + 'static
+    {
+    }
+
+    /// Constructor closure for transients.
+    ///
+    /// This is a marker trait to identify all valid constructors usable by singletons.
+    /// It's not implementable by other crates.
+    ///
+    /// A blanket implementation for `AsyncFn(Deps) -> T` is provided.
+    pub trait TransientCtorDeps<T, D>:
+        Fn(D) -> BoxFuture<'static, T> + Send + Sync + 'static
+    {
+    }
+    impl<T, D, F> TransientCtorDeps<T, D> for F
+    where
+        F: Fn(D) -> BoxFuture<'static, T> + Send + Sync + 'static,
+        D: crate::dependency_builder::DepBuilder<T> + 'static,
+    {
+    }
+
+    /// Constructor closure for *fallible* transients.
+    ///
+    /// This is a marker trait to identify all valid constructors usable by singletons.
+    /// It's not implementable by other crates.
+    ///
+    /// A blanket implementation for `Fn() -> Result<T, Err>` is provided.
+    pub trait TransientCtorFallible<T>:
+        Fn() -> BoxFuture<'static, Result<T, BoxErr>> + Send + Sync + 'static
+    {
+    }
+    impl<T, F> TransientCtorFallible<T> for F where
+        F: Fn() -> BoxFuture<'static, Result<T, BoxErr>>
+            + Send
+            + Sync
+            + 'static
+    {
+    }
+
+    /// Constructor closure for *fallible* transients.
+    ///
+    /// This is a marker trait to identify all valid constructors usable by singletons.
+    /// It's not implementable by other crates.
+    ///
+    /// A blanket implementation for `Fn(Deps) -> Result<T, Err>` is provided.
+    pub trait TransientCtorFallibleDeps<T, Deps>:
+        Fn(Deps) -> BoxFuture<'static, Result<T, BoxErr>>
+        + Send
+        + Sync
+        + 'static
+    {
+    }
+    impl<T, F, Deps> TransientCtorFallibleDeps<T, Deps> for F
+    where
+        F: Fn(Deps) -> BoxFuture<'static, Result<T, BoxErr>>
+            + Send
+            + Sync
+            + 'static,
+        Deps: crate::dependency_builder::DepBuilder<T> + 'static,
+    {
+    }
+
     /// A generic constructor for singletons.
     ///
     /// This is a marker trait to identify all valid constructors usable by singletons.
@@ -598,34 +677,33 @@ mod tokio_ext {
     ///
     /// A blanket implementation for `FnOnce() -> T` is provided.
     pub trait SingletonCtor<T>:
-        FnOnce()
-            -> std::pin::Pin<Box<dyn std::future::Future<Output = T> + Send>>
+        FnOnce() -> BoxFuture<'static, T> + Send + Sync + 'static
+    {
+    }
+    impl<T, F> SingletonCtor<T> for F where
+        F: FnOnce() -> BoxFuture<'static, T> + Send + Sync + 'static
+    {
+    }
+
+    /// A generic constructor for *fallible* singletons.
+    ///
+    /// This is a marker trait to identify all valid constructors usable by singletons.
+    /// It's not implementable by other crates.
+    ///
+    /// A blanket implementation for `AsyncFnOnce() -> Result<T, Err>` is provided.
+    pub trait SingletonCtorFallible<T>:
+        FnOnce() -> BoxFuture<'static, Result<T, BoxErr>>
         + Send
         + Sync
         + 'static
     {
-        /// Calls the construcor.
-        fn call(
-            self,
-            _: super::private::SealToken,
-        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = T> + Send>>;
     }
-
-    impl<T, F> SingletonCtor<T> for F
-    where
-        F: FnOnce() -> std::pin::Pin<
-                Box<dyn std::future::Future<Output = T> + Send>,
-            > + Send
+    impl<T, F> SingletonCtorFallible<T> for F where
+        F: FnOnce() -> BoxFuture<'static, Result<T, BoxErr>>
+            + Send
             + Sync
-            + 'static,
+            + 'static
     {
-        fn call(
-            self,
-            _: super::private::SealToken,
-        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = T> + Send>>
-        {
-            (self)()
-        }
     }
 
     /// A generic constructor for singletons with dependencies.
@@ -633,43 +711,40 @@ mod tokio_ext {
     /// This is a marker trait to identify all valid constructors usable by singletons.
     /// It's not implementable by other crates.
     ///
-    /// A blanket implementation for `FnOnce(Deps) -> T` is provided.
+    /// A blanket implementation for `Once(Deps) -> T` is provided.
     pub trait SingletonCtorDeps<T, Deps>:
-        FnOnce(
-            Deps,
-        )
-            -> std::pin::Pin<Box<dyn std::future::Future<Output = T> + Send>>
+        FnOnce(Deps) -> BoxFuture<'static, T> + Send + Sync + 'static
+    {
+    }
+    impl<T, F, Deps> SingletonCtorDeps<T, Deps> for F
+    where
+        F: FnOnce(Deps) -> BoxFuture<'static, T> + Send + Sync + 'static,
+        Deps: crate::dependency_builder::DepBuilder<T> + 'static,
+    {
+    }
+
+    /// A generic constructor for *fallible* singletons with dependencies.
+    ///
+    /// This is a marker trait to identify all valid constructors usable by singletons.
+    /// It's not implementable by other crates.
+    ///
+    /// A blanket implementation for `Once(Deps) -> T` is provided.
+    pub trait SingletonCtorFallibleDeps<T, Deps>:
+        FnOnce(Deps) -> BoxFuture<'static, Result<T, BoxErr>>
         + Send
         + Sync
         + 'static
     {
-        /// Calls the construcor.
-        fn call(
-            self,
-            deps: Deps,
-            _: super::private::SealToken,
-        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = T> + Send>>;
     }
-
-    impl<T, F, Deps> SingletonCtorDeps<T, Deps> for F
+    impl<T, F, Deps> SingletonCtorFallibleDeps<T, Deps> for F
     where
-        F: FnOnce(
-                Deps,
-            ) -> std::pin::Pin<
-                Box<dyn std::future::Future<Output = T> + Send>,
-            > + Send
+        T: Send + Sync + 'static,
+        F: FnOnce(Deps) -> BoxFuture<'static, Result<T, BoxErr>>
+            + Send
             + Sync
             + 'static,
-        Deps: crate::dependency_builder::DepBuilder<T> + Sync + 'static,
+        Deps: crate::dependency_builder::DepBuilder<T> + 'static,
     {
-        fn call(
-            self,
-            deps: Deps,
-            _: super::private::SealToken,
-        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = T> + Send>>
-        {
-            (self)(deps)
-        }
     }
 
     /// A generic reference type that's used as the default type for types with

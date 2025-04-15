@@ -47,11 +47,11 @@ impl std::fmt::Display for FullValidationError {
     #[allow(clippy::use_debug)]
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Cycle(ref node) => match node {
+            Self::Cycle(node) => match node {
                 Some(node) => write!(fmt, "cycle detected at {node}"),
                 None => write!(fmt, "cycle detected!"),
             },
-            Self::Missing(ref all_missing) => {
+            Self::Missing(all_missing) => {
                 writeln!(fmt, "dependencies missing:")?;
 
                 for missing in all_missing {

@@ -411,6 +411,17 @@ impl Registry {
         Arc::try_unwrap(registry).expect("all tasks above are joined")
     }
 
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
+    pub async fn register_singleton<T, F>(&self, ctor: F)
+    where
+        T: RegisterableSingleton,
+        F: SingletonCtor<T>,
+    {
+        self.try_register_singleton(move || Box::pin(async move {
+            Ok((ctor)())
+        })).await;
+    }
+
     /// Register a new singleton object, without dependencies.
     ///
     /// To register a type with dependencies, use the builder returned from
@@ -424,10 +435,10 @@ impl Registry {
     /// # Panics
     /// When the type has been registered already.
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
-    pub async fn register_singleton<T, F>(&self, ctor: F)
+    pub async fn try_register_singleton<T, F>(&self, ctor: F)
     where
         T: RegisterableSingleton,
-        F: SingletonCtor<T>,
+        F: SingletonCtorFallible<T>,
     {
         use crate::object_builder::AsyncSingletonNoDeps;
 
@@ -437,8 +448,9 @@ impl Registry {
             std::any::type_name::<T>()
         );
 
-        let singleton =
-            Object::AsyncSingleton(Box::new(AsyncSingletonNoDeps::new(ctor)));
+        let singleton = Object::AsyncSingleton(Box::new(
+            AsyncSingletonNoDeps::new(ctor),
+        ));
 
         self.insert_or_panic::<T>(singleton).await;
         self.validator.add_singleton_no_deps::<T>();
@@ -456,13 +468,10 @@ impl Registry {
     /// # Panics
     /// When the type has been registered already.
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
-    pub async fn register_transient<T>(
-        &self,
-        ctor: fn() -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = T> + Send>,
-        >,
-    ) where
+    pub async fn try_register_transient<T, F>(&self, ctor: F)
+    where
         T: Registerable,
+        F: TransientCtorFallible<T>,
     {
         use crate::object_builder::AsyncTransientBuilderImplNoDeps;
 
@@ -472,12 +481,17 @@ impl Registry {
             std::any::type_name::<T>()
         );
 
-        let transient = Object::AsyncTransient(Box::new(
-            AsyncTransientBuilderImplNoDeps::new(ctor),
-        ));
+        todo!()
+        // let closure = Box::pin(async move {
+        //     Err::<T, ResolveError>(ResolveError::DependenciesMissing)
+        // });
 
-        self.insert_or_panic::<T>(transient).await;
-        self.validator.add_transient_no_deps::<T>();
+        // let transient = Object::AsyncTransient(Box::new(
+        //     AsyncTransientBuilderImplNoDeps::new(closure),
+        // ));
+
+        // self.insert_or_panic::<T>(transient).await;
+        // self.validator.add_transient_no_deps::<T>();
     }
 
     /// Retrieves a newly constructed `T` from this registry.
@@ -494,12 +508,15 @@ impl Registry {
         {
             let boxed = ctor.make_transient(self).await?;
             drop(lock);
-            if let Ok(obj) = boxed.downcast::<T>() {
-                return Some(*obj);
-            }
+            let obj = boxed.downcast::<T>().map_err(|_self| {
+                ResolveError::Impl(ImplErrors::TypeMismatch)
+            })?;
+            return Ok(*obj);
         }
 
-        None
+        Err(ResolveError::TypeMissing {
+            typename: std::any::type_name::<T>(),
+        })
     }
 
     /// Retrieves the singleton `T` from this registry.
@@ -518,12 +535,15 @@ impl Registry {
         {
             let resolved = singleton.get_singleton(self).await?;
             drop(lock);
-            if let Ok(obj) = resolved.downcast::<T>() {
-                return Some(obj);
-            }
+            let obj = resolved.downcast::<T>().map_err(|_self| {
+                ResolveError::Impl(ImplErrors::TypeMismatch)
+            })?;
+            return Ok(obj);
         }
 
-        None
+        Err(ResolveError::TypeMissing {
+            typename: std::any::type_name::<T>(),
+        })
     }
 
     /// Access the global registry.
@@ -711,14 +731,10 @@ where
     /// When the type has been registered already.
     #[cfg(feature = "tokio")]
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
-    pub async fn register_transient(
-        &self,
-        ctor: fn(
-            Deps,
-        ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = T> + Send>,
-        >,
-    ) {
+    pub async fn try_register_transient<F>(&self, ctor: F)
+    where
+        F: TransientCtorFallibleDeps<T, Deps> + Copy + 'static,
+    {
         use crate::object_builder::AsyncTransientBuilderImplWithDeps;
 
         #[cfg(feature = "tracing")]
@@ -727,12 +743,17 @@ where
             std::any::type_name::<T>()
         );
 
-        let transient = Object::AsyncTransient(Box::new(
-            AsyncTransientBuilderImplWithDeps::new(ctor),
-        ));
+        todo!()
+        // let closure = Box::pin(async move {
+        //     Err::<T, ResolveError>(ResolveError::DependenciesMissing)
+        // });
 
-        self.registry.insert_or_panic::<T>(transient).await;
-        self.registry.validator.add_transient_deps::<T, Deps>();
+        // let transient = Object::AsyncTransient(Box::new(
+        //     AsyncTransientBuilderImplWithDeps::new(closure),
+        // ));
+
+        // self.registry.insert_or_panic::<T>(transient).await;
+        // self.registry.validator.add_transient_deps::<T, Deps>();
     }
 }
 
@@ -827,6 +848,14 @@ where
         self.registry.validator.add_singleton_deps::<T, Deps>();
     }
 
+    #[cfg(feature = "tokio")]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
+    pub async fn register_singleton<F>(&self, ctor: F)
+    where
+        F: SingletonCtorDeps<T, Deps>,
+    {
+    }
+
     /// Register a new singleton object, with dependencies specified in
     /// [`Registry::with_deps`].
     ///
@@ -839,9 +868,9 @@ where
     /// The `ctor` must return a boxed `dyn Future`.
     #[cfg(feature = "tokio")]
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
-    pub async fn register_singleton<F>(&self, ctor: F)
+    pub async fn try_register_singleton<F>(&self, ctor: F)
     where
-        F: SingletonCtorDeps<T, Deps>,
+        F: SingletonCtorFallibleDeps<T, Deps>,
     {
         use crate::object_builder::AsyncSingletonWithDeps;
 
@@ -851,11 +880,19 @@ where
             std::any::type_name::<T>()
         );
 
-        let singleton =
-            Object::AsyncSingleton(Box::new(AsyncSingletonWithDeps::new(ctor)));
+        todo!()
+        // let closure =
+        //     Box::new(move |deps| Box::pin(async move { (ctor)(deps).await }));
+        // let closure = Box::pin(async move {
+        //     Err::<T, ResolveError>(ResolveError::DependenciesMissing)
+        // });
 
-        self.registry.insert_or_panic::<T>(singleton).await;
-        self.registry.validator.add_singleton_deps::<T, Deps>();
+        // let singleton = Object::AsyncSingleton(Box::new(
+        //     AsyncSingletonWithDeps::new(closure),
+        // ));
+
+        // self.registry.insert_or_panic::<T>(singleton).await;
+        // self.registry.validator.add_singleton_deps::<T, Deps>();
     }
 }
 

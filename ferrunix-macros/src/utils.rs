@@ -20,7 +20,7 @@ pub(crate) fn get_ctor_for(
     // eprintln!("get_ctor_for: {ty:?}");
     let span = ty.span();
     match ty {
-        syn::Type::Path(ref path) => {
+        syn::Type::Path(path) => {
             let segments = &path.path.segments.iter().collect::<Vec<_>>();
             let len = segments.len();
             let is_std_type = segments
