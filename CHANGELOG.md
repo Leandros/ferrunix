@@ -11,6 +11,17 @@ will be removed after two major releases.
 
 ### <!-- 0 -->🚀 Features
 
+- **BREAKING:** Registration and retrieval functions renamed, to follow Rust
+  API guidelines:
+  - `Registry::transient` -> `Registry::register_transient`
+  - `Registry::singleton` -> `Registry::register_singleton`
+  - `Registry::get_transient` -> `Registry::transient`
+  - `Registry::get_singleton` -> `Registry::singleton`
+- Fallible registration functions added. Registration may now return `Result<T, Err>`
+  instead of only `T`.
+  - `Registry::try_register_transient`
+  - `Registry::try_register_singleton`
+
 ### <!-- 1 -->🐛 Bug Fixes
 
 ## [0.4.0] - 2025-03-26
