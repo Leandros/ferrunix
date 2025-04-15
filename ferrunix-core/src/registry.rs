@@ -159,7 +159,7 @@ impl Registry {
     {
         self.try_register_transient::<T, _>(move || -> Result<T, BoxErr> {
             Ok((ctor)())
-        })
+        });
     }
 
     /// Register a new transient object, without dependencies.
@@ -214,7 +214,7 @@ impl Registry {
         T: RegisterableSingleton,
         F: SingletonCtor<T>,
     {
-        self.try_register_singleton(move || -> Result<T, BoxErr> { Ok((ctor)()) })
+        self.try_register_singleton(move || -> Result<T, BoxErr> { Ok((ctor)()) });
     }
 
     /// Register a new singleton object, without dependencies.
@@ -252,7 +252,9 @@ impl Registry {
 
     /// Retrieves a newly constructed `T` from this registry.
     ///
-    /// Returns `None` if `T` wasn't registered or failed to construct.
+    /// # Errors
+    /// Returns an error if the registered constructor fails, or the type fails
+    /// to resolve (i.e is not registered).
     #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn transient<T>(&self) -> Result<T, ResolveError>
     where
@@ -276,8 +278,11 @@ impl Registry {
 
     /// Retrieves the singleton `T` from this registry.
     ///
-    /// Returns `None` if `T` wasn't registered or failed to construct. The
-    /// singleton is a ref-counted pointer object (either `Arc` or `Rc`).
+    /// The return singleton is a ref-counted pointer object (either `Arc` or `Rc`).
+    ///
+    /// # Errors
+    /// Returns an error if the registered constructor fails, or the type fails
+    /// to resolve (i.e is not registered).
     #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn singleton<T>(&self) -> Result<Ref<T>, ResolveError>
     where
@@ -634,7 +639,7 @@ where
     {
         self.try_register_transient::<_>(move |deps| -> Result<T, BoxErr> {
             Ok((ctor)(deps))
-        })
+        });
     }
 
     /// Register a new transient object, with dependencies specified in [`Registry::with_deps`].
@@ -771,7 +776,7 @@ where
     {
         self.try_register_singleton::<_>(move |deps| -> Result<T, BoxErr> {
             Ok((ctor)(deps))
-        })
+        });
     }
 
     /// Register a new singleton object, with dependencies specified by

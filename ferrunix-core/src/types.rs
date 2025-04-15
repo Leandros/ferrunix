@@ -2,6 +2,7 @@
 #![allow(
     clippy::single_char_lifetime_names,
     clippy::missing_docs_in_private_items,
+    clippy::missing_errors_doc,
     dead_code
 )]
 

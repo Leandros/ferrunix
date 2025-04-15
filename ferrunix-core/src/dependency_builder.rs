@@ -1,5 +1,6 @@
 //! Implementation of [`DepBuilder`] for tuples to be used with
 //! [`Registry::with_deps`].
+#![allow(clippy::missing_errors_doc)]
 
 use std::any::TypeId;
 
