@@ -214,7 +214,9 @@ impl Registry {
         T: RegisterableSingleton,
         F: SingletonCtor<T>,
     {
-        self.try_register_singleton(move || -> Result<T, BoxErr> { Ok((ctor)()) });
+        self.try_register_singleton(move || -> Result<T, BoxErr> {
+            Ok((ctor)())
+        });
     }
 
     /// Register a new singleton object, without dependencies.

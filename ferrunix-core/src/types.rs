@@ -60,6 +60,109 @@ mod sync {
         Box<dyn SingletonGetter + Send + Sync + 'static>;
     pub(crate) type BoxErr = Box<dyn Error + Send + Sync + 'static>;
 
+    /// Constructor closure for transients.
+    ///
+    /// This is a marker trait to identify all valid constructors usable by singletons.
+    /// It's not implementable by other crates.
+    ///
+    /// A blanket implementation for `Fn() -> T` is provided.
+    pub trait TransientCtor<T>: Fn() -> T + Send + Sync + 'static {
+        /// Calls the constructor. Equivalent to `Ok((self)())`.
+        fn call(self, _: super::private::SealToken) -> Result<T, BoxErr>;
+    }
+    impl<T, F> TransientCtor<T> for F
+    where
+        F: Fn() -> T + Send + Sync + 'static,
+    {
+        fn call(self, _: super::private::SealToken) -> Result<T, BoxErr> {
+            Ok((self)())
+        }
+    }
+
+    /// Constructor closure for transients.
+    ///
+    /// This is a marker trait to identify all valid constructors usable by singletons.
+    /// It's not implementable by other crates.
+    ///
+    /// A blanket implementation for `Fn(Deps) -> T` is provided.
+    pub trait TransientCtorDeps<T, D>:
+        Fn(D) -> T + Send + Sync + 'static
+    {
+        /// Calls the constructor. Equivalent to `(self)()`.
+        fn call(
+            self,
+            deps: D,
+            _: super::private::SealToken,
+        ) -> Result<T, BoxErr>;
+    }
+    impl<T, D, F> TransientCtorDeps<T, D> for F
+    where
+        T: 'static,
+        F: Fn(D) -> T + Send + Sync + 'static,
+        D: crate::dependency_builder::DepBuilder<T> + 'static,
+    {
+        fn call(
+            self,
+            deps: D,
+            _: super::private::SealToken,
+        ) -> Result<T, BoxErr> {
+            Ok((self)(deps))
+        }
+    }
+
+    /// Constructor closure for *fallible* transients.
+    ///
+    /// This is a marker trait to identify all valid constructors usable by singletons.
+    /// It's not implementable by other crates.
+    ///
+    /// A blanket implementation for `Fn() -> Result<T, Err>` is provided.
+    pub trait TransientCtorFallible<T>:
+        Fn() -> Result<T, BoxErr> + Send + Sync + 'static
+    {
+        /// Calls the constructor.
+        fn call(self, _: super::private::SealToken) -> Result<T, BoxErr>;
+    }
+    impl<T, F> TransientCtorFallible<T> for F
+    where
+        T: 'static,
+        F: Fn() -> Result<T, BoxErr> + Send + Sync + 'static,
+    {
+        fn call(self, _: super::private::SealToken) -> Result<T, BoxErr> {
+            (self)()
+        }
+    }
+
+    /// Constructor closure for *fallible* transients.
+    ///
+    /// This is a marker trait to identify all valid constructors usable by singletons.
+    /// It's not implementable by other crates.
+    ///
+    /// A blanket implementation for `Fn(Deps) -> Result<T, Err>` is provided.
+    pub trait TransientCtorFallibleDeps<T, Deps>:
+        Fn(Deps) -> Result<T, BoxErr> + Send + Sync + 'static
+    {
+        /// Call the constructor.
+        fn call(
+            self,
+            deps: Deps,
+            _: super::private::SealToken,
+        ) -> Result<T, BoxErr>;
+    }
+    impl<T, F, Deps> TransientCtorFallibleDeps<T, Deps> for F
+    where
+        T: 'static,
+        F: Fn(Deps) -> Result<T, BoxErr> + Send + Sync + 'static,
+        Deps: crate::dependency_builder::DepBuilder<T> + 'static,
+    {
+        fn call(
+            self,
+            deps: Deps,
+            _: super::private::SealToken,
+        ) -> Result<T, BoxErr> {
+            (self)(deps)
+        }
+    }
+
     /// A generic constructor for singletons.
     ///
     /// This is a marker trait to identify all valid constructors usable by singletons.
@@ -68,14 +171,35 @@ mod sync {
     /// A blanket implementation for `FnOnce() -> T` is provided.
     pub trait SingletonCtor<T>: FnOnce() -> T + Send + Sync + 'static {
         /// Calls the construcor.
-        fn call(self, _: super::private::SealToken) -> T;
+        fn call(self, _: super::private::SealToken) -> Result<T, BoxErr>;
     }
-
     impl<T, F> SingletonCtor<T> for F
     where
         F: FnOnce() -> T + Send + Sync + 'static,
     {
-        fn call(self, _: super::private::SealToken) -> T {
+        fn call(self, _: super::private::SealToken) -> Result<T, BoxErr> {
+            Ok((self)())
+        }
+    }
+
+    /// A generic constructor for *fallible* singletons.
+    ///
+    /// This is a marker trait to identify all valid constructors usable by singletons.
+    /// It's not implementable by other crates.
+    ///
+    /// A blanket implementation for `FnOnce() -> Result<T, Err>` is provided.
+    pub trait SingletonCtorFallible<T>:
+        FnOnce() -> Result<T, BoxErr> + Send + Sync + 'static
+    {
+        /// Calls the construcor.
+        fn call(self, _: super::private::SealToken) -> Result<T, BoxErr>;
+    }
+    impl<T, F> SingletonCtorFallible<T> for F
+    where
+        T: Send + Sync + 'static,
+        F: FnOnce() -> Result<T, BoxErr> + Send + Sync + 'static,
+    {
+        fn call(self, _: super::private::SealToken) -> Result<T, BoxErr> {
             (self)()
         }
     }
@@ -90,16 +214,53 @@ mod sync {
         FnOnce(Deps) -> T + Send + Sync + 'static
     {
         /// Calls the construcor.
-        fn call(self, deps: Deps, _: super::private::SealToken) -> T;
+        fn call(
+            self,
+            deps: Deps,
+            _: super::private::SealToken,
+        ) -> Result<T, BoxErr>;
     }
-
-    #[cfg(not(feature = "tokio"))]
     impl<T, F, Deps> SingletonCtorDeps<T, Deps> for F
     where
         F: FnOnce(Deps) -> T + Send + Sync + 'static,
         Deps: crate::dependency_builder::DepBuilder<T> + 'static,
     {
-        fn call(self, deps: Deps, _: super::private::SealToken) -> T {
+        fn call(
+            self,
+            deps: Deps,
+            _: super::private::SealToken,
+        ) -> Result<T, BoxErr> {
+            Ok((self)(deps))
+        }
+    }
+
+    /// A generic constructor for *fallible* singletons with dependencies.
+    ///
+    /// This is a marker trait to identify all valid constructors usable by singletons.
+    /// It's not implementable by other crates.
+    ///
+    /// A blanket implementation for `FnOnce(Deps) -> T` is provided.
+    pub trait SingletonCtorFallibleDeps<T, Deps>:
+        FnOnce(Deps) -> Result<T, BoxErr> + Send + Sync + 'static
+    {
+        /// Calls the construcor.
+        fn call(
+            self,
+            deps: Deps,
+            _: super::private::SealToken,
+        ) -> Result<T, BoxErr>;
+    }
+    impl<T, F, Deps> SingletonCtorFallibleDeps<T, Deps> for F
+    where
+        T: Send + Sync + 'static,
+        F: FnOnce(Deps) -> Result<T, BoxErr> + Send + Sync + 'static,
+        Deps: crate::dependency_builder::DepBuilder<T> + 'static,
+    {
+        fn call(
+            self,
+            deps: Deps,
+            _: super::private::SealToken,
+        ) -> Result<T, BoxErr> {
             (self)(deps)
         }
     }

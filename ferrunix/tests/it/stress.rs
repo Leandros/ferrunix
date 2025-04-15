@@ -13,7 +13,7 @@ macro_rules! make_type {
             impl $base {
                 #[allow(non_snake_case)]
                 pub(super) fn register(registry: &ferrunix::Registry) {
-                     registry.transient(|| $base::default());
+                     registry.register_transient(|| $base::default());
                 }
             }
         }
@@ -36,7 +36,7 @@ macro_rules! make_type {
                         .with_deps::<_, ($(
                             ferrunix::Transient<$deps>,
                         )*)>()
-                        .transient(|($(
+                        .register_transient(|($(
                             [<_ $deps>],
                         )*)| $base {$(
                             [<_ $deps>]: Box::new([<_ $deps>].get()),
