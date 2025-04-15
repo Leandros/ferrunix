@@ -64,6 +64,7 @@ pub use ferrunix_core::dependencies;
 pub use ferrunix_core::dependency_builder;
 pub use ferrunix_core::registry;
 pub use ferrunix_core::types;
+pub use ferrunix_core::error;
 
 pub use dependencies::Singleton;
 pub use dependencies::Transient;
