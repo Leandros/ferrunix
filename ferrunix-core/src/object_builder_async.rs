@@ -59,14 +59,14 @@ pub(crate) trait AsyncSingleton {
 /// Construct a new transient with no dependencies. Usually used through `dyn AsyncTransientBuilder`.
 pub(crate) struct AsyncTransientBuilderImplNoDeps<T> {
     /// Constructor, returns a boxed future to `T`.
-    ctor: Box<dyn TransientCtorFallible<T>>,
+    ctor: Box<dyn crate::types::DynCtor<T> + Send + Sync>,
 }
 
 impl<T> AsyncTransientBuilderImplNoDeps<T> {
     /// Create a new [`AsyncTransientBuilder`] using `ctor` to create new objects.
     ///
     /// `ctor` should not have side-effects. It may be called multiple times.
-    pub(crate) fn new(ctor: Box<dyn TransientCtorFallible<T>>) -> Self {
+    pub(crate) fn new(ctor: Box<dyn crate::types::DynCtor<T> + Send + Sync>) -> Self {
         Self { ctor }
     }
 }
