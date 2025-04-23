@@ -6,7 +6,7 @@ use std::future::Future;
 use std::pin::Pin;
 
 // Alias types used in [`Registry`].
-pub(crate) type BoxedAny = Box<dyn Any + Send>;
+pub(crate) type BoxedAny = Box<dyn Any + Send + Sync + 'static>;
 pub(crate) type RefAny = Ref<dyn Any + Send + Sync + 'static>;
 pub(crate) type BoxErr = Box<dyn Error + Send + Sync + 'static>;
 pub(crate) type BoxFuture<'a, T> =
@@ -26,21 +26,23 @@ pub(crate) type SingletonCell = ::tokio::sync::OnceCell<RefAny>;
 macro_rules! AsyncFnWorkaround {
     ($prefix:ident, $funty:ident, $thisarg:ty) => {
         paste::paste! {
+            /// Async closure.
             pub trait [<$prefix Func>]<T> {
-                fn call<'a>(self: $thisarg) -> BoxFuture<'a, T>;
+                /// Do not use.
+                fn invoke<'a>(self: $thisarg) -> BoxFuture<'a, T>;
             }
 
             pub(crate) trait [<$prefix FuncLifetime>]<'a, T> {
-                fn call(self: $thisarg) -> impl std::future::Future<Output = T> + Send + Sync + 'a;
+                fn invoke(self: $thisarg) -> impl std::future::Future<Output = T> + Send + Sync + 'a;
             }
 
             impl<'a, T, Fun, Fut> [<$prefix FuncLifetime>]<'a, T> for Fun
             where
                 T: Send + Sync + 'static,
-                Fun: $funty() -> Fut,
+                Fun: $funty() -> Fut + Send + Sync + 'static,
                 Fut: std::future::Future<Output = T> + Send + Sync + 'a,
             {
-                fn call(self: $thisarg) -> impl std::future::Future<Output = T> + Send + Sync + 'a {
+                fn invoke(self: $thisarg) -> impl std::future::Future<Output = T> + Send + Sync + 'a {
                     (self)()
                 }
             }
@@ -48,10 +50,10 @@ macro_rules! AsyncFnWorkaround {
             impl<T, Fun> [<$prefix Func>]<T> for Fun
             where
                 T: Send + Sync + 'static,
-                for<'a> Fun: [<$prefix FuncLifetime>]<'a, T>,
+                for<'a> Fun: [<$prefix FuncLifetime>]<'a, T> + Send + Sync + 'static,
             {
-                fn call<'a>(self: $thisarg) -> BoxFuture<'a, T> {
-                    Box::pin(<Self as [<$prefix FuncLifetime>]<'a, T>>::call(self))
+                fn invoke<'a>(self: $thisarg) -> BoxFuture<'a, T> {
+                    Box::pin(<Self as [<$prefix FuncLifetime>]<'a, T>>::invoke(self))
                 }
             }
         }
@@ -61,22 +63,25 @@ macro_rules! AsyncFnWorkaround {
 macro_rules! AsyncFnDepsWorkaround {
     ($prefix:ident, $funty:ident, $thisarg:ty) => {
         paste::paste! {
+            /// Async closure.
             pub trait [<$prefix Func>]<T, Deps> {
-                fn call<'a>(self: $thisarg, deps: Deps) -> BoxFuture<'a, T>;
+                /// Do not use.
+                fn invoke<'a>(self: $thisarg, deps: Deps) -> BoxFuture<'a, T>;
             }
 
             pub(crate) trait [<$prefix FuncLifetime>]<'a, T, Deps> {
-                fn call(self: $thisarg, deps: Deps) -> impl std::future::Future<Output = T> + Send + Sync + 'a;
+                fn invoke(self: $thisarg, deps: Deps) -> impl std::future::Future<Output = T> + Send + Sync + 'a;
             }
 
             impl<'a, T, Deps, Fun, Fut> [<$prefix FuncLifetime>]<'a, T, Deps> for Fun
             where
                 T: Send + Sync + 'static,
-                Deps: Send + Sync + 'static,
-                Fun: $funty(Deps) -> Fut,
+                // Deps: $crate::dependency_builder::DepBuilder<T> + Send + Sync + 'static,
+                Deps: 'static,
+                Fun: $funty(Deps) -> Fut + Send + Sync + 'static,
                 Fut: std::future::Future<Output = T> + Send + Sync + 'a,
             {
-                fn call(self: $thisarg, deps: Deps) -> impl std::future::Future<Output = T> + Send + Sync + 'a {
+                fn invoke(self: $thisarg, deps: Deps) -> impl std::future::Future<Output = T> + Send + Sync + 'a {
                     (self)(deps)
                 }
             }
@@ -84,11 +89,12 @@ macro_rules! AsyncFnDepsWorkaround {
             impl<T, Deps, Fun> [<$prefix Func>]<T, Deps> for Fun
             where
                 T: Send + Sync + 'static,
-                Deps: Send + Sync + 'static,
-                for<'a> Fun: [<$prefix FuncLifetime>]<'a, T, Deps>,
+                // Deps: $crate::dependency_builder::DepBuilder<T> + Send + Sync + 'static,
+                Deps: 'static,
+                for<'a> Fun: [<$prefix FuncLifetime>]<'a, T, Deps> + Send + Sync + 'static,
             {
-                fn call<'a>(self: $thisarg, deps: Deps) -> BoxFuture<'a, T> {
-                    Box::pin(<Self as [<$prefix FuncLifetime>]<'a, T, Deps>>::call(self, deps))
+                fn invoke<'a>(self: $thisarg, deps: Deps) -> BoxFuture<'a, T> {
+                    Box::pin(<Self as [<$prefix FuncLifetime>]<'a, T, Deps>>::invoke(self, deps))
                 }
             }
         }
@@ -99,55 +105,6 @@ AsyncFnWorkaround!(AsyncCtorOnce, FnOnce, Self);
 AsyncFnWorkaround!(AsyncCtor, Fn, &Self);
 AsyncFnDepsWorkaround!(AsyncCtorDepsOnce, FnOnce, Self);
 AsyncFnDepsWorkaround!(AsyncCtorDeps, Fn, &Self);
-
-pub(crate) trait DynCtorOnce<T>:
-    FnOnce() -> BoxFuture<'static, Result<T, BoxErr>>
-{
-}
-impl<T, F> DynCtorOnce<T> for F where
-    F: FnOnce() -> BoxFuture<'static, Result<T, BoxErr>>
-        + Send
-        + Sync
-        + 'static
-{
-}
-
-pub(crate) trait DynCtor<T>:
-    Fn() -> BoxFuture<'static, Result<T, BoxErr>>
-{
-}
-impl<T, F> DynCtor<T> for F where
-    F: Fn() -> BoxFuture<'static, Result<T, BoxErr>> + Send + Sync + 'static
-{
-}
-
-pub(crate) trait DynCtorDepsOnce<T, Deps>:
-    FnOnce(Deps) -> BoxFuture<'static, Result<T, BoxErr>>
-{
-}
-impl<T, Deps, F> DynCtorDepsOnce<T, Deps> for F
-where
-    F: FnOnce(Deps) -> BoxFuture<'static, Result<T, BoxErr>>
-        + Send
-        + Sync
-        + 'static,
-    Deps: crate::dependency_builder::DepBuilder<T> + 'static,
-{
-}
-
-pub(crate) trait DynCtorDeps<T, Deps>:
-    Fn(Deps) -> BoxFuture<'static, Result<T, BoxErr>>
-{
-}
-impl<T, Deps, F> DynCtorDeps<T, Deps> for F
-where
-    F: Fn(Deps) -> BoxFuture<'static, Result<T, BoxErr>>
-        + Send
-        + Sync
-        + 'static,
-    Deps: crate::dependency_builder::DepBuilder<T> + 'static,
-{
-}
 
 /// Constructor closure for transients.
 ///

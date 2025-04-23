@@ -1,6 +1,6 @@
 //! Implementation of [`DepBuilder`] for tuples to be used with
 //! [`Registry::with_deps`].
-#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::missing_errors_doc, clippy::manual_async_fn)]
 
 use std::any::TypeId;
 
@@ -77,11 +77,11 @@ pub trait DepBuilder<R> {
     ///
     /// It's advised to avoid *manually* implementing `build`.
     #[cfg(feature = "tokio")]
-    async fn build(
+    fn build(
         registry: &Registry,
-        ctor: &(dyn crate::types::TransientCtorFallibleDeps<R, Self>),
+        ctor: &(dyn crate::types::TransientCtorFallibleDeps<R, Self> + Send),
         _: private::SealToken,
-    ) -> Result<R, ResolveError>
+    ) -> impl std::future::Future<Output = Result<R, ResolveError>> + Send + Sync
     where
         R: Sized;
 
@@ -92,11 +92,11 @@ pub trait DepBuilder<R> {
     ///
     /// It's advised to avoid *manually* implementing `build`.
     #[cfg(feature = "tokio")]
-    async fn build_once(
+    fn build_once(
         registry: &Registry,
-        ctor: Box<dyn crate::types::SingletonCtorFallibleDeps<R, Self>>,
+        ctor: Box<dyn crate::types::SingletonCtorFallibleDeps<R, Self> + Send>,
         _: private::SealToken,
-    ) -> Result<R, ResolveError>
+    ) -> impl std::future::Future<Output = Result<R, ResolveError>> + Send + Sync
     where
         R: Sized,
         Self: Sized;
@@ -137,25 +137,30 @@ where
     }
 
     #[cfg(feature = "tokio")]
-    async fn build(
+    fn build(
         _registry: &Registry,
-        ctor: &(dyn crate::types::TransientCtorFallibleDeps<R, Self>),
+        ctor: &(dyn crate::types::TransientCtorFallibleDeps<R, Self> + Send),
         _: private::SealToken,
-    ) -> Result<R, ResolveError> {
-        (ctor)(()).await.map_err(ResolveError::Ctor)
+    ) -> impl std::future::Future<Output = Result<R, ResolveError>> + Send + Sync
+    {
+        async move {
+            (ctor)(()).await.map_err(ResolveError::Ctor)
+        }
     }
 
     #[cfg(feature = "tokio")]
-    async fn build_once(
+    fn build_once(
         _registry: &Registry,
-        ctor: Box<dyn crate::types::SingletonCtorFallibleDeps<R, Self>>,
+        ctor: Box<dyn crate::types::SingletonCtorFallibleDeps<R, Self> + Send>,
         _: private::SealToken,
-    ) -> Result<R, ResolveError>
+    ) -> impl std::future::Future<Output = Result<R, ResolveError>> + Send + Sync
     where
         R: Sized,
         Self: Sized,
     {
-        ctor(()).await.map_err(ResolveError::Ctor)
+        async move {
+            (ctor)(()).await.map_err(ResolveError::Ctor)
+        }
     }
 
     fn as_typeids(_: private::SealToken) -> Vec<(TypeId, &'static str)> {
@@ -169,7 +174,7 @@ macro_rules! DepBuilderImpl {
         impl<R, $($ts,)*> $crate::dependency_builder::DepBuilder<R> for ($($ts,)*)
         where
             R: $crate::types::Registerable,
-            $($ts: $crate::dependencies::Dep,)*
+            $($ts: $crate::dependencies::Dep + Send,)*
         {
             #[cfg(not(feature = "tokio"))]
             fn build(
@@ -211,37 +216,43 @@ macro_rules! DepBuilderImpl {
             }
 
             #[cfg(feature = "tokio")]
-            async fn build(
+            fn build(
                 registry: &Registry,
-                ctor: &(dyn crate::types::TransientCtorFallibleDeps<R, Self>),
+                ctor: &(dyn crate::types::TransientCtorFallibleDeps<R, Self> + Send),
                 _: private::SealToken,
-            ) -> Result<R, ResolveError> {
-                registry.validate::<R>()?;
+            ) -> impl std::future::Future<Output = Result<R, ResolveError>> + Send + Sync
+            {
+                async move {
+                    registry.validate::<R>()?;
 
-                let deps = (
-                    $(
-                        <$ts>::new(registry).await,
-                    )*
-                );
+                    let deps = (
+                        $(
+                            <$ts>::new(registry).await,
+                        )*
+                    );
 
-                (ctor)(deps).await.map_err(ResolveError::Ctor)
+                    (ctor)(deps).await.map_err(ResolveError::Ctor)
+                }
             }
 
             #[cfg(feature = "tokio")]
-            async fn build_once(
+            fn build_once(
                 registry: &Registry,
-                ctor: Box<dyn crate::types::SingletonCtorFallibleDeps<R, Self>>,
+                ctor: Box<dyn crate::types::SingletonCtorFallibleDeps<R, Self> + Send>,
                 _: private::SealToken,
-            ) -> Result<R, ResolveError> {
-                registry.validate::<R>()?;
+            ) -> impl std::future::Future<Output = Result<R, ResolveError>> + Send + Sync
+            {
+                async move {
+                    registry.validate::<R>()?;
 
-                let deps = (
-                    $(
-                        <$ts>::new(registry).await,
-                    )*
-                );
+                    let deps = (
+                        $(
+                            <$ts>::new(registry).await,
+                        )*
+                    );
 
-                (ctor)(deps).await.map_err(ResolveError::Ctor)
+                    (ctor)(deps).await.map_err(ResolveError::Ctor)
+                }
             }
 
             fn as_typeids(_: private::SealToken) -> ::std::vec::Vec<(::std::any::TypeId, &'static str)> {

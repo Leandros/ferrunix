@@ -10,11 +10,12 @@ use crate::cycle_detection::{
 use crate::dependency_builder::DepBuilder;
 use crate::error::{ImplErrors, ResolveError};
 use crate::object_builder::Object;
+use crate::types::{BoxErr, Registerable, RegisterableSingleton};
+#[cfg(not(feature = "tokio"))]
 use crate::types::{
-    BoxErr, Registerable, RegisterableSingleton, SingletonCtor,
-    SingletonCtorDeps, SingletonCtorFallible, SingletonCtorFallibleDeps,
-    TransientCtor, TransientCtorDeps, TransientCtorFallible,
-    TransientCtorFallibleDeps,
+    SingletonCtor, SingletonCtorDeps, SingletonCtorFallible,
+    SingletonCtorFallibleDeps, TransientCtor, TransientCtorDeps,
+    TransientCtorFallible, TransientCtorFallibleDeps,
 };
 use crate::{
     registration::RegistrationFunc, registration::DEFAULT_REGISTRY,
@@ -411,27 +412,39 @@ impl Registry {
         Arc::try_unwrap(registry).expect("all tasks above are joined")
     }
 
-    #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
-    pub async fn register_singleton<T, F>(&self, ctor: F)
-    where
-        T: RegisterableSingleton,
-        F: SingletonCtor<T>,
-    {
-        self.try_register_singleton(move || {
-            Box::pin(async move { Ok((ctor)()) })
-        })
-        .await;
-    }
-
     /// Register a new singleton object, without dependencies.
     ///
     /// To register a type with dependencies, use the builder returned from
     /// [`Registry::with_deps`].
     ///
     /// # Parameters
-    ///   * `ctor`: A constructor function returning the newly constructed `T`.
-    ///     This constructor will be called once, lazily, when the first
-    ///     instance of `T` is requested.
+    ///   * `ctor`: A constructor function returning the newly constructed `T`. This constructor
+    ///   will be called once, lazily, when the first instance of `T` is requested.
+    ///
+    /// # Panics
+    /// When the type has been registered already.
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
+    pub async fn register_singleton<T, F>(&self, ctor: F)
+    where
+        T: RegisterableSingleton,
+        F: crate::types::AsyncCtorOnceFunc<T> + Send + Sync + 'static,
+    {
+        let wrapped = async move || -> Result<T, BoxErr> {
+            let obj = ctor.invoke().await;
+            Ok::<_, BoxErr>(obj)
+        };
+
+        self.try_register_singleton::<T, _>(wrapped).await;
+    }
+
+    /// Try registering a new singleton object, without dependencies.
+    ///
+    /// To register a type with dependencies, use the builder returned from
+    /// [`Registry::with_deps`].
+    ///
+    /// # Parameters
+    ///   * `ctor`: A constructor function returning the newly constructed `Result<T>`. This
+    ///   constructor will be called once, lazily, when the first instance of `T` is requested.
     ///
     /// # Panics
     /// When the type has been registered already.
@@ -439,7 +452,10 @@ impl Registry {
     pub async fn try_register_singleton<T, F>(&self, ctor: F)
     where
         T: RegisterableSingleton,
-        F: SingletonCtorFallible<T>,
+        F: crate::types::AsyncCtorOnceFunc<Result<T, BoxErr>>
+            + Send
+            + Sync
+            + 'static,
     {
         use crate::object_builder::AsyncSingletonNoDeps;
 
@@ -449,28 +465,17 @@ impl Registry {
             std::any::type_name::<T>()
         );
 
-        let singleton =
-            Object::AsyncSingleton(Box::new(AsyncSingletonNoDeps::new(ctor)));
+        let wrapped =
+            move || -> crate::types::BoxFuture<'static, Result<T, BoxErr>> {
+                ctor.invoke()
+            };
+
+        let singleton = Object::AsyncSingleton(Box::new(
+            AsyncSingletonNoDeps::new(wrapped),
+        ));
 
         self.insert_or_panic::<T>(singleton).await;
         self.validator.add_singleton_no_deps::<T>();
-    }
-
-    #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
-    pub async fn register_transient<T, F>(&self, ctor: F)
-    where
-        T: Registerable,
-        F: crate::types::AsyncCtorFunc<T> + Copy + Send + Sync + 'static,
-    {
-        let wrapped =
-            move || -> crate::types::BoxFuture<'static, Result<T, BoxErr>> {
-                Box::pin(async move {
-                    let obj = ctor.call().await;
-                    Ok::<T, BoxErr>(obj)
-                })
-            };
-
-        self.try_register_transient::<T, _>(wrapped).await;
     }
 
     /// Register a new transient object, without dependencies.
@@ -479,8 +484,33 @@ impl Registry {
     /// [`Registry::with_deps`].
     ///
     /// # Parameters
-    ///   * `ctor`: A constructor function returning the newly constructed `T`.
-    ///     This constructor will be called for every `T` that is requested.
+    ///   * `ctor`: A constructor function returning the newly constructed `T`. This constructor
+    ///   will be called for every `T` that is requested.
+    ///
+    /// # Panics
+    /// When the type has been registered already.
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
+    pub async fn register_transient<T, F>(&self, ctor: F)
+    where
+        T: Registerable,
+        F: crate::types::AsyncCtorFunc<T> + Copy + Send + Sync + 'static,
+    {
+        let wrapped = move || async move {
+            let obj = ctor.invoke().await;
+            Ok::<_, BoxErr>(obj)
+        };
+
+        self.try_register_transient::<T, _>(wrapped).await;
+    }
+
+    /// Try registering a new transient object, without dependencies.
+    ///
+    /// To register a type with dependencies, use the builder returned from
+    /// [`Registry::with_deps`].
+    ///
+    /// # Parameters
+    ///   * `ctor`: A constructor function returning the newly constructed `Result<T>`. This
+    ///   constructor will be called for every `T` that is requested.
     ///
     /// # Panics
     /// When the type has been registered already.
@@ -503,12 +533,14 @@ impl Registry {
 
         let wrapped =
             move || -> crate::types::BoxFuture<'static, Result<T, BoxErr>> {
-                ctor.call()
+                ctor.invoke()
             };
 
         let transient = Object::AsyncTransient(Box::new(
             AsyncTransientBuilderImplNoDeps::new(Box::new(wrapped)
-                as Box<dyn crate::types::DynCtor<T> + Send + Sync>),
+                as Box<
+                    dyn crate::types::TransientCtorFallible<T> + Send + Sync,
+                >),
         ));
 
         self.insert_or_panic::<T>(transient).await;
@@ -518,7 +550,6 @@ impl Registry {
     /// Retrieves a newly constructed `T` from this registry.
     ///
     /// Returns `None` if `T` wasn't registered or failed to construct.
-    #[must_use]
     #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn transient<T>(&self) -> Result<T, ResolveError>
     where
@@ -544,7 +575,9 @@ impl Registry {
     ///
     /// Returns `None` if `T` wasn't registered or failed to construct. The
     /// singleton is a ref-counted pointer object (either `Arc` or `Rc`).
-    #[must_use]
+    ///
+    /// # Errors
+    /// Returns an error if the singleton fails to construct.
     #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub async fn singleton<T>(&self) -> Result<Ref<T>, ResolveError>
     where
@@ -641,7 +674,7 @@ pub struct Builder<'reg, T, Deps> {
 impl<
         T,
         #[cfg(not(feature = "tokio"))] Deps: DepBuilder<T> + 'static,
-        #[cfg(feature = "tokio")] Deps: DepBuilder<T> + Sync + 'static,
+        #[cfg(feature = "tokio")] Deps: DepBuilder<T> + Send + Sync + 'static,
     > Builder<'_, T, Deps>
 where
     T: Registerable,
@@ -746,7 +779,37 @@ where
     /// best to destructure the tuple to accept each dependency separately.
     /// This constructor will be called for every `T` that is requested.
     ///
-    /// The `ctor` must return a boxed `dyn Future`.
+    /// The `ctor` is an `async` closure.
+    ///
+    /// # Panics
+    /// When the type has been registered already.
+    #[cfg(feature = "tokio")]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
+    pub async fn register_transient<F>(&self, ctor: F)
+    where
+        F: crate::types::AsyncCtorDepsFunc<T, Deps>
+            + Copy
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.try_register_transient(move |deps| async move {
+            let obj = ctor.invoke(deps).await;
+            Ok::<T, BoxErr>(obj)
+        })
+        .await;
+    }
+
+    /// Try registering a new transient object, with dependencies specified in
+    /// `.with_deps`.
+    ///
+    /// The `ctor` parameter is a constructor function returning a `Result<T>` of the newly
+    /// constructed `T`. The constructor accepts a single argument `Deps` (a tuple implementing
+    /// [`crate::dependency_builder::DepBuilder`]). It's best to destructure the tuple to accept
+    /// each dependency separately. This constructor will be called for every `T` that is
+    /// requested.
+    ///
+    /// The `ctor` is an `async` closure.
     ///
     /// # Panics
     /// When the type has been registered already.
@@ -767,24 +830,31 @@ where
             std::any::type_name::<T>()
         );
 
-        todo!()
-        // let closure = Box::pin(async move {
-        //     Err::<T, ResolveError>(ResolveError::DependenciesMissing)
-        // });
+        let closure = move |deps| -> crate::types::BoxFuture<
+            'static,
+            Result<T, BoxErr>,
+        > { ctor.invoke(deps) };
 
-        // let transient = Object::AsyncTransient(Box::new(
-        //     AsyncTransientBuilderImplWithDeps::new(closure),
-        // ));
+        let closure = Box::new(closure)
+            as Box<
+                dyn crate::types::TransientCtorFallibleDeps<T, Deps>
+                    + Send
+                    + Sync,
+            >;
 
-        // self.registry.insert_or_panic::<T>(transient).await;
-        // self.registry.validator.add_transient_deps::<T, Deps>();
+        let transient = Object::AsyncTransient(Box::new(
+            AsyncTransientBuilderImplWithDeps::new(closure),
+        ));
+
+        self.registry.insert_or_panic::<T>(transient).await;
+        self.registry.validator.add_transient_deps::<T, Deps>();
     }
 }
 
 impl<
         T,
         #[cfg(not(feature = "tokio"))] Deps: DepBuilder<T> + 'static,
-        #[cfg(feature = "tokio")] Deps: DepBuilder<T> + Sync + 'static,
+        #[cfg(feature = "tokio")] Deps: DepBuilder<T> + Send + Sync + 'static,
     > Builder<'_, T, Deps>
 where
     T: RegisterableSingleton,
@@ -872,14 +942,6 @@ where
         self.registry.validator.add_singleton_deps::<T, Deps>();
     }
 
-    #[cfg(feature = "tokio")]
-    #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
-    pub async fn register_singleton<F>(&self, ctor: F)
-    where
-        F: SingletonCtorDeps<T, Deps>,
-    {
-    }
-
     /// Register a new singleton object, with dependencies specified in
     /// [`Registry::with_deps`].
     ///
@@ -889,7 +951,35 @@ where
     /// each dependency separately. This constructor will be called once, lazily, when the first
     /// instance of `T` is requested.
     ///
-    /// The `ctor` must return a boxed `dyn Future`.
+    /// The `ctor` is an `async` closure.
+    #[cfg(feature = "tokio")]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
+    pub async fn register_singleton<F>(&self, ctor: F)
+    where
+        F: crate::types::AsyncCtorDepsOnceFunc<T, Deps>
+            + Copy
+            + Send
+            + Sync
+            + 'static,
+    {
+        todo!()
+        // self.try_register_singleton(move |deps| async move {
+        //     let obj = ctor.invoke(deps).await;
+        //     Ok::<_, BoxErr>(obj)
+        // })
+        // .await;
+    }
+
+    /// Register a new singleton object, with dependencies specified in
+    /// [`Registry::with_deps`].
+    ///
+    /// The `ctor` parameter is a constructor function returning a `Result<T>` with the newly
+    /// constructed `T`. The constructor accepts a single argument `Deps` (a tuple implementing
+    /// [`crate::dependency_builder::DepBuilder`]). It's best to destructure the tuple to accept
+    /// each dependency separately. This constructor will be called once, lazily, when the first
+    /// instance of `T` is requested.
+    ///
+    /// The `ctor` is an `async` closure.
     #[cfg(feature = "tokio")]
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
     pub async fn try_register_singleton<F>(&self, ctor: F)
@@ -907,19 +997,24 @@ where
             std::any::type_name::<T>()
         );
 
-        todo!()
-        // let closure =
-        //     Box::new(move |deps| Box::pin(async move { (ctor)(deps).await }));
-        // let closure = Box::pin(async move {
-        //     Err::<T, ResolveError>(ResolveError::DependenciesMissing)
-        // });
+        let closure = move |deps| -> crate::types::BoxFuture<
+            'static,
+            Result<T, BoxErr>,
+        > { ctor.invoke(deps) };
 
-        // let singleton = Object::AsyncSingleton(Box::new(
-        //     AsyncSingletonWithDeps::new(closure),
-        // ));
+        let closure = Box::new(closure)
+            as Box<
+                dyn crate::types::SingletonCtorFallibleDeps<T, Deps>
+                    + Send
+                    + Sync,
+            >;
 
-        // self.registry.insert_or_panic::<T>(singleton).await;
-        // self.registry.validator.add_singleton_deps::<T, Deps>();
+        let singleton = Object::AsyncSingleton(Box::new(
+            AsyncSingletonWithDeps::new(closure),
+        ));
+
+        self.registry.insert_or_panic::<T>(singleton).await;
+        self.registry.validator.add_singleton_deps::<T, Deps>();
     }
 }
 

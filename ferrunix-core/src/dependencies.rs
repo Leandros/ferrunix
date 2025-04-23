@@ -30,6 +30,7 @@
 //! let s = registry.transient::<String>().unwrap();
 //! assert_eq!(s, "u8 is: 1".to_string());
 //! ```
+#![allow(clippy::manual_async_fn)]
 
 use std::any::TypeId;
 
@@ -63,7 +64,7 @@ pub trait Dep: Registerable + private::Sealed {
     #[cfg(feature = "tokio")]
     fn new(
         registry: &Registry,
-    ) -> impl std::future::Future<Output = Self> + Send
+    ) -> impl std::future::Future<Output = Self> + Send + Sync
     where
         Self: Sized;
 
@@ -134,12 +135,16 @@ impl<T: Registerable> Dep for Transient<T> {
     /// # Panic
     /// This function panics if the `T` isn't registered.
     #[cfg(feature = "tokio")]
-    async fn new(registry: &Registry) -> Self {
-        Self {
-            inner: registry.transient::<T>().await.expect(
-                "transient dependency must only be constructed if it's \
+    fn new(
+        registry: &Registry,
+    ) -> impl std::future::Future<Output = Self> + Send + Sync {
+        async move {
+            Self {
+                inner: registry.transient::<T>().await.expect(
+                    "transient dependency must only be constructed if it's \
                  fulfillable",
-            ),
+                ),
+            }
         }
     }
 
@@ -219,12 +224,16 @@ impl<T: RegisterableSingleton> Dep for Singleton<T> {
     /// # Panic
     /// This function panics if the `T` isn't registered.
     #[cfg(feature = "tokio")]
-    async fn new(registry: &Registry) -> Self {
-        Self {
-            inner: registry.singleton::<T>().await.expect(
-                "singleton dependency must only be constructed if it's \
+    fn new(
+        registry: &Registry,
+    ) -> impl std::future::Future<Output = Self> + Send + Sync {
+        async move {
+            Self {
+                inner: registry.singleton::<T>().await.expect(
+                    "singleton dependency must only be constructed if it's \
                  fulfillable",
-            ),
+                ),
+            }
         }
     }
 

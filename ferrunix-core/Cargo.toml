@@ -19,7 +19,7 @@ workspace = true
 [features]
 default = []
 multithread = ["once_cell/parking_lot"]
-tokio = ["dep:tokio", "dep:async-trait"]
+tokio = ["dep:tokio"]
 tracing = ["dep:tracing"]
 
 [dependencies]
@@ -28,7 +28,6 @@ parking_lot = "0.12"
 thiserror = "1"
 inventory = "0.3.1"
 tokio = { version = "1", default-features = false, features = ["rt", "sync", "parking_lot"], optional = true }
-async-trait = { version = "0.1", optional = true }
 tracing = { version = "0.1", optional = true }
 hashbrown = "0.15"
 paste = "1"
