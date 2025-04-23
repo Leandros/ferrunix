@@ -62,7 +62,7 @@ mod unsync {
         /// impl StringTemplate {
         ///     pub(crate) fn register(registry: &Registry) {
         ///         registry
-        ///             .transient::<StringTemplate>(|| StringTemplate { template: "" });
+        ///             .register_transient::<StringTemplate, _>(|| StringTemplate { template: "" });
         ///     }
         /// }
         ///
@@ -127,7 +127,7 @@ mod sync {
         /// impl StringTemplate {
         ///     pub(crate) fn register(registry: &Registry) {
         ///         registry
-        ///             .transient::<StringTemplate>(|| StringTemplate { template: "" });
+        ///             .register_transient::<StringTemplate, _>(|| StringTemplate { template: "" });
         ///     }
         /// }
         ///
