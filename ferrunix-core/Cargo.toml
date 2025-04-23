@@ -25,7 +25,7 @@ tracing = ["dep:tracing"]
 [dependencies]
 once_cell = { version = "~1.20" }
 parking_lot = "0.12"
-thiserror = "1"
+thiserror = ">=1.0.7"
 inventory = "0.3.1"
 tokio = { version = "1", default-features = false, features = ["rt", "sync", "parking_lot"], optional = true }
 tracing = { version = "0.1", optional = true }
