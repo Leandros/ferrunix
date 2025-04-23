@@ -1,6 +1,6 @@
-#![allow(clippy::unwrap_used, dead_code)]
+#![allow(clippy::unwrap_used, clippy::panic, dead_code)]
 
-use ferrunix::{Registry, Singleton, Transient, error::ResolveError};
+use ferrunix::{error::ResolveError, Registry, Singleton, Transient};
 
 #[test]
 fn simple_registry_concrete_types() {
@@ -108,13 +108,13 @@ fn validate_failure_missing_dependencies() {
     );
 
     let x1 = registry.transient::<u16>();
-    assert_eq!(x1.is_err(), true);
+    x1.unwrap_err();
 
     let x2 = registry.transient::<u32>();
-    assert_eq!(x2.is_err(), true);
+    x2.unwrap_err();
 
     let s1 = registry.singleton::<String>();
-    assert_eq!(s1.is_err(), true);
+    s1.unwrap_err();
 }
 
 #[test]
@@ -123,7 +123,7 @@ fn test_fallible_transient_success() {
     registry.try_register_transient(|| Ok(1_u8));
     registry
         .with_deps::<_, (Transient<u8>,)>()
-        .try_register_transient(|(first,)| Ok((*first + 15) as u16));
+        .try_register_transient(|(first,)| Ok(u16::from(*first + 15)));
     registry.register_transient(|| 1_u32);
     registry.validate_all_full().unwrap();
 
@@ -141,7 +141,7 @@ fn test_fallible_singleton_success() {
     registry.try_register_singleton(|| Ok(1_u8));
     registry
         .with_deps::<_, (Singleton<u8>,)>()
-        .try_register_singleton(|(first,)| Ok((**first + 15) as u16));
+        .try_register_singleton(|(first,)| Ok(u16::from(**first + 15)));
     registry.register_singleton(|| 1_u32);
     registry.validate_all_full().unwrap();
 
@@ -156,17 +156,14 @@ fn test_fallible_singleton_success() {
 #[test]
 fn test_fallible_transient_error_simple() {
     let registry = Registry::empty();
-    registry.try_register_transient::<u8, _>(
-        || {
-            Err(Box::new(std::io::Error::other("number too large")))
-        },
-    );
+    registry.try_register_transient::<u8, _>(|| {
+        Err(Box::new(std::io::Error::other("number too large")))
+    });
 
     registry.validate_all_full().unwrap();
 
     let x1 = registry.transient::<u8>();
-    assert_eq!(x1.is_err(), true);
-
+    x1.unwrap_err();
 }
 
 #[test]
@@ -189,9 +186,11 @@ fn test_fallible_transient_error() {
     let x = registry.transient::<u16>();
     assert_eq!(x.unwrap(), 1000_u16);
     let x1 = registry.transient::<u8>();
-    assert_eq!(x1.is_err(), true);
-    assert_eq!(x1.as_ref().unwrap_err().is_ctor_err(), true);
-    let Err(ResolveError::Ctor(_x1err)) = x1 else { panic!("wrong error returned") };
+    assert!(x1.is_err());
+    assert!(x1.as_ref().unwrap_err().is_ctor_err());
+    let Err(ResolveError::Ctor(_x1err)) = x1 else {
+        panic!("wrong error returned")
+    };
     let x2 = registry.transient::<u32>();
     assert_eq!(x2.unwrap(), 1_u32);
 }
@@ -216,7 +215,7 @@ fn test_fallible_singleton_error() {
     let x = registry.singleton::<u16>();
     assert_eq!(*x.unwrap(), 1000_u16);
     let x1 = registry.singleton::<u8>();
-    assert_eq!(x1.is_err(), true);
+    x1.unwrap_err();
     let x2 = registry.singleton::<u32>();
     assert_eq!(*x2.unwrap(), 1_u32);
 }

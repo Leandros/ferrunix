@@ -19,8 +19,12 @@ pub(crate) enum DependencyType {
 impl ToTokens for DependencyType {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         match self {
-            Self::Singleton => tokens.append(format_ident!("register_singleton")),
-            Self::Transient => tokens.append(format_ident!("register_transient")),
+            Self::Singleton => {
+                tokens.append(format_ident!("register_singleton"));
+            }
+            Self::Transient => {
+                tokens.append(format_ident!("register_transient"));
+            }
         }
     }
 }
@@ -168,8 +172,9 @@ fn registration_empty(
     let ifawait = await_if_needed();
     let generic_args = {
         match dependency_type {
-            DependencyType::Singleton => quote! { <#registered_ty, _> },
-            DependencyType::Transient => quote! { <#registered_ty, _> },
+            DependencyType::Singleton | DependencyType::Transient => {
+                quote! { <#registered_ty, _> }
+            }
         }
     };
 
@@ -199,8 +204,9 @@ fn registration_fields(
     let ifawait = await_if_needed();
     let generic_args = {
         match dependency_type {
-            DependencyType::Singleton => quote! { <#registered_ty, _> },
-            DependencyType::Transient => quote! { <#registered_ty, _> },
+            DependencyType::Singleton | DependencyType::Transient => {
+                quote! { <#registered_ty, _> }
+            }
         }
     };
 
