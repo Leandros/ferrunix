@@ -1,5 +1,6 @@
 //! Entrypoint for all integration tests.
 
+mod child;
 mod common;
 mod cycle_test;
 mod stress;

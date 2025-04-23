@@ -2,12 +2,12 @@
 //!
 //! The global registry is available via [`Registry::global`].
 
-use crate::{types::OnceCell, Registry};
+use crate::{types::OnceCell, types::Ref, Registry};
 
 /// The global, `'static` default [`Registry`]. It's constructed and accessible
 /// via [`Registry::global`].
 #[cfg(all(feature = "multithread", not(feature = "tokio")))]
-pub(crate) static DEFAULT_REGISTRY: OnceCell<Registry> = OnceCell::new();
+pub(crate) static DEFAULT_REGISTRY: OnceCell<Ref<Registry>> = OnceCell::new();
 
 #[cfg(all(not(feature = "multithread"), not(feature = "tokio")))]
 thread_local! {
@@ -17,13 +17,13 @@ thread_local! {
     /// Since this is a thread local, every thread will have it's own registry.
     ///
     /// To enable multithreaded registries, the `multithread` feature must be enabled.
-    pub(crate) static DEFAULT_REGISTRY: OnceCell<std::rc::Rc<Registry>> = const { OnceCell::new() };
+    pub(crate) static DEFAULT_REGISTRY: OnceCell<Ref<Registry>> = const { OnceCell::new() };
 }
 
 /// The global, `'static` default [`Registry`]. It's constructed and accessible
 /// via [`Registry::global`].
 #[cfg(feature = "tokio")]
-pub(crate) static DEFAULT_REGISTRY: OnceCell<Registry> = OnceCell::const_new();
+pub(crate) static DEFAULT_REGISTRY: OnceCell<Ref<Registry>> = OnceCell::const_new();
 
 /// Synchronous registration.
 #[cfg(not(feature = "tokio"))]

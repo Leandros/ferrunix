@@ -10,7 +10,7 @@ use crate::cycle_detection::{
 use crate::dependency_builder::DepBuilder;
 use crate::error::{ImplErrors, ResolveError};
 use crate::object_builder::Object;
-use crate::types::{BoxErr, Registerable, RegisterableSingleton};
+use crate::types::{BoxErr, RefWeak, Registerable, RegisterableSingleton};
 #[cfg(not(feature = "tokio"))]
 use crate::types::{
     SingletonCtor, SingletonCtorDeps, SingletonCtorFallible,
@@ -24,6 +24,8 @@ use crate::{
 
 /// Registry for all types that can be constructed or otherwise injected.
 pub struct Registry {
+    /// Parent registry. None if it's the root registry.
+    parent: Option<RefWeak<Registry>>,
     /// Internal hashtable of all registered objects.
     objects: RwLock<HashMap<TypeId, Object>>,
     /// Validation.
@@ -43,6 +45,7 @@ impl Registry {
     #[must_use]
     pub fn empty() -> Self {
         Self {
+            parent: None,
             objects: RwLock::new(HashMap::new()),
             validator: DependencyValidator::new(),
         }
@@ -125,17 +128,34 @@ impl Registry {
             std::rc::Rc::clone(ret)
         })
     }
-}
 
-#[cfg(all(feature = "multithread", not(feature = "tokio")))]
-impl Registry {
     /// Access the global registry.
     ///
     /// This registry contains the types that are marked for auto-registration
     /// via the derive macro.
+    #[cfg(all(feature = "multithread", not(feature = "tokio")))]
     #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub fn global() -> &'static Self {
-        DEFAULT_REGISTRY.get_or_init(Self::autoregistered)
+    pub fn global() -> Ref<Self> {
+        let ret = DEFAULT_REGISTRY.get_or_init(|| {
+            let new = Self::autoregistered();
+            Ref::new(new)
+        });
+        Ref::clone(ret)
+    }
+
+    /// Create a new child registry.
+    ///
+    /// When this registry is used to register and retrieve objects, the objects
+    /// directly registered on the returned registry are preferred to the objects
+    /// that have been previously registered with the parent registry.
+    ///
+    /// This allows for sub-registries to override objects from their parent.
+    pub fn child(self: &Ref<Self>) -> Ref<Self> {
+        Ref::new(Self {
+            parent: Some(Ref::downgrade(self)),
+            objects: RwLock::new(HashMap::new()),
+            validator: DependencyValidator::new(),
+        })
     }
 }
 
@@ -274,9 +294,16 @@ impl Registry {
             return Ok(*ret);
         }
 
-        Err(ResolveError::TypeMissing {
-            typename: std::any::type_name::<T>(),
-        })
+        #[allow(clippy::redundant_closure_for_method_calls)]
+        if let Some(parent) =
+            self.parent.as_ref().and_then(|weakref| weakref.upgrade())
+        {
+            parent.transient::<T>()
+        } else {
+            Err(ResolveError::TypeMissing {
+                typename: std::any::type_name::<T>(),
+            })
+        }
     }
 
     /// Retrieves the singleton `T` from this registry.
@@ -302,9 +329,16 @@ impl Registry {
             return Ok(obj);
         }
 
-        Err(ResolveError::TypeMissing {
-            typename: std::any::type_name::<T>(),
-        })
+        #[allow(clippy::redundant_closure_for_method_calls)]
+        if let Some(parent) =
+            self.parent.as_ref().and_then(|weakref| weakref.upgrade())
+        {
+            parent.singleton::<T>()
+        } else {
+            Err(ResolveError::TypeMissing {
+                typename: std::any::type_name::<T>(),
+            })
+        }
     }
 
     /// Reset the global registry, removing all previously registered types, and
@@ -326,7 +360,7 @@ impl Registry {
             (register.0)(&registry);
 
             #[cfg(feature = "multithread")]
-            (register.0)(registry);
+            (register.0)(&registry);
         }
     }
 
@@ -397,7 +431,7 @@ impl Registry {
         #[allow(clippy::panic)]
         while let Some(res) = set.join_next().await {
             match res {
-                Ok(_) => continue,
+                Ok(_) => {}
                 Err(err) if err.is_panic() => {
                     std::panic::resume_unwind(err.into_panic())
                 }
@@ -419,7 +453,7 @@ impl Registry {
     ///
     /// # Parameters
     ///   * `ctor`: A constructor function returning the newly constructed `T`. This constructor
-    ///   will be called once, lazily, when the first instance of `T` is requested.
+    ///     will be called once, lazily, when the first instance of `T` is requested.
     ///
     /// # Panics
     /// When the type has been registered already.
@@ -447,7 +481,7 @@ impl Registry {
     ///
     /// # Parameters
     ///   * `ctor`: A constructor function returning the newly constructed `Result<T>`. This
-    ///   constructor will be called once, lazily, when the first instance of `T` is requested.
+    ///     constructor will be called once, lazily, when the first instance of `T` is requested.
     ///
     /// # Panics
     /// When the type has been registered already.
@@ -479,7 +513,7 @@ impl Registry {
     ///
     /// # Parameters
     ///   * `ctor`: A constructor function returning the newly constructed `T`. This constructor
-    ///   will be called for every `T` that is requested.
+    ///     will be called for every `T` that is requested.
     ///
     /// # Panics
     /// When the type has been registered already.
@@ -507,7 +541,7 @@ impl Registry {
     ///
     /// # Parameters
     ///   * `ctor`: A constructor function returning the newly constructed `Result<T>`. This
-    ///   constructor will be called for every `T` that is requested.
+    ///     constructor will be called for every `T` that is requested.
     ///
     /// # Panics
     /// When the type has been registered already.
@@ -555,9 +589,16 @@ impl Registry {
             return Ok(*obj);
         }
 
-        Err(ResolveError::TypeMissing {
-            typename: std::any::type_name::<T>(),
-        })
+        #[allow(clippy::redundant_closure_for_method_calls)]
+        if let Some(parent) =
+            self.parent.as_ref().and_then(|weakref| weakref.upgrade())
+        {
+            Box::pin(async move { parent.transient::<T>().await }).await
+        } else {
+            Err(ResolveError::TypeMissing {
+                typename: std::any::type_name::<T>(),
+            })
+        }
     }
 
     /// Retrieves the singleton `T` from this registry.
@@ -584,9 +625,16 @@ impl Registry {
             return Ok(obj);
         }
 
-        Err(ResolveError::TypeMissing {
-            typename: std::any::type_name::<T>(),
-        })
+        #[allow(clippy::redundant_closure_for_method_calls)]
+        if let Some(parent) =
+            self.parent.as_ref().and_then(|weakref| weakref.upgrade())
+        {
+            Box::pin(async move { parent.singleton::<T>().await }).await
+        } else {
+            Err(ResolveError::TypeMissing {
+                typename: std::any::type_name::<T>(),
+            })
+        }
     }
 
     /// Access the global registry.
@@ -594,8 +642,14 @@ impl Registry {
     /// This registry contains the types that are marked for auto-registration
     /// via the derive macro.
     #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub async fn global() -> &'static Self {
-        DEFAULT_REGISTRY.get_or_init(Self::autoregistered).await
+    pub async fn global() -> Ref<Self> {
+        let ret = DEFAULT_REGISTRY
+            .get_or_init(|| async move {
+                let new = Self::autoregistered().await;
+                Ref::new(new)
+            })
+            .await;
+        Ref::clone(ret)
     }
 
     /// Reset the global registry, removing all previously registered types, and
@@ -614,7 +668,7 @@ impl Registry {
         }
 
         for register in inventory::iter::<RegistrationFunc> {
-            (register.0)(registry).await;
+            (register.0)(&registry).await;
         }
     }
 

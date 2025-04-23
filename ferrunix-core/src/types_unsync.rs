@@ -247,6 +247,10 @@ where
 /// simplifies enabling `multithread` when required.
 pub type Ref<T> = std::rc::Rc<T>;
 
+/// A generic *weak* reference type that's used as the return type for newly created child
+/// registries.
+pub type RefWeak<T> = std::rc::Weak<T>;
+
 /// A marker trait for all types that can be registered with `Registry::transient`.
 ///
 /// It's automatically implemented for all types that are valid. Generally,
