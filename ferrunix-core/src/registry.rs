@@ -295,15 +295,17 @@ impl Registry {
         }
 
         #[allow(clippy::redundant_closure_for_method_calls)]
-        if let Some(parent) =
-            self.parent.as_ref().and_then(|weakref| weakref.upgrade())
-        {
-            parent.transient::<T>()
-        } else {
-            Err(ResolveError::TypeMissing {
-                typename: std::any::type_name::<T>(),
-            })
-        }
+        self.parent
+            .as_ref()
+            .and_then(|weakref| weakref.upgrade())
+            .map_or_else(
+                || {
+                    Err(ResolveError::TypeMissing {
+                        typename: std::any::type_name::<T>(),
+                    })
+                },
+                |parent| parent.transient::<T>(),
+            )
     }
 
     /// Retrieves the singleton `T` from this registry.
@@ -330,15 +332,17 @@ impl Registry {
         }
 
         #[allow(clippy::redundant_closure_for_method_calls)]
-        if let Some(parent) =
-            self.parent.as_ref().and_then(|weakref| weakref.upgrade())
-        {
-            parent.singleton::<T>()
-        } else {
-            Err(ResolveError::TypeMissing {
-                typename: std::any::type_name::<T>(),
-            })
-        }
+        self.parent
+            .as_ref()
+            .and_then(|weakref| weakref.upgrade())
+            .map_or_else(
+                || {
+                    Err(ResolveError::TypeMissing {
+                        typename: std::any::type_name::<T>(),
+                    })
+                },
+                |parent| parent.singleton::<T>(),
+            )
     }
 
     /// Reset the global registry, removing all previously registered types, and
