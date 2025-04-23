@@ -157,7 +157,7 @@ fn test_fallible_singleton_success() {
 fn test_fallible_transient_error_simple() {
     let registry = Registry::empty();
     registry.try_register_transient::<u8, _>(|| {
-        Err(Box::new(std::io::Error::other("number too large")))
+        Err(Box::from(format!("number too large")))
     });
 
     registry.validate_all_full().unwrap();
@@ -174,9 +174,7 @@ fn test_fallible_transient_error() {
         .with_deps::<_, (Transient<u16>,)>()
         .try_register_transient(|(first,)| {
             if *first > 240 {
-                return Err(Box::new(std::io::Error::other(
-                    "number too large",
-                )));
+                return Err(Box::from(format!("number too large",)));
             }
             Ok((*first + 15) as u8)
         });
@@ -203,9 +201,7 @@ fn test_fallible_singleton_error() {
         .with_deps::<_, (Singleton<u16>,)>()
         .try_register_singleton(|(first,)| {
             if **first > 240 {
-                return Err(Box::new(std::io::Error::other(
-                    "number too large",
-                )));
+                return Err(Box::from(format!("number too large",)));
             }
             Ok((**first + 15) as u8)
         });
