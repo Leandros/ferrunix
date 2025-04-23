@@ -174,7 +174,7 @@ macro_rules! DepBuilderImpl {
         impl<R, $($ts,)*> $crate::dependency_builder::DepBuilder<R> for ($($ts,)*)
         where
             R: $crate::types::Registerable,
-            $($ts: $crate::dependencies::Dep + Send,)*
+            $($ts: $crate::dependencies::Dep,)*
         {
             #[cfg(not(feature = "tokio"))]
             fn build(

@@ -164,16 +164,13 @@ where
 /// It's not implementable by other crates.
 ///
 /// A blanket implementation for `FnOnce() -> Result<T, Err>` is provided.
-pub trait SingletonCtorFallible<T>:
-    FnOnce() -> Result<T, BoxErr> + Send + Sync + 'static
-{
+pub trait SingletonCtorFallible<T>: FnOnce() -> Result<T, BoxErr> + 'static {
     /// Calls the construcor.
     fn call(self, _: super::private::SealToken) -> Result<T, BoxErr>;
 }
 impl<T, F> SingletonCtorFallible<T> for F
 where
-    T: Send + Sync + 'static,
-    F: FnOnce() -> Result<T, BoxErr> + Send + Sync + 'static,
+    F: FnOnce() -> Result<T, BoxErr> + 'static,
 {
     fn call(self, _: super::private::SealToken) -> Result<T, BoxErr> {
         (self)()

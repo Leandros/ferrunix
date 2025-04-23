@@ -83,7 +83,7 @@ impl AsyncBillingService for RealBillingService {
 async fn test_more_complex() {
     let registry = Registry::empty();
     registry
-        .register_transient::<Box<dyn AsyncCreditCardProcessor>>(|| {
+        .register_transient::<Box<dyn AsyncCreditCardProcessor>, _>(|| {
             Box::pin(async move {
                 Box::new(PaypalCreditCardProcessor::default())
                     as Box<dyn AsyncCreditCardProcessor>
@@ -91,7 +91,7 @@ async fn test_more_complex() {
         })
         .await;
     registry
-        .register_transient::<Box<dyn AsyncTransactionLog>>(|| {
+        .register_transient::<Box<dyn AsyncTransactionLog>, _>(|| {
             Box::pin(async move {
                 Box::new(RealTransactionLog::default())
                     as Box<dyn AsyncTransactionLog>

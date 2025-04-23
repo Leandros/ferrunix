@@ -427,11 +427,14 @@ impl Registry {
     pub async fn register_singleton<T, F>(&self, ctor: F)
     where
         T: RegisterableSingleton,
-        F: crate::types::AsyncCtorOnceFunc<T> + Send + Sync + 'static,
+        F: crate::types::SingletonCtor<T> + Copy,
     {
-        let wrapped = async move || -> Result<T, BoxErr> {
-            let obj = ctor.invoke().await;
-            Ok::<_, BoxErr>(obj)
+        let wrapped = move || {
+            Box::pin(async move {
+                let obj = (ctor)().await;
+                Ok::<_, BoxErr>(obj)
+            })
+                as crate::types::BoxFuture<'static, Result<T, BoxErr>>
         };
 
         self.try_register_singleton::<T, _>(wrapped).await;
@@ -452,10 +455,7 @@ impl Registry {
     pub async fn try_register_singleton<T, F>(&self, ctor: F)
     where
         T: RegisterableSingleton,
-        F: crate::types::AsyncCtorOnceFunc<Result<T, BoxErr>>
-            + Send
-            + Sync
-            + 'static,
+        F: crate::types::SingletonCtorFallible<T>,
     {
         use crate::object_builder::AsyncSingletonNoDeps;
 
@@ -465,14 +465,8 @@ impl Registry {
             std::any::type_name::<T>()
         );
 
-        let wrapped =
-            move || -> crate::types::BoxFuture<'static, Result<T, BoxErr>> {
-                ctor.invoke()
-            };
-
-        let singleton = Object::AsyncSingleton(Box::new(
-            AsyncSingletonNoDeps::new(wrapped),
-        ));
+        let singleton =
+            Object::AsyncSingleton(Box::new(AsyncSingletonNoDeps::new(ctor)));
 
         self.insert_or_panic::<T>(singleton).await;
         self.validator.add_singleton_no_deps::<T>();
@@ -493,12 +487,15 @@ impl Registry {
     pub async fn register_transient<T, F>(&self, ctor: F)
     where
         T: Registerable,
-        F: crate::types::AsyncCtorFunc<T> + Copy + Send + Sync + 'static,
+        F: crate::types::TransientCtor<T> + Copy,
     {
-        let wrapped = move || async move {
-            let obj = ctor.invoke().await;
-            Ok::<_, BoxErr>(obj)
-        };
+        let wrapped = move || {
+            Box::pin(async move {
+                let obj = (ctor)().await;
+                Ok::<T, BoxErr>(obj)
+            })
+        }
+            as crate::types::BoxFuture<'static, Result<T, BoxErr>>;
 
         self.try_register_transient::<T, _>(wrapped).await;
     }
@@ -518,10 +515,7 @@ impl Registry {
     pub async fn try_register_transient<T, F>(&self, ctor: F)
     where
         T: Registerable,
-        F: crate::types::AsyncCtorFunc<Result<T, BoxErr>>
-            + Send
-            + Sync
-            + 'static,
+        F: crate::types::TransientCtorFallible<T>,
     {
         use crate::object_builder::AsyncTransientBuilderImplNoDeps;
 
@@ -531,13 +525,8 @@ impl Registry {
             std::any::type_name::<T>()
         );
 
-        let wrapped =
-            move || -> crate::types::BoxFuture<'static, Result<T, BoxErr>> {
-                ctor.invoke()
-            };
-
         let transient = Object::AsyncTransient(Box::new(
-            AsyncTransientBuilderImplNoDeps::new(Box::new(wrapped)
+            AsyncTransientBuilderImplNoDeps::new(Box::new(ctor)
                 as Box<
                     dyn crate::types::TransientCtorFallible<T> + Send + Sync,
                 >),
@@ -787,15 +776,13 @@ where
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
     pub async fn register_transient<F>(&self, ctor: F)
     where
-        F: crate::types::AsyncCtorDepsFunc<T, Deps>
-            + Copy
-            + Send
-            + Sync
-            + 'static,
+        F: crate::types::TransientCtorDeps<T, Deps> + Copy,
     {
-        self.try_register_transient(move |deps| async move {
-            let obj = ctor.invoke(deps).await;
-            Ok::<T, BoxErr>(obj)
+        self.try_register_transient(move |deps| {
+            Box::pin(async move {
+                let obj = (ctor)(deps).await;
+                Ok::<T, BoxErr>(obj)
+            })
         })
         .await;
     }
@@ -817,10 +804,7 @@ where
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
     pub async fn try_register_transient<F>(&self, ctor: F)
     where
-        F: crate::types::AsyncCtorDepsFunc<Result<T, BoxErr>, Deps>
-            + Send
-            + Sync
-            + 'static,
+        F: crate::types::TransientCtorFallibleDeps<T, Deps>,
     {
         use crate::object_builder::AsyncTransientBuilderImplWithDeps;
 
@@ -830,12 +814,7 @@ where
             std::any::type_name::<T>()
         );
 
-        let closure = move |deps| -> crate::types::BoxFuture<
-            'static,
-            Result<T, BoxErr>,
-        > { ctor.invoke(deps) };
-
-        let closure = Box::new(closure)
+        let closure = Box::new(ctor)
             as Box<
                 dyn crate::types::TransientCtorFallibleDeps<T, Deps>
                     + Send
@@ -956,18 +935,15 @@ where
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
     pub async fn register_singleton<F>(&self, ctor: F)
     where
-        F: crate::types::AsyncCtorDepsOnceFunc<T, Deps>
-            + Copy
-            + Send
-            + Sync
-            + 'static,
+        F: crate::types::SingletonCtorDeps<T, Deps>,
     {
-        todo!()
-        // self.try_register_singleton(move |deps| async move {
-        //     let obj = ctor.invoke(deps).await;
-        //     Ok::<_, BoxErr>(obj)
-        // })
-        // .await;
+        self.try_register_singleton(move |deps| {
+            Box::pin(async move {
+                let obj = (ctor)(deps).await;
+                Ok::<_, BoxErr>(obj)
+            })
+        })
+        .await;
     }
 
     /// Register a new singleton object, with dependencies specified in
@@ -984,10 +960,7 @@ where
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(ctor)))]
     pub async fn try_register_singleton<F>(&self, ctor: F)
     where
-        F: crate::types::AsyncCtorDepsOnceFunc<Result<T, BoxErr>, Deps>
-            + Send
-            + Sync
-            + 'static,
+        F: crate::types::SingletonCtorFallibleDeps<T, Deps>,
     {
         use crate::object_builder::AsyncSingletonWithDeps;
 
@@ -997,12 +970,7 @@ where
             std::any::type_name::<T>()
         );
 
-        let closure = move |deps| -> crate::types::BoxFuture<
-            'static,
-            Result<T, BoxErr>,
-        > { ctor.invoke(deps) };
-
-        let closure = Box::new(closure)
+        let closure = Box::new(ctor)
             as Box<
                 dyn crate::types::SingletonCtorFallibleDeps<T, Deps>
                     + Send
