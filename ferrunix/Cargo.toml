@@ -1,6 +1,6 @@
 [package]
 name = "ferrunix"
-version = "0.5.0-alpha1"
+version = "0.5.0-alpha2"
 description = "A lightweight run-time dependency injection framework for Rust"
 readme = "README.md"
 # Inherited.
@@ -24,8 +24,8 @@ tokio = ["ferrunix-core/tokio", "ferrunix-macros?/tokio"]
 tracing = ["ferrunix-core/tracing"]
 
 [dependencies]
-ferrunix-core = { path = "../ferrunix-core", default-features = false, version = "=0.5.0-alpha1" }
-ferrunix-macros = { path = "../ferrunix-macros", optional = true, version = "=0.5.0-alpha1" }
+ferrunix-core = { path = "../ferrunix-core", default-features = false, version = "=0.5.0-alpha2" }
+ferrunix-macros = { path = "../ferrunix-macros", optional = true, version = "=0.5.0-alpha2" }
 
 [dev-dependencies]
 thiserror = "1"
