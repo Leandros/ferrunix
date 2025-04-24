@@ -21,6 +21,8 @@ will be removed after two major releases.
   instead of only `T`.
   - `Registry::try_register_transient`
   - `Registry::try_register_singleton`
+- Support for nested/child registries.
+  - `Registry::child`
 
 ### <!-- 1 -->🐛 Bug Fixes
 
