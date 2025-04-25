@@ -4,7 +4,7 @@ Install [`ferrunix`] by adding the following to your `Cargo.toml`.
 
 ```toml
 [dependencies]
-ferrunix = "0.4"
+ferrunix = "0.5"
 ```
 
 or by running `cargo add`:

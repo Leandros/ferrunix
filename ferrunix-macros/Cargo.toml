@@ -1,6 +1,6 @@
 [package]
 name = "ferrunix-macros"
-version = "0.5.0"
+version = "0.5.1"
 description = "Proc-macro for ferrunix"
 readme = "README.md"
 # Inherited.
@@ -20,7 +20,7 @@ workspace = true
 proc-macro = true
 
 [features]
-default = ["development"]
+default = []
 multithread = []
 tokio = []
 development = ["syn/extra-traits", "dep:prettyplease"]

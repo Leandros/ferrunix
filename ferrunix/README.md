@@ -16,7 +16,7 @@
 
 ```toml
 [dependencies]
-ferrunix = "0.4"
+ferrunix = "0.5"
 ```
 
 *Compiler support: requires rustc 1.70.0+*
