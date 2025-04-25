@@ -7,7 +7,7 @@ of the changelog is based on [Keep a Changelog](https://keepachangelog.com/en/1.
 Deprecated features will be kept for any following maintenance release, and
 will be removed after two major releases.
 
-## [unreleased]
+## 0.5.0 - 2025-04-25
 
 ### <!-- 0 -->🚀 Features
 
