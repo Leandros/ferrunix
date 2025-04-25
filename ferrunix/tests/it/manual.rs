@@ -5,7 +5,6 @@ use ferrunix::{error::ResolveError, Registry, Singleton, Transient};
 #[test]
 fn simple_registry_concrete_types() {
     let registry = Registry::empty();
-    // todo!("make `transient` accept a non-fallible function, which is internally converted to a fallible function");
     registry.register_transient(|| 1_u8);
     registry.register_singleton(|| String::from("Hello, World"));
 
