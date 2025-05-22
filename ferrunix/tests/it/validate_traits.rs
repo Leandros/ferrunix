@@ -1,4 +1,4 @@
-#![allow(clippy::no_effect)]
+#![allow(clippy::no_effect, clippy::unnecessary_operation)]
 // use std::cell::RefCell;
 // use std::ffi::c_void;
 
