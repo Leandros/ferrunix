@@ -42,7 +42,7 @@ pub trait DepBuilder<R> {
     #[cfg(not(feature = "tokio"))]
     fn build(
         registry: &Registry,
-        ctor: &(dyn crate::types::TransientCtorFallibleDeps<R, Self>),
+        ctor: &dyn crate::types::TransientCtorFallibleDeps<R, Self>,
         _: private::SealToken,
     ) -> Result<R, ResolveError>
     where
@@ -117,7 +117,7 @@ where
     #[cfg(not(feature = "tokio"))]
     fn build(
         _registry: &Registry,
-        ctor: &(dyn crate::types::TransientCtorFallibleDeps<R, Self>),
+        ctor: &dyn crate::types::TransientCtorFallibleDeps<R, Self>,
         _: private::SealToken,
     ) -> Result<R, ResolveError> {
         (ctor)(()).map_err(ResolveError::Ctor)
@@ -179,7 +179,7 @@ macro_rules! DepBuilderImpl {
             #[cfg(not(feature = "tokio"))]
             fn build(
                 registry: &$crate::registry::Registry,
-                ctor: &(dyn crate::types::TransientCtorFallibleDeps<R, Self>),
+                ctor: &dyn crate::types::TransientCtorFallibleDeps<R, Self>,
                 _: private::SealToken,
             ) -> Result<R, ResolveError>
             {
