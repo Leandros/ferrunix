@@ -12,6 +12,7 @@ will be removed after two major releases.
 ### <!-- 0 -->🚀 Features
 
 ### <!-- 1 -->🐛 Bug Fixes
+- Bump version requirement to 1.71.0 due to MSRV of dependencies being raised.
 
 ## [0.5.1] - 2025-04-25
 
