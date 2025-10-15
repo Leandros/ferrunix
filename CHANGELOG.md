@@ -9,10 +9,13 @@ will be removed after two major releases.
 
 ## [unreleased]
 
+## [0.5.2] - 2025-10-15
+
 ### <!-- 0 -->🚀 Features
 
 ### <!-- 1 -->🐛 Bug Fixes
 - Bump version requirement to 1.71.0 due to MSRV of dependencies being raised.
+- Fix race condition for singletons with dependencies
 
 ## [0.5.1] - 2025-04-25
 
@@ -124,7 +127,7 @@ MSRV is bumped from `1.64.0` to `1.67.1`. MSRV with `tokio` enabled is `1.75.0`.
 - Ci failing
 - Panic in cmd! proc-macro
 
-[unreleased]: https://github.com/leandros/ferrunix/compare/v0.5.1..HEAD
+[unreleased]: https://github.com/leandros/ferrunix/compare/v0.5.2..HEAD
 [0.3.0]: https://github.com/leandros/ferrunix/compare/v0.2.0..v0.3.0
 [0.3.1]: https://github.com/leandros/ferrunix/compare/v0.3.0..v0.3.1
 [0.3.2]: https://github.com/leandros/ferrunix/compare/v0.3.1..v0.3.2
@@ -133,3 +136,4 @@ MSRV is bumped from `1.64.0` to `1.67.1`. MSRV with `tokio` enabled is `1.75.0`.
 [0.4.0]: https://github.com/leandros/ferrunix/compare/v0.3.4..v0.4.0
 [0.5.0]: https://github.com/leandros/ferrunix/compare/v0.4.0..v0.5.0
 [0.5.1]: https://github.com/leandros/ferrunix/compare/v0.5.0..v0.5.1
+[0.5.2]: https://github.com/leandros/ferrunix/compare/v0.5.1..v0.5.2
