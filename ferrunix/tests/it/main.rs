@@ -3,6 +3,8 @@
 mod child;
 mod common;
 mod cycle_test;
+mod race_async;
+mod race_sync;
 mod stress;
 mod validate_traits;
 

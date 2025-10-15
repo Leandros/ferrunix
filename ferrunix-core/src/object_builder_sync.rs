@@ -3,8 +3,8 @@ use crate::dependency_builder::DepBuilder;
 use crate::error::ResolveError;
 use crate::types::{
     BoxedAny, OnceCell, Ref, RefAny, Registerable, RegisterableSingleton,
-    RwLock, SingletonCtorFallibleDeps, SingletonCtorFallible, TransientCtorFallible,
-    TransientCtorFallibleDeps,
+    RwLock, SingletonCtorFallible, SingletonCtorFallibleDeps,
+    TransientCtorFallible, TransientCtorFallibleDeps,
 };
 use crate::Registry;
 
@@ -214,18 +214,21 @@ where
         &self,
         registry: &Registry,
     ) -> Result<RefAny, ResolveError> {
-        let ctor = {
-            let mut lock = self.ctor.write();
-            lock.take().expect("to be called only once")
-        };
+        let rc = self.cell.get_or_try_init(|| {
+            let ctor = {
+                let mut lock = self.ctor.write();
+                lock.take().expect("to be called only once")
+            };
 
-        let obj = Deps::build_once(
-            registry,
-            ctor,
-            crate::dependency_builder::private::SealToken,
-        )?;
+            let obj = Deps::build_once(
+                registry,
+                ctor,
+                crate::dependency_builder::private::SealToken,
+            )?;
 
-        let rc = self.cell.get_or_init(|| Ref::new(obj));
+            Ok::<_, ResolveError>(Ref::new(obj))
+        })?;
+
         let rc = Ref::clone(rc) as RefAny;
         Ok(rc)
     }

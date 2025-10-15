@@ -256,22 +256,25 @@ where
         registry: &'this Registry,
     ) -> BoxFuture<'this, Result<RefAny, ResolveError>> {
         Box::pin(async move {
-            let ctor = {
-                let mut lock = self.ctor.write().await;
-                lock.take().expect("to be called only once")
-            };
-
-            let obj = Deps::build_once(
-                registry,
-                ctor,
-                crate::dependency_builder::private::SealToken,
-            )
-            .await?;
-
             let rc = self
                 .cell
-                .get_or_init(move || async move { Ref::new(obj) })
-                .await;
+                .get_or_try_init(move || async move {
+                    let ctor = {
+                        let mut lock = self.ctor.write().await;
+                        lock.take().expect("to be called only once")
+                    };
+
+                    let obj = Deps::build_once(
+                        registry,
+                        ctor,
+                        crate::dependency_builder::private::SealToken,
+                    )
+                    .await?;
+
+                    Ok::<_, ResolveError>(Ref::new(obj))
+                })
+                .await?;
+
             let rc = Ref::clone(rc) as RefAny;
             Ok(rc)
         })
