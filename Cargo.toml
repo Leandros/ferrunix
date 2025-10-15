@@ -250,7 +250,6 @@ many_single_char_names          = "warn" # too many single character bindings
 map_err_ignore                  = "warn" # `map_err` should not ignore the original error
 map_unwrap_or                   = "warn" # using `.map(f).unwrap_or(a)` or `.map(f).unwrap_or_else(func)`, which are more succinctly expressed as `map_or(a, f)` or `map_or_else(a, f)`
 match_bool                      = "warn" # a `match` on a boolean expression instead of an `if..else` block
-match_on_vec_items              = "warn" # matching on vector elements can panic
 match_same_arms                 = "warn" # `match` with identical arm bodies
 match_wild_err_arm              = "warn" # a `match` with `Err(_)` arm and take drastic actions
 maybe_infinite_iter             = "warn" # possible infinite iteration
