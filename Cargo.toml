@@ -318,7 +318,6 @@ string_add_assign               = "warn" # using `x = x + ..` where x is a `Stri
 string_lit_as_bytes             = "warn" # calling `as_bytes` on a string literal instead of using a byte string literal
 string_lit_chars_any            = "warn" # checks for `<string_lit>.chars().any(|i| i == c)`
 string_slice                    = "warn" # slicing a string
-string_to_string                = "warn" # using `to_string()` on a `String`, which should be `clone()`
 struct_excessive_bools          = "warn" # using too many bools in a struct
 struct_field_names              = "warn" # structs where all fields share a prefix/postfix or contain the name of the struct
 str_split_at_newline            = "warn" # splitting a trimmed string at hard-coded newlines
@@ -335,7 +334,7 @@ trivially_copy_pass_by_ref      = "warn" # functions taking small copyable argum
 try_err                         = "warn" # return errors explicitly rather than hiding them behind a `?`
 tuple_array_conversions         = "warn" # checks for tuple<=>array conversions that are not done with `.into()`
 type_repetition_in_bounds       = "warn" # types are repeated unnecessarily in trait bounds, use `+` instead of using `T: _, T: _`
-unchecked_duration_subtraction  = "warn" # finds unchecked subtraction of a 'Duration' from an 'Instant'
+unchecked_time_subtraction      = "warn" # finds unchecked subtraction of a 'Duration' from an 'Instant'
 undocumented_unsafe_blocks      = "warn" # creating an unsafe block without explaining why it is safe
 unicode_not_nfc                 = "warn" # using a Unicode literal not in NFC normal form (see [Unicode tr15](http://www.unicode.org/reports/tr15/) for further information)
 uninhabited_references          = "warn" # reference to uninhabited type
