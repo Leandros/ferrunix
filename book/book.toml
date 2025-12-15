@@ -1,6 +1,5 @@
 [book]
 authors = ["Arvid Gerstmann"]
 language = "en"
-multilingual = false
 src = "src"
 title = "Ferrunix Documentation"
