@@ -20,7 +20,7 @@ use crate::cycle_detection::{DependencyValidator, VisitorContext};
 pub(crate) struct Visitor(
     pub(crate)  fn(
         &DependencyValidator,
-        &HashMap<TypeId, Visitor>,
+        &HashMap<TypeId, Self>,
         &mut VisitorContext,
     ) -> petgraph::graph::NodeIndex,
 );

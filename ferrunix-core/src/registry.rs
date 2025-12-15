@@ -25,7 +25,7 @@ use crate::{
 /// Registry for all types that can be constructed or otherwise injected.
 pub struct Registry {
     /// Parent registry. None if it's the root registry.
-    parent: Option<RefWeak<Registry>>,
+    parent: Option<RefWeak<Self>>,
     /// Internal hashtable of all registered objects.
     objects: RwLock<HashMap<TypeId, Object>>,
     /// Validation.

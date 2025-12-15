@@ -2,7 +2,8 @@
     dead_code,
     clippy::option_if_let_else,
     clippy::min_ident_chars,
-    clippy::manual_unwrap_or_default
+    clippy::manual_unwrap_or_default,
+    clippy::needless_continue
 )]
 use std::borrow::Cow;
 
