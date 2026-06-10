@@ -9,6 +9,9 @@ will be removed after two major releases.
 
 ## [unreleased]
 
+### <!-- 1 -->🐛 Bug Fixes
+- Bump version requirement to 1.85.0 due to MSRV of dependencies being raised.
+
 ## [0.5.2] - 2025-10-15
 
 ### <!-- 0 -->🚀 Features
