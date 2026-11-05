@@ -184,7 +184,7 @@ disallowed_script_idents        = "warn" # usage of non-allowed Unicode scripts
 doc_link_with_quotes            = "warn" # possible typo for an intra-doc link
 doc_markdown                    = "warn" # presence of `_`, `::` or camel-case outside backticks in documentation
 empty_drop                      = "warn" # empty `Drop` implementations
-empty_enum                      = "warn" # enum with no variants
+empty_enums                     = "warn" # enum with no variants
 enum_glob_use                   = "warn" # use items that import all variants of an enum
 equatable_if_let                = "warn" # using pattern matching instead of equality
 error_impl_error                = "warn" # exported types named `Error` that implement `Error`
@@ -202,7 +202,6 @@ float_cmp_const                 = "warn" # using `==` or `!=` on float constants
 fn_params_excessive_bools       = "warn" # using too many bools in function parameters
 fn_to_numeric_cast_any          = "warn" # casting a function pointer to any integer type
 format_push_string              = "warn" # `format!(..)` appended to existing `String`
-from_iter_instead_of_collect    = "warn" # use `.collect()` instead of `::from_iter()`
 future_not_send                 = "warn" # public Futures must be Send
 get_unwrap                      = "warn" # using `.get().unwrap()` or `.get_mut().unwrap()` when using `[]` would work instead
 if_not_else                     = "warn" # `if` branches that could be swapped so no negation operation is necessary on the condition

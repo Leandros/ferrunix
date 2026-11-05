@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+#![allow(dead_code, clippy::double_must_use)]
 
 use thiserror::Error;
 

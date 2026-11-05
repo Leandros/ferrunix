@@ -25,11 +25,10 @@ pub(crate) fn get_ctor_for(
             let len = segments.len();
             let is_std_type = segments
                 .first()
-                .map_or_else(|| false, |seg| seg.ident == format_ident!("std"));
-            let is_our_type = segments.first().map_or_else(
-                || false,
-                |seg| seg.ident == format_ident!("ferrunix"),
-            );
+                .is_some_and(|seg| seg.ident == format_ident!("std"));
+            let is_our_type = segments
+                .first()
+                .is_some_and(|seg| seg.ident == format_ident!("ferrunix"));
 
             let supported_types = [
                 ("Box", "::std::boxed::Box", "new"),
@@ -181,7 +180,7 @@ pub(crate) fn strip_arc_rc_ref(
                         args.args.first().expect("missing generic argument");
                     match first {
                         syn::GenericArgument::Type(generic_ty) => {
-                            return Ok(Cow::Owned(generic_ty.clone()))
+                            return Ok(Cow::Owned(generic_ty.clone()));
                         }
                         unsupported => {
                             return Err(syn::Error::new(
@@ -189,7 +188,7 @@ pub(crate) fn strip_arc_rc_ref(
                                 format!(
                                     "unsupported generic arg: {unsupported:?}"
                                 ),
-                            ))
+                            ));
                         }
                     }
                 }
@@ -198,7 +197,7 @@ pub(crate) fn strip_arc_rc_ref(
                     return Err(syn::Error::new(
                         span,
                         format!("unsupported type path: {unsupported:?}"),
-                    ))
+                    ));
                 }
             }
 
