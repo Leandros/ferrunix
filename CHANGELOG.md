@@ -9,8 +9,11 @@ will be removed after two major releases.
 
 ## [unreleased]
 
+## [0.5.3] - 2026-11-5
+
 ### <!-- 1 -->🐛 Bug Fixes
 - Bump version requirement to 1.85.0 due to MSRV of dependencies being raised.
+- Fix clippy warnings.
 
 ## [0.5.2] - 2025-10-15
 
@@ -140,3 +143,4 @@ MSRV is bumped from `1.64.0` to `1.67.1`. MSRV with `tokio` enabled is `1.75.0`.
 [0.5.0]: https://github.com/leandros/ferrunix/compare/v0.4.0..v0.5.0
 [0.5.1]: https://github.com/leandros/ferrunix/compare/v0.5.0..v0.5.1
 [0.5.2]: https://github.com/leandros/ferrunix/compare/v0.5.1..v0.5.2
+[0.5.3]: https://github.com/leandros/ferrunix/compare/v0.5.2..v0.5.3
