@@ -16,7 +16,10 @@ pub(super) fn run(_args: &DocsArgs) -> anyhow::Result<()> {
             "cargo clean -p ferrunix -p ferrunix-core -p ferrunix-macros"
         )
         .run()?;
-        cmd!(sh, "cargo test -p doc-tests").run()?;
+
+        // Rust Skeptic is not maintained:
+        // <https://github.com/budziq/rust-skeptic/issues/140>
+        // cmd!(sh, "cargo test -p doc-tests").run()?;
     }
 
     // Build the docs.
