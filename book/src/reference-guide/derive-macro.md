@@ -49,7 +49,7 @@ struct Transient {
 # extern crate ferrunix;
 use ferrunix::Inject;
 
-pub trait Logger {}
+pub trait Logger: Send + Sync {}
 
 #[derive(Inject)]
 #[provides(transient = "dyn Logger", no_registration)]
